@@ -1,0 +1,33 @@
+{
+  "name": "inventarium",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Monorepo do projeto Inventarium.",
+  "scripts": {
+    "prepare": "husky",
+    "lint:web": "npm --prefix apps/web run lint",
+    "lint:mobile": "npm --prefix apps/mobile run lint",
+    "test:backend": "cd apps/backend && gradlew.bat test",
+    "secretlint": "secretlint \"**/*\" --secretlintrc .secretlintrc.json --maskSecrets",
+    "commitlint": "commitlint --from HEAD~1 --to HEAD --verbose"
+  },
+  "lint-staged": {
+    "apps/web/**/*.{js,jsx,ts,tsx}": [
+      "npm --prefix apps/web run lint --"
+    ],
+    "apps/mobile/**/*.{js,jsx,ts,tsx,json}": [
+      "npm --prefix apps/mobile run lint --"
+    ],
+    "*": [
+      "secretlint --secretlintrc .secretlintrc.json --maskSecrets"
+    ]
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.8.1",
+    "@commitlint/config-conventional": "^19.8.1",
+    "@secretlint/secretlint-rule-preset-recommend": "^9.3.4",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.6",
+    "secretlint": "^9.3.4"
+  }
+}

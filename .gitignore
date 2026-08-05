@@ -1,0 +1,85 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Java / Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+# Next.js / Expo / React Native
+.next/
+out/
+.expo/
+dist/
+web-build/
+ios/
+android/
+
+# Coverage and caches
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+.eslintcache
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+
+# IDEs
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.iws
+*.iml
+*.ipr
+.classpath
+.project
+.settings/
+.factorypath
+.apt_generated/
+.springBeans
+.sts4-cache/
+.history/
+.ionide
+.VSCodeCounter/
+*.code-workspace
+.vscode-test/
+
+# OS and logs
+.DS_Store
+HELP.md
+debug.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.orig.*
+
+# Local database data
+data/
+apps/backend/data/
