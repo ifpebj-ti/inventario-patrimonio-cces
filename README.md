@@ -239,3 +239,7 @@ Mais detalhes de contribuicao estao em:
 ```text
 docs/contributing.md
 ```
+
+## Apresentação
+
+Apresentação disponível no [Canva](https://canva.link/1df0uvva66e2vrf)
