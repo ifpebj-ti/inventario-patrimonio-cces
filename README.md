@@ -6,10 +6,9 @@ Inventarium e um monorepo do projeto academico de gerenciamento de inventario. E
 
 ```text
 .
-├── apps/
-│   ├── backend/   # API Java/Spring Boot, banco PostgreSQL e scripts de apoio
-│   ├── mobile/    # Aplicativo Expo/React Native
-│   └── web/       # Aplicacao web Next.js
+├── backend/       # API Java/Spring Boot, banco PostgreSQL e scripts de apoio
+├── frontend/      # Aplicacao web Next.js
+├── mobile/        # Aplicativo Expo/React Native
 ├── docs/          # Documentacao do repositorio e guias de contribuicao
 ├── infra/         # Espaco reservado para infraestrutura e deploy
 ├── .github/       # GitHub Actions e Dependabot
@@ -21,7 +20,7 @@ Inventarium e um monorepo do projeto academico de gerenciamento de inventario. E
 
 ### Backend
 
-Local: `apps/backend`
+Local: `backend`
 
 Stack principal:
 
@@ -45,27 +44,27 @@ Partes importantes:
 Para rodar o banco local:
 
 ```bash
-cd apps/backend
+cd backend
 docker compose up -d
 ```
 
 Para rodar a API:
 
 ```bash
-cd apps/backend
+cd backend
 gradlew.bat bootRun
 ```
 
 No Linux/macOS:
 
 ```bash
-cd apps/backend
+cd backend
 ./gradlew bootRun
 ```
 
 ### Web
 
-Local: `apps/web`
+Local: `frontend`
 
 Stack principal:
 
@@ -78,7 +77,7 @@ Stack principal:
 Para instalar e rodar:
 
 ```bash
-cd apps/web
+cd frontend
 npm install
 npm run dev
 ```
@@ -91,7 +90,7 @@ http://localhost:3000
 
 ### Mobile
 
-Local: `apps/mobile`
+Local: `mobile`
 
 Stack principal:
 
@@ -105,7 +104,7 @@ Stack principal:
 Para instalar e rodar:
 
 ```bash
-cd apps/mobile
+cd mobile
 npm install
 npm run start
 ```
@@ -133,7 +132,7 @@ O `npm install` na raiz instala as ferramentas compartilhadas do monorepo, como 
 Para o backend, copie o arquivo de exemplo e defina os valores locais:
 
 ```bash
-cd apps/backend
+cd backend
 cp .env.example .env
 ```
 
@@ -214,9 +213,9 @@ O Dependabot esta configurado em `.github/dependabot.yml`.
 
 Ele verifica atualizacoes para:
 
-- `apps/web`: dependencias npm.
-- `apps/mobile`: dependencias npm.
-- `apps/backend`: dependencias Gradle.
+- `frontend`: dependencias npm.
+- `mobile`: dependencias npm.
+- `backend`: dependencias Gradle.
 - `/`: GitHub Actions.
 
 Quando encontra uma atualizacao, o GitHub abre um Pull Request automatico. A pipeline entao roda sobre esse PR para ajudar a validar a mudanca antes do merge.

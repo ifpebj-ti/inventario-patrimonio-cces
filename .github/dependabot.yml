@@ -2,8 +2,8 @@ version: 2
 updates:
   - package-ecosystem: "npm"
     directories:
-      - "/apps/web"
-      - "/apps/mobile"
+      - "/frontend"
+      - "/mobile"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -17,7 +17,7 @@ updates:
           - "patch"
 
   - package-ecosystem: "gradle"
-    directory: "/apps/backend"
+    directory: "/backend"
     schedule:
       interval: "weekly"
       day: "monday"
