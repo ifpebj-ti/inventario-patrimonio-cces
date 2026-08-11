@@ -5,18 +5,19 @@
   "description": "Monorepo do projeto Inventarium.",
   "scripts": {
     "prepare": "husky",
-    "lint:web": "npm --prefix apps/web run lint",
-    "lint:mobile": "npm --prefix apps/mobile run lint",
-    "test:backend": "cd apps/backend && gradlew.bat test",
+    "lint:web": "npm --prefix frontend run lint",
+    "lint:mobile": "npm --prefix mobile run lint",
+    "test:backend": "cd backend && gradlew.bat test",
     "secretlint": "secretlint \"**/*\" --secretlintrc .secretlintrc.json --maskSecrets",
     "commitlint": "commitlint --from HEAD~1 --to HEAD --verbose"
   },
   "lint-staged": {
-    "apps/web/**/*.{js,jsx,ts,tsx}": [
-      "npm --prefix apps/web run lint --"
+    "frontend/**/*.{js,jsx,ts,tsx}": [
+      "cd frontend && eslint"
     ],
-    "apps/mobile/**/*.{js,jsx,ts,tsx,json}": [
-      "npm --prefix apps/mobile run lint --"
+    "mobile/**/*.{js,jsx,ts,tsx,json}": [
+      "cd mobile && eslint",
+      "cd mobile && prettier -c"
     ],
     "*": [
       "secretlint --secretlintrc .secretlintrc.json --maskSecrets"
