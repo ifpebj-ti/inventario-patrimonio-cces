@@ -25,28 +25,36 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Checkout wiki
-        uses: actions/checkout@v4
-        with:
-          repository: ifpebj-ti/inventario-patrimonio-cces.wiki
-          path: wiki
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Clone wiki repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WIKI_DIR: ${{ runner.temp }}/inventario-patrimonio-cces.wiki
+        run: |
+          git clone \
+            "https://x-access-token:${GH_TOKEN}@github.com/ifpebj-ti/inventario-patrimonio-cces.wiki.git" \
+            "${WIKI_DIR}"
+
+          test "$(git -C "${WIKI_DIR}" remote get-url origin)" = \
+            "https://x-access-token:${GH_TOKEN}@github.com/ifpebj-ti/inventario-patrimonio-cces.wiki.git"
 
       - name: Sync wiki files
+        env:
+          WIKI_DIR: ${{ runner.temp }}/inventario-patrimonio-cces.wiki
         run: |
-          rsync -av --delete docs/wiki/ wiki/
+          rsync -av --delete --exclude='.git/' docs/wiki/ "${WIKI_DIR}/"
 
       - name: Commit and push wiki changes
-        working-directory: wiki
+        env:
+          WIKI_DIR: ${{ runner.temp }}/inventario-patrimonio-cces.wiki
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git -C "${WIKI_DIR}" config user.name "github-actions[bot]"
+          git -C "${WIKI_DIR}" config user.email "github-actions[bot]@users.noreply.github.com"
 
-          if [ -z "$(git status --porcelain)" ]; then
+          if [ -z "$(git -C "${WIKI_DIR}" status --porcelain)" ]; then
             echo "No wiki changes to publish."
             exit 0
           fi
 
-          git add .
-          git commit -m "docs: sync wiki"
-          git push
+          git -C "${WIKI_DIR}" add .
+          git -C "${WIKI_DIR}" commit -m "docs: sync wiki"
+          git -C "${WIKI_DIR}" push origin HEAD:master
