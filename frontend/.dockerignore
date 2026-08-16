@@ -1,0 +1,35 @@
+# Diretórios e arquivos gerados
+node_modules
+dist
+.build
+/.next/
+/out/
+coverage
+
+# Configuração de controle de versão
+.git
+
+# Configuração de IDE
+.idea
+.vscode
+
+# Arquivos temporários e logs
+npm-debug.log
+yarn-error.log
+*.log
+*.tmp
+*.cache
+
+# Arquivos de ambiente
+.env
+.env.development
+.env.test
+
+# Documentação e outros arquivos não necessários
+*.md
+
+# Testes
+test
+tests
+*.test.ts
+*.test.js

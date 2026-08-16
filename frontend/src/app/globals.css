@@ -1,1 +1,18 @@
+@import url('https://fonts.googleapis.com/css2?family=Linden+Hill:ital@0;1&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
 @import "tailwindcss";
+
+/* Cria variáveis para serem usadas no CSS */
+:root {
+  --emphasis-font: "Linden Hill", serif;
+  --normal-font: "Montserrat", sans-serif;
+  --emphasis-color: #5E94E5;
+}
+
+* {
+    font-family: var(--normal-font);
+}
+
+h1 {
+    font-family: var(--emphasis-font);
+}

@@ -40,6 +40,9 @@ dependencies {
     // Enviar emails
     implementation("org.springframework.boot:spring-boot-starter-mail:3.5.3")
 
+    // Versionamento e migração do schema do banco de dados
+    implementation 'org.liquibase:liquibase-core'
+
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
     runtimeOnly 'org.postgresql:postgresql'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

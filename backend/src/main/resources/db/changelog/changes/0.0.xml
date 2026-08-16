@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- =========================== USER ================================== -->
+
+    <changeSet id="20260816-1" author="Lucas Silva">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="im_user"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="im_user">
+            <column name="id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="email" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="password" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="telephone" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="verified" type="BOOLEAN">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addPrimaryKey tableName="im_user" columnNames="id" constraintName="pk_user"/>
+
+        <addUniqueConstraint tableName="im_user" columnNames="email" constraintName="uk_3602435580614"/>
+
+        <createSequence sequenceName="im_user_id" incrementBy="1" startValue="1"/>
+
+    </changeSet>
+
+    <!-- =========================== USER TOKENS ================================ -->
+
+    <changeSet id="20260816-8" author="Lucas Silva">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="im_user_tokens"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="im_user_tokens">
+            <column name="id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="token" type="VARCHAR(255)"/>
+            <column name="token_type" type="VARCHAR(55)"/>
+            <column name="expiration" type="TIMESTAMP"/>
+            <column name="id_user" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addPrimaryKey tableName="im_user_tokens" columnNames="id" constraintName="pk_user_tokens"/>
+
+        <addForeignKeyConstraint baseTableName="im_user_tokens" baseColumnNames="id_user"
+                                 referencedTableName="im_user" referencedColumnNames="id"
+                                 constraintName="fk_2553683747012"/>
+
+        <createSequence sequenceName="im_user_tokens_id" incrementBy="1" startValue="1"/>
+
+    </changeSet>
+
+
+    <!-- =========================== INVENTORY ================================== -->
+
+    <changeSet id="20260816-13" author="Lucas Silva">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="im_inventory"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="im_inventory">
+            <column name="id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="VARCHAR(255)"/>
+            <column name="created_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="id_user" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addPrimaryKey tableName="im_inventory" columnNames="id" constraintName="pk_inventory"/>
+
+        <addForeignKeyConstraint baseTableName="im_inventory" baseColumnNames="id_user"
+                                 referencedTableName="im_user" referencedColumnNames="id"
+                                 constraintName="fk_9553013621156"/>
+
+        <createSequence sequenceName="im_inventory_id" incrementBy="1" startValue="1"/>
+
+    </changeSet>
+
+    <!-- =========================== ITEM ================================== -->
+
+    <changeSet id="20260816-18" author="Lucas Silva">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="im_item"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="im_item">
+            <column name="id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="code" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(255)"/>
+            <column name="description" type="VARCHAR(1000)"/>
+            <column name="price" type="BIGINT"/>
+            <column name="locale" type="VARCHAR(255)"/>
+            <column name="responsible" type="VARCHAR(255)"/>
+            <column name="qr_code" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="is_valid" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="validated_at" type="TIMESTAMP"/>
+            <column name="id_inventory" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addPrimaryKey tableName="im_item" columnNames="id" constraintName="pk_item"/>
+
+        <addForeignKeyConstraint baseTableName="im_item" baseColumnNames="id_inventory"
+                                 referencedTableName="im_inventory" referencedColumnNames="id"
+                                 constraintName="fk_4475173894937"/>
+
+        <createSequence sequenceName="im_item_id" incrementBy="1" startValue="1"/>
+
+    </changeSet>
+
+
+    <!-- =========================== OBSERVATION ================================== -->
+
+    <changeSet id="20260816-21" author="Lucas Silva">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="im_observation"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="im_observation">
+            <column name="id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="content" type="VARCHAR(1000)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="id_item" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addPrimaryKey tableName="im_observation" columnNames="id" constraintName="pk_observation"/>
+
+        <addForeignKeyConstraint baseTableName="im_observation" baseColumnNames="id_item"
+                                 referencedTableName="im_item" referencedColumnNames="id"
+                                 constraintName="fk_9506536018245"/>
+
+        <createIndex tableName="im_observation" indexName="ix_0031251303422">
+            <column name="id_item"/>
+        </createIndex>
+
+        <createSequence sequenceName="im_observation_id" incrementBy="1" startValue="1"/>
+
+    </changeSet>
+
+</databaseChangeLog>

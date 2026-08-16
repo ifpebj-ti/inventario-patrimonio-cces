@@ -30,14 +30,14 @@ Aplicação principal, só terá versões estáveis para build.
 
 Aplicação com todas as funcionalidades adicionadas e que servirão de base para adição de novas features.
 
-### Feature-[nome da feature]
+### Feature/[nome da feature]
 
 Branch criada a partir da development para criação de nova funcionalidade, após finalizada é feito merge com a development
 
-### Release-[nome da release]
+### Release/[nome da release]
 
 Branch criada para testes de funcionalidades que deverão ser mescladas para main ou development
 
-### Hotfix-[nome do hotfix]
+### Hotfix/[nome do hotfix]
 
 Branch criada para correção de bugs presentes na main.
