@@ -6,6 +6,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -24,10 +25,18 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
+                // Autenticação é só por Bearer: sessão persistida somada a CSRF desabilitado
+                // e origins="*" seria o que abriria espaço para CSRF de verdade.
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> {
                     auth
                             .requestMatchers("/new-user").permitAll()
+                            // Sem isto, o encaminhamento para /error de qualquer exceção não
+                            // tratada é barrado e o cliente recebe 403 vazio no lugar do 500.
+                            .requestMatchers("/error").permitAll()
                             .requestMatchers("/auth/login").permitAll()
+                            // Sem HttpMethod: o preflight OPTIONS precisa casar também.
+                            .requestMatchers("/auth/google").permitAll()
                             .requestMatchers("/auth/verify/{token}").permitAll()
                             .requestMatchers("/auth/reset-password").permitAll()
                             .requestMatchers(HttpMethod.PUT, "/auth/reset-password/{token}").permitAll();

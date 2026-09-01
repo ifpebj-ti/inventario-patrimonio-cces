@@ -12,16 +12,18 @@ public class UserTokens {
 
     @Id
     @Column(name = "id")
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "im_user_tokens_id")
+    @SequenceGenerator(name = "im_user_tokens_id", sequenceName = "im_user_tokens_id", allocationSize = 1)
     private long id;
 
     @Column
     private String token;
 
+    @Enumerated(EnumType.STRING)
     @Column
     private TokenType tokenType;
 
-    @Column(nullable = false, updatable = false, insertable = false)
+    @Column(nullable = false)
     private LocalDateTime expiration;
 
     @OneToOne
@@ -68,10 +70,11 @@ public class UserTokens {
         this.user = user;
     }
 
-    public UserTokens(String token, TokenType tokenType, User user) {
+    public UserTokens(String token, TokenType tokenType, User user, LocalDateTime expiration) {
         this.token = token;
         this.tokenType = tokenType;
         this.user = user;
+        this.expiration = expiration;
     }
 
     public UserTokens() {

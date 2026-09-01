@@ -1,6 +1,8 @@
 package clp.inventory.model;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -12,7 +14,8 @@ public class Inventory {
 
     @Id
     @Column(name = "id")
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "im_inventory_id")
+    @SequenceGenerator(name = "im_inventory_id", sequenceName = "im_inventory_id", allocationSize = 1)
     private long id;
 
     @Column(nullable = false)
@@ -20,10 +23,12 @@ public class Inventory {
 
     private String description;
 
-    @Column(nullable = false, insertable = false, updatable = false)
+    @CreationTimestamp
+    @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(nullable = false, insertable = false, updatable = false)
+    @UpdateTimestamp
+    @Column(nullable = false)
     private LocalDateTime updatedAt;
 
     @ManyToOne

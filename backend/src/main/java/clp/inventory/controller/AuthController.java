@@ -1,6 +1,7 @@
 package clp.inventory.controller;
 
 import clp.inventory.dto.AuthDto;
+import clp.inventory.dto.GoogleAuthDto;
 import clp.inventory.dto.ResetPasswordDto;
 import clp.inventory.exception.VerifyEmailException;
 import clp.inventory.service.EmailService;
@@ -37,6 +38,22 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid login or password");
         } catch (VerifyEmailException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Email not verified");
+        }
+    }
+
+    @PostMapping("/google")
+    public ResponseEntity<Object> loginWithGoogle(@RequestBody GoogleAuthDto googleAuthDto) {
+        if (googleAuthDto == null || googleAuthDto.credential() == null || googleAuthDto.credential().isBlank()) {
+            return ResponseEntity.badRequest().body("Missing Google credential");
+        }
+
+        try {
+            var response = authenticationService.authenticateWithGoogle(googleAuthDto);
+
+            return ResponseEntity.ok().body(response);
+        } catch (AuthenticationException e) {
+            // Mensagem única para toda falha de validação, para não revelar qual check falhou.
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid Google token");
         }
     }
 

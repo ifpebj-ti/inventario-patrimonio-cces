@@ -13,7 +13,8 @@ import java.util.stream.Collectors;
 public class Item {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "im_item_id")
+    @SequenceGenerator(name = "im_item_id", sequenceName = "im_item_id", allocationSize = 1)
     private long id;
 
     @Column(nullable = false)

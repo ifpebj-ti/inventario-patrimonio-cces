@@ -2,7 +2,9 @@ package clp.inventory.service.auth;
 
 import clp.inventory.dto.AuthDto;
 import clp.inventory.dto.AuthResponseDTO;
+import clp.inventory.dto.GoogleAuthDto;
 import clp.inventory.exception.VerifyEmailException;
+import clp.inventory.providers.GoogleTokenProvider;
 import clp.inventory.model.TokenType;
 import clp.inventory.model.User;
 import clp.inventory.model.UserTokens;
@@ -31,26 +33,35 @@ public class AuthenticationService {
     private final PasswordEncoder passwordEncoder;
     private final UserService userService;
     private final EmailService emailService;
+    private final GoogleTokenProvider googleTokenProvider;
 
     public AuthenticationService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             UserService userService,
-            EmailService emailService
+            EmailService emailService,
+            GoogleTokenProvider googleTokenProvider
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.userService = userService;
         this.emailService = emailService;
+        this.googleTokenProvider = googleTokenProvider;
     }
 
     public AuthResponseDTO authenticate(AuthDto authDto) throws AuthenticationException, VerifyEmailException {
         var user = userRepository.findByEmail(authDto.email())
                 .orElseThrow(() -> new AuthenticationException("User with email " + authDto.email() + " not found"));
 
-        var isPasswordMatches = passwordEncoder.matches(authDto.password(), user.getPassword());
+        // Conta criada via Google não tem senha e nunca pode autenticar por aqui. O guard
+        // também protege o matches(), que lança IllegalArgumentException com senha nula —
+        // exceção que o controller não captura e viraria 500.
+        if (authDto.password() == null || authDto.password().isBlank()
+                || user.getPassword() == null || user.getPassword().isBlank()) {
+            throw new AuthenticationException("Invalid credentials");
+        }
 
-        if (!isPasswordMatches) {
+        if (!passwordEncoder.matches(authDto.password(), user.getPassword())) {
             throw new AuthenticationException("Invalid password");
         }
 
@@ -59,12 +70,27 @@ public class AuthenticationService {
             throw new VerifyEmailException("User is not verified");
         }
 
+        return new AuthResponseDTO(issueToken(user), user);
+    }
+
+    public AuthResponseDTO authenticateWithGoogle(GoogleAuthDto googleAuthDto) throws AuthenticationException {
+        var googleUser = googleTokenProvider.verify(googleAuthDto.credential());
+        var user = userService.findOrLinkGoogleUser(googleUser);
+
+        return new AuthResponseDTO(issueToken(user), user);
+    }
+
+    /**
+     * Emite o token da aplicação. Os dois caminhos de login passam por aqui: um token sem
+     * o issuer "inventory" atravessaria o SecurityFilter, que não o confere, e só quebraria
+     * depois no AuthenticationUtils, que confere.
+     */
+    private String issueToken(User user) {
         Algorithm algorithm = Algorithm.HMAC256(secretKey);
-        var token = JWT.create().withIssuer("inventory")
+
+        return JWT.create().withIssuer("inventory")
                 .withSubject(user.getId().toString())
                 .withExpiresAt(Instant.now().plus(Duration.ofHours(24)))
                 .sign(algorithm);
-
-        return new AuthResponseDTO(token, user);
     }
 }
