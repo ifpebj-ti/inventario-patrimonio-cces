@@ -16,8 +16,9 @@ public class UserController {
         this.userService = userService;
     }
 
-    @GetMapping("/users")
-    public List<User> listUsers() {
-        return userService.listAllUsers();
-    }
+    //TODO VALIDAR SE TEM NECESSIDADE DESSE ACESSO
+//    @GetMapping("/users")
+//    public List<User> listUsers() {
+//        return userService.listAllUsers();
+//    }
 }
