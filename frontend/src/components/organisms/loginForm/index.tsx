@@ -7,14 +7,14 @@ import toast from 'react-hot-toast'
 
 import { useAuth } from '@/hooks/useAuth'
 import { AuthError } from '@/commons/exceptions/AuthError'
-import { GOOGLE_CLIENT_ID, INSTITUTIONAL_DOMAIN_LABEL } from '@/commons/env'
+import { GOOGLE_CLIENT_ID } from '@/commons/env'
 
 const MESSAGES = {
   // O 401 do backend cobre token inválido E domínio não permitido, com a mesma
   // mensagem, de propósito. Como um ID token inválido é praticamente impossível
   // de um humano produzir — ele vem do Google segundos antes —, na prática este
   // caso significa "entrou com a conta Google errada", e o texto diz isso.
-  unauthorized: `Não foi possível entrar. Use sua conta institucional ${INSTITUTIONAL_DOMAIN_LABEL}. Contas pessoais do Google não têm acesso ao Inventarium.`,
+  unauthorized: 'Não foi possível entrar. Use sua conta institucional.',
   unavailable:
     'O serviço de autenticação está indisponível no momento. Tente novamente em alguns minutos.',
   unexpected: 'Falha inesperada ao entrar. Tente novamente.',
@@ -63,10 +63,10 @@ export const LoginForm = () => {
 
   return (
     <div className="w-full h-full xl:w-2/3 bg-white flex justify-center items-center flex-col gap-6 xl:h-3/4 rounded-3xl shadow-2xl">
-      <h2 className="text-3xl text-blue-400">Seja Bem-vindo</h2>
+      <h2 className="text-3xl text-blue-600">Seja Bem-vindo</h2>
 
       <p className="text-center text-gray-600 max-w-xs px-4">
-        Entre com sua conta institucional do Google para acessar o Inventarium.
+        Entre com sua conta institucional para acessar o Inventarium.
       </p>
 
       {!GOOGLE_CLIENT_ID ? (
@@ -105,11 +105,6 @@ export const LoginForm = () => {
           {error}
         </p>
       )}
-
-      {/* Avisar antes da tentativa evita a maior parte da confusão. */}
-      <p className="text-center text-xs text-gray-400 max-w-xs px-4">
-        Apenas contas {INSTITUTIONAL_DOMAIN_LABEL} podem acessar o sistema.
-      </p>
     </div>
   )
 }
