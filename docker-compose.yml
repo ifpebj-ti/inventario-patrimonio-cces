@@ -34,7 +34,9 @@ services:
       - SPRING_JPA_HIBERNATE_DDL_AUTO=none
       - SPRING_MAIL_USERNAME=${SPRING_MAIL_USERNAME:-inventariumclp@gmail.com}
       - SPRING_MAIL_PASSWORD=${SPRING_MAIL_PASSWORD:-change-me-to-a-long-random-secret}
-      - SECURITY_TOKEN_SECRET=${SECURITY_TOKEN_SECRET:-change-me-to-a-long-random-secret}
+      - SECURITY_TOKEN_SECRET=${SECURITY_TOKEN_SECRET:?defina SECURITY_TOKEN_SECRET no .env}
+      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
+      - GOOGLE_ALLOWED_DOMAINS=${GOOGLE_ALLOWED_DOMAINS:-ifpe.edu.br}
 
     networks:
       - inventarium-net
@@ -42,6 +44,17 @@ services:
   inventarium-front:
     container_name: inventarium-front
     image: "inventarium-front:0.0.1"
+    build:
+      context: ./frontend
+      args:
+        # Mesmo client id do backend: o GoogleTokenProvider valida o claim "aud"
+        # contra a cópia dele, e divergência vira um 401 impossível de depurar
+        # pela tela. O client id é público, vai no bundle do browser.
+        # O Next inlina no build, então trocar o valor exige rebuild da imagem.
+        # Sem :? de propósito: com ele qualquer comando do compose (down, ps)
+        # falharia enquanto a variável estivesse vazia. Quem barra o build sem
+        # client id é a guarda no next.config.ts, com mensagem explícita.
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
     depends_on:
       - inventarium-back
     ports:

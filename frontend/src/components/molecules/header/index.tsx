@@ -1,7 +1,7 @@
 'use client'
 
 import { useAuth } from '@/hooks/useAuth'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { PiSignOutBold } from 'react-icons/pi'
 import { FaArrowLeft } from 'react-icons/fa'
 
@@ -11,20 +11,26 @@ export const Header = () => {
   const { signOut } = useAuth()
   // Hook do Next.js para controlar a navegação entre as páginas.
   const router = useRouter()
+  const pathname = usePathname()
+  // O dashboard é a página inicial de quem está logado: não há para onde
+  // "voltar" dentro do fluxo autenticado, então a seta não aparece ali.
+  const isDashboard = pathname === '/dashboard'
 
   return (
     // 'sticky' e 'top-0' mantêm o cabeçalho fixo no topo da página durante a rolagem.
     <header className="sticky flex flex-row justify-center items-center shadow p-4 top-0 z-50 bg-white">
       {/* Ícone de seta para voltar para a página anterior no histórico do navegador. */}
-      <button
-        onClick={() => router.back()}
-        aria-label="Voltar para a página anterior"
-        title="Voltar para a página anterior"
-        className="absolute left-10"
-        accessKey="b" // atalho intuitivo para back/Voltar
-      >
-        <FaArrowLeft className="text-2xl text-blue-400 cursor-pointer sm:text-4xl" />
-      </button>
+      {!isDashboard && (
+        <button
+          onClick={() => router.back()}
+          aria-label="Voltar para a página anterior"
+          title="Voltar para a página anterior"
+          className="absolute left-10"
+          accessKey="b" // atalho intuitivo para back/Voltar
+        >
+          <FaArrowLeft className="text-2xl text-blue-400 cursor-pointer sm:text-4xl" />
+        </button>
+      )}
       {/* Título/logo principal da aplicação, que também é um link para o dashboard. */}
       <h1
         className="text-3xl sm:text-6xl text-blue-400 cursor-pointer"

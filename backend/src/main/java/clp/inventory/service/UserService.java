@@ -1,140 +1,76 @@
 package clp.inventory.service;
 
-import clp.inventory.dto.UserDto;
-import clp.inventory.model.TokenType;
+import clp.inventory.dto.GoogleUserInfo;
 import clp.inventory.model.User;
-import clp.inventory.model.UserTokens;
 import clp.inventory.repository.UserRepository;
-import clp.inventory.repository.UserTokensRepository;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import javax.security.sasl.AuthenticationException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.TimeoutException;
 
 @Service
 public class UserService {
 
+    // Vazio libera qualquer domínio. Cada entrada casa com o domínio e seus subdomínios.
+    @Value("${google.oauth.allowed-domains:}")
+    private List<String> allowedDomains = List.of();
+
     private final UserRepository userRepository;
-    private final EmailService emailService;
-    private final PasswordEncoder passwordEncoder;
-    private final UserTokensRepository userTokensRepository;
 
     @Value("${security.token.secret}")
     private String secretKey;
 
-    public UserService(
-            UserRepository userRepository,
-            PasswordEncoder passwordEncoder,
-            EmailService emailService,
-            UserTokensRepository userTokensRepository
-    ) {
+    public UserService(UserRepository userRepository) {
         this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.emailService = emailService;
-        this.userTokensRepository = userTokensRepository;
     }
 
-    public User createUser(UserDto userDto) {
+    /**
+     * Localiza o usuário pelo e-mail do Google ou cria a conta na primeira entrada.
+     * Este é o único caminho que insere em im_user.
+     */
+    @Transactional
+    public User findOrCreateGoogleUser(GoogleUserInfo googleUser) throws AuthenticationException {
+        // O Google devolve o e-mail canonicalizado em minúsculas, mas findByEmail e o
+        // índice único são case-sensitive: sem normalizar, o mesmo dono viraria duas contas.
+        String email = googleUser.email().trim().toLowerCase(Locale.ROOT);
 
-        userRepository.findByEmail(userDto.email())
-                .ifPresent(user -> {
-                    throw new RuntimeException("User with email " + userDto.email() + " already exists");
-                });
-
-        var password = passwordEncoder.encode(userDto.password());
-
-        User user = new User(
-                userDto.name(),
-                userDto.email(),
-                password,
-                false,
-                userDto.telephone()
-        );
-
-        String token = UUID.randomUUID().toString();
-        User savedUser = userRepository.save(user);
-
-        UserTokens userTokens = new UserTokens(token, TokenType.VERIFICATION, savedUser);
-        userTokensRepository.save(userTokens);
-        emailService.sendVerificationEmail(savedUser.getEmail(), token);
-
-        return savedUser;
-    }
-
-    public User verifyUser(String token) {
-        UserTokens userTokens = userTokensRepository.findByToken(token).orElse(null);
-        if (userTokens == null) {
-            System.out.print("Token not found");
-            throw new RuntimeException("User not found");
+        Optional<User> existing = userRepository.findByEmail(email);
+        if (existing.isPresent()) {
+            return existing.get();
         }
 
-        if (userTokens.getExpiration().isBefore(LocalDateTime.now())) {
-            System.out.print("Token is expired");
-            System.out.print(userTokens.getExpiration().isAfter(LocalDateTime.now()));
-            throw new RuntimeException("Expired token");
+        // Porta de entrada: só quem ainda não tem conta passa por aqui.
+        if (!isDomainAllowed(email)) {
+            throw new AuthenticationException("Domain not allowed: " + email);
         }
 
-        User user = userRepository.findUserById(userTokens.getUser().getId()).orElse(null);
-        assert user != null : "User not found";
-        user.setVerified(true);
+        User user = new User();
+        user.setName(googleUser.name());
+        user.setEmail(email);
+        user.setGoogleId(googleUser.sub());
+
         return userRepository.save(user);
     }
 
-    @Transactional
-    public void askPasswordResetEmail(String email) {
-        String token = UUID.randomUUID().toString();
-        userRepository.findByEmail(email).ifPresent(user -> {
-        });
-        Optional<User> userOpt = userRepository.findByEmail(email);
-        if (userOpt.isPresent()) {
-            User user = userOpt.get();
-            emailService.sendPasswordResetEmail(user.getEmail(), token);
-            UserTokens userTokens = new UserTokens(token, TokenType.RESETPASSWORD, user);
-            userTokensRepository.save(userTokens);
-            return;
-        }
-        throw new RuntimeException("User not found");
-    }
-
-    @Transactional
-    public User resetPassword(String token, String newPassword) {
-        UserTokens userToken = userTokensRepository.findByToken(token)
-                .orElseThrow(() -> new RuntimeException("Token de redefinição inválido ou já utilizado."));
-
-        if (userToken.getExpiration().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("Token expirado. Por favor, solicite um novo link.");
+    private boolean isDomainAllowed(String email) {
+        if (allowedDomains.isEmpty()) {
+            return true;
         }
 
-        User user = userToken.getUser();
-        user.setPassword(passwordEncoder.encode(newPassword));
-        User savedUser = userRepository.save(user);
-        // Token de uso único: precisa ser removido após a troca para impedir reutilização do link.
-        userTokensRepository.delete(userToken);
+        String domain = email.substring(email.indexOf('@') + 1);
 
-        return savedUser;
-    }
-
-    public void sendEmailVerification(String email) {
-        Optional<User> userOpt = userRepository.findByEmail(email);
-        if (userOpt.isPresent()) {
-            User user = userOpt.get();
-            String token = UUID.randomUUID().toString();
-            UserTokens userTokens = new UserTokens(token, TokenType.VERIFICATION, user);
-            userTokensRepository.save(userTokens);
-            emailService.sendVerificationEmail(user.getEmail(), token);
-            return;
-        }
-        throw new RuntimeException("User not found");
+        // O "." antes do domínio permitido é o que impede @fakeifpe.edu.br de passar,
+        // enquanto libera os subdomínios @discente. e @docente.
+        return allowedDomains.stream()
+                .map(allowed -> allowed.trim().toLowerCase(Locale.ROOT))
+                .filter(allowed -> !allowed.isEmpty())
+                .anyMatch(allowed -> domain.equals(allowed) || domain.endsWith("." + allowed));
     }
 
     public User getCurrentUser(String token) {
@@ -148,10 +84,6 @@ public class UserService {
     }
 
     public List<User> listAllUsers() {
-
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String userId = (String) authentication.getPrincipal();
-
         return userRepository.findAll();
     }
 

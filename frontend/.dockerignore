@@ -24,6 +24,9 @@ yarn-error.log
 .env
 .env.development
 .env.test
+.env.local
+.env*.local
+.env.production
 
 # Documentação e outros arquivos não necessários
 *.md

@@ -1,9 +1,6 @@
 package clp.inventory.controller;
 
-import clp.inventory.dto.AuthDto;
-import clp.inventory.dto.ResetPasswordDto;
-import clp.inventory.exception.VerifyEmailException;
-import clp.inventory.service.EmailService;
+import clp.inventory.dto.GoogleAuthDto;
 import clp.inventory.service.UserService;
 import clp.inventory.service.auth.AuthenticationService;
 import org.springframework.http.HttpStatus;
@@ -19,24 +16,25 @@ public class AuthController {
 
     private final AuthenticationService authenticationService;
     private final UserService userService;
-    private final EmailService emailService;
 
-    public AuthController(AuthenticationService authenticationService, UserService userService, EmailService emailService) {
+    public AuthController(AuthenticationService authenticationService, UserService userService) {
         this.authenticationService = authenticationService;
         this.userService = userService;
-        this.emailService = emailService;
     }
 
-    @PostMapping("/login")
-    public ResponseEntity<Object> login(@RequestBody AuthDto authDto) {
+    @PostMapping("/google")
+    public ResponseEntity<Object> loginWithGoogle(@RequestBody GoogleAuthDto googleAuthDto) {
+        if (googleAuthDto == null || googleAuthDto.credential() == null || googleAuthDto.credential().isBlank()) {
+            return ResponseEntity.badRequest().body("Missing Google credential");
+        }
+
         try {
-            var response = authenticationService.authenticate(authDto);
+            var response = authenticationService.authenticateWithGoogle(googleAuthDto);
 
             return ResponseEntity.ok().body(response);
         } catch (AuthenticationException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid login or password");
-        } catch (VerifyEmailException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Email not verified");
+            // Mensagem única para toda falha de validação, para não revelar qual check falhou.
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid Google token");
         }
     }
 
@@ -51,36 +49,6 @@ public class AuthController {
             return ResponseEntity.ok().body(user);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body("Invalid authorization header");
-        }
-    }
-
-    @GetMapping("/verify/{token}")
-    public ResponseEntity<Object> verifyEmail(@PathVariable String token) {
-        try {
-            var response = userService.verifyUser(token);
-            return ResponseEntity.ok().body(response);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body("Invalid token");
-        }
-    }
-
-    @GetMapping("/reset-password")
-    public ResponseEntity<Object> askPasswordResetEmail(@RequestParam String email) {
-        try {
-            userService.askPasswordResetEmail(email);
-            return ResponseEntity.ok().body("Password reset email sent to " + email);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body("Invalid email");
-        }
-    }
-
-    @PutMapping("/reset-password/{token}")
-    public ResponseEntity<Object> resetPassword(@PathVariable String token, @RequestBody ResetPasswordDto requestDto) {
-        try {
-            var user = userService.resetPassword(token, requestDto.password());
-            return ResponseEntity.ok().body(user);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body("Invalid token");
         }
     }
 }

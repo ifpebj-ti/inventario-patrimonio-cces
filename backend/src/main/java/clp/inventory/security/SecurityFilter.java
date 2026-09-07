@@ -22,6 +22,19 @@ public class SecurityFilter extends OncePerRequestFilter {
         this.jwtProvider = jwtProvider;
     }
 
+    /**
+     * O filtro roda mesmo nas rotas liberadas e aborta com 401 diante de um Bearer inválido.
+     * Como o frontend anexa o token em toda requisição, quem está com o JWT expirado não
+     * conseguiria fazer login de novo sem esta exceção.
+     *
+     * <p>Espelha o permitAll do SecurityConfig e não pode ser generalizado para
+     * "/auth/**": /auth/me exige autenticação e depende deste filtro para obtê-la.
+     */
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return request.getServletPath().equals("/auth/google");
+    }
+
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,
