@@ -1,128 +1,78 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { AuthContext } from './context'
-import {
-  recoverUserInformation,
-  resetPasswordRequest,
-  signInRequest,
-  verifyUserRequest,
-} from '@/services/auth'
-import { ProviderProps, SignInData, User, ResetPasswordData } from './types'
-import { setCookie, parseCookies, destroyCookie } from 'nookies'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { signUpRequest, SignUpRequestData } from '@/services/user'
+import { setCookie, parseCookies, destroyCookie } from 'nookies'
 import toast from 'react-hot-toast'
-import { VerifyEmailError } from '@/commons/exceptions/VerifyEmailError'
+
+import { AuthContext } from './context'
+import { ProviderProps, User } from './types'
+import { googleSignInRequest, recoverUserInformation } from '@/services/auth'
+
+export const TOKEN_COOKIE = 'inventarium.token'
+
+// O path explícito é obrigatório nos dois lados. Sem ele o cookie é gravado com
+// o path da página do login ('/') e o destroyCookie é emitido com o path da
+// página onde o logout aconteceu ('/dashboard'), que não casa — e o cookie
+// sobrevive ao logout.
+const COOKIE_OPTIONS = {
+  maxAge: 24 * 60 * 60, // o JWT do backend também expira em 24h
+  path: '/',
+  sameSite: 'lax' as const,
+}
 
 // Este componente gerencia todo o estado e lógica de autenticação da aplicação,
 // disponibilizando-os para todos os componentes filhos através de um Contexto.
 export const AuthProvider = ({ children }: ProviderProps) => {
-  // Estado para armazenar os dados do usuário logado.
   const [user, setUser] = useState<User | null>(null)
-  // Estado para controlar o carregamento inicial e evitar redirecionamentos indevidos.
+  // Controla o carregamento inicial e evita redirecionamentos indevidos.
   const [loading, setLoading] = useState(true)
   const router = useRouter()
-  // Booleano derivado do estado 'user' para facilitar as verificações.
+
   const isAuthenticated = !!user
 
-  // Efeito que roda uma única vez para verificar se existe um token nos cookies
-  // e tentar restaurar a sessão do usuário ao carregar a aplicação.
+  // Roda uma única vez para restaurar a sessão a partir do cookie.
   useEffect(() => {
-    const { 'inventarium.token': token } = parseCookies()
+    const { [TOKEN_COOKIE]: token } = parseCookies()
 
-    if (token) {
-      recoverUserInformation()
-        .then((response) => {
-          setUser(response.data)
-        })
-        .catch(() => {
-          // Se o token for inválido, limpa o cookie e o estado local.
-          destroyCookie(undefined, 'inventarium.token')
-          setUser(null)
-        })
-        .finally(() => {
-          // Garante que o estado de 'loading' termine, independentemente do resultado.
-          setLoading(false)
-        })
-    } else {
+    if (!token) {
       setLoading(false)
+      return
     }
+
+    recoverUserInformation()
+      .then((response) => setUser(response.data))
+      .catch(() => {
+        destroyCookie(undefined, TOKEN_COOKIE, { path: '/' })
+        setUser(null)
+      })
+      .finally(() => setLoading(false))
   }, [])
 
-  // Função que lida com o fluxo de login do usuário.
-  const signIn = async ({
-    email,
-    password,
-    recaptchaToken,
-  }: SignInData): Promise<void> => {
-    try {
-      const { token, user } = await signInRequest({
-        email,
-        password,
-        recaptchaToken,
-      })
+  const signInWithGoogle = useCallback(
+    async (credential: string) => {
+      // Deixa o AuthError subir: quem chama decide a mensagem exibida.
+      const { token, user } = await googleSignInRequest(credential)
 
-      console.log(token, user)
-
-      // Salva o token JWT nos cookies para manter a sessão.
-      setCookie(undefined, 'inventarium.token', token, {
-        maxAge: 24 * 60 * 60 * 1, // Expira em 1 dia
-      })
-
-      // Atualiza o estado global e redireciona para o dashboard.
+      setCookie(undefined, TOKEN_COOKIE, token, COOKIE_OPTIONS)
       setUser(user)
-      router.push('/dashboard')
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (error: any) {
-      // Diferencia o erro de "email não verificado" de outros erros (ex: senha errada).
-      if (error instanceof VerifyEmailError) {
-        throw new VerifyEmailError('Email não verificado')
-      }
-      // Relança o erro para que o formulário de login possa tratá-lo.
-      throw new Error('Erro ao logar no sistema do Coletare', error)
-    }
-  }
+      router.replace('/dashboard')
+    },
+    [router],
+  )
 
-  // Função para deslogar o usuário.
-  const signOut = async () => {
-    router.push('/')
-    toast.success('Você saiu com sucesso do Inventarium.')
-    // Limpa o token dos cookies e o estado do usuário.
-    destroyCookie(undefined, 'inventarium.token')
+  const signOut = useCallback(() => {
+    // Limpa a sessão antes de navegar: o guard de rota reage a isAuthenticated
+    // e tira o usuário das páginas protegidas por conta própria.
+    destroyCookie(undefined, TOKEN_COOKIE, { path: '/' })
     setUser(null)
-  }
-
-  // Função para registrar um novo usuário.
-  const signUp = async (data: SignUpRequestData) => {
-    // Chama a API de cadastro e, em seguida, direciona o usuário para o fluxo de verificação de e-mail.
-    await signUpRequest(data)
-    toast.error('Verifique seu email.')
-    router.push('/')
-  }
-
-  // Chama a API para validar o token de verificação de e-mail.
-  const verifyEmail = async (token: string) => {
-    await verifyUserRequest(token)
-  }
-
-  // Chama a API para efetivar a redefinição de senha.
-  const resetPassword = async ({ token, password }: ResetPasswordData) => {
-    return await resetPasswordRequest({ token, password })
-  }
+    router.replace('/')
+    toast.success('Você saiu com sucesso do Inventarium.')
+  }, [router])
 
   return (
     <AuthContext.Provider
-      value={{
-        user,
-        isAuthenticated,
-        loading,
-        signIn,
-        signOut,
-        signUp,
-        verifyEmail,
-        resetPassword,
-      }}
+      value={{ user, loading, isAuthenticated, signInWithGoogle, signOut }}
     >
       {children}
     </AuthContext.Provider>

@@ -2,13 +2,10 @@ package clp.inventory.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 
@@ -30,16 +27,11 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> {
                     auth
-                            .requestMatchers("/new-user").permitAll()
                             // Sem isto, o encaminhamento para /error de qualquer exceção não
                             // tratada é barrado e o cliente recebe 403 vazio no lugar do 500.
                             .requestMatchers("/error").permitAll()
-                            .requestMatchers("/auth/login").permitAll()
                             // Sem HttpMethod: o preflight OPTIONS precisa casar também.
-                            .requestMatchers("/auth/google").permitAll()
-                            .requestMatchers("/auth/verify/{token}").permitAll()
-                            .requestMatchers("/auth/reset-password").permitAll()
-                            .requestMatchers(HttpMethod.PUT, "/auth/reset-password/{token}").permitAll();
+                            .requestMatchers("/auth/google").permitAll();
                     auth.anyRequest().authenticated();
                 })
                 // TODO: Verificar se tem necessidade futuramente com os tipos de planos disponíveis.
@@ -57,8 +49,4 @@ public class SecurityConfig {
         return http.build();
     }
 
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
 }

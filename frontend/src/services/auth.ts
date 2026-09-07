@@ -1,70 +1,48 @@
-import { VerifyEmailError } from '@/commons/exceptions/VerifyEmailError'
+import axios from 'axios'
 import { api } from './api'
-import { AxiosError } from 'axios'
+import { AuthError } from '@/commons/exceptions/AuthError'
+import { User } from '@/contexts/Auth/types'
 
-// tipo de dado para login
-type SignInRequestData = {
-  email: string
-  password: string
-  recaptchaToken: string
-}
-
-// tipo de dado para trocar senha
-type ResetPasswordRequestData = {
+type GoogleAuthResponse = {
   token: string
-  password: string
+  user: User
 }
 
-export const signInRequest = async (data: SignInRequestData) => {
+// Troca o ID token do Google pelo JWT da aplicação.
+//
+// O backend responde 401 com o corpo em texto puro "Invalid Google token" tanto
+// para token inválido quanto para domínio não permitido — é uma escolha
+// deliberada dele não revelar qual verificação falhou. Por isso classificamos
+// pelo status, nunca pelo texto do corpo.
+export const googleSignInRequest = async (
+  credential: string,
+): Promise<GoogleAuthResponse> => {
   try {
-    // tenta realizar login corretamente
-    const response = await api.post('/auth/login', data)
-    console.log(response)
+    const response = await api.post<GoogleAuthResponse>('/auth/google', {
+      credential,
+    })
+
     return response.data
   } catch (error) {
-    // caso der erro verifica se foi de email e joga para tratamento posterior
-    const axiosError = error as AxiosError
-    const errorMessage = (axiosError.response?.data as string)
-      ?.trim()
-      .toLowerCase()
-    console.log(errorMessage, typeof axiosError.response?.data)
-    if (errorMessage === 'email not verified') {
-      console.log('teste')
-      throw new VerifyEmailError('Email não verificado')
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status
+
+      if (status === 401 || status === 400) {
+        throw new AuthError('unauthorized', 'Login com Google recusado')
+      }
+
+      if (!error.response || (status && status >= 500)) {
+        throw new AuthError(
+          'unavailable',
+          'Serviço de autenticação indisponível',
+        )
+      }
     }
-    // se for outro erro, como credenciais erradas envia para tratamento posterior
-    throw new Error('Falha ao realizar o login')
+
+    throw new AuthError('unexpected', 'Falha inesperada ao autenticar')
   }
 }
 
-// requisicao para renovar dados do usuario atraves do token passado no interceptor
 export const recoverUserInformation = async () => {
-  const response = await api.get('/auth/me')
-  return response
-}
-
-// requisicao para verificar usuario passando token de verificacao
-export const verifyUserRequest = async (token: string) => {
-  const response = await api.get(`auth/verify/${token}`)
-  return response
-}
-
-// reqsuisicao para enviar email de troca de senha
-export const askPasswordResetRequest = async (email: string) => {
-  const response = await api.get('/auth/reset-password', {
-    params: {
-      email,
-    },
-  })
-  console.log(response)
-  return response
-}
-
-// requisicao para mudar a senha atraves de token de confirmacao e senha
-export const resetPasswordRequest = async ({
-  token,
-  password,
-}: ResetPasswordRequestData) => {
-  const response = api.put(`auth/reset-password/${token}`, { password })
-  return response
+  return api.get<User>('/auth/me')
 }

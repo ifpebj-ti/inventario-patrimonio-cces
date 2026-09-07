@@ -1,9 +1,16 @@
 # inventory
 
-# - Login com Google
+# - Autenticação
 
-O backend aceita o **ID token** que o Google Identity Services entrega ao frontend e devolve o
-mesmo JWT da aplicação que o login por senha devolve. Não há redirect, sessão nem client secret.
+O login com Google é o **único** jeito de entrar. Não existe cadastro próprio, senha,
+verificação de e-mail nem recuperação de senha.
+
+O backend recebe o **ID token** que o Google Identity Services entrega ao frontend, valida a
+assinatura contra o JWKS do Google mais os claims `iss`, `aud`, `exp` e `email_verified`, e
+devolve o JWT da própria aplicação (HS256, 24h). Sem redirect, sem sessão e sem client secret —
+o fluxo de ID token usa apenas o client id, que é público.
+
+Só existem dois endpoints de autenticação: `POST /auth/google` e `GET /auth/me`.
 
 ## Configuração
 
@@ -11,14 +18,17 @@ mesmo JWT da aplicação que o login por senha devolve. Não há redirect, sess�
 |---|---|
 | `SECURITY_TOKEN_SECRET` | Obrigatória. Chave de assinatura do JWT. Gere com `openssl rand -hex 32`. |
 | `GOOGLE_OAUTH_CLIENT_ID` | Client id do tipo *Web application*. Vazio faz `/auth/google` responder 500. |
-| `GOOGLE_ALLOWED_DOMAINS` | Domínios que podem **criar** conta nova. Vazio libera qualquer um. |
+| `GOOGLE_ALLOWED_DOMAINS` | Domínios que podem criar conta. Vazio libera qualquer um. |
 
 Copie `.env.example` da raiz para `.env` (ignorado pelo git) e preencha.
 
 `GOOGLE_ALLOWED_DOMAINS` é uma lista separada por vírgula em que cada entrada casa com o domínio
-e seus subdomínios: `ifpe.edu.br` já cobre `@ifpe.edu.br`, `@discente.ifpe.edu.br` e
-`@docente.ifpe.edu.br`. A restrição vale só para cadastro novo — quem já tem conta consegue
-vincular e entrar pelo Google mesmo com e-mail de outro domínio.
+**e seus subdomínios**: `ifpe.edu.br` já cobre `@ifpe.edu.br`, `@discente.ifpe.edu.br` e
+`@docente.ifpe.edu.br`. A verificação é a porta de entrada, aplicada só na criação da conta.
+
+O mesmo valor precisa chegar ao frontend como `NEXT_PUBLIC_GOOGLE_CLIENT_ID`. O Next inlina essa
+variável no bundle **durante o build**, então ela vai como build arg no `docker-compose.yml`, e
+trocar o client id exige `docker compose build inventarium-front` — só subir de novo não basta.
 
 No Google Cloud Console, em *APIs & Services → Credentials → OAuth 2.0 Client ID* do tipo
 **Web application**, liste as origens do frontend em **Authorized JavaScript origins**
@@ -33,11 +43,11 @@ ID token, não o de authorization code.
 { "credential": "<ID token do Google>" }
 ```
 
-Resposta 200, idêntica em forma à do `POST /auth/login`:
+Resposta 200:
 
 ```json
 { "token": "<JWT da aplicação, 24h>",
-  "user": { "id": 2, "name": "Aluno", "email": "aluno@discente.ifpe.edu.br", "verified": true } }
+  "user": { "id": 2, "name": "Aluno", "email": "aluno@discente.ifpe.edu.br" } }
 ```
 
 | Status | Corpo | Quando |
@@ -46,28 +56,24 @@ Resposta 200, idêntica em forma à do `POST /auth/login`:
 | 401 | `Invalid Google token` | assinatura, `iss`, `aud`, `exp`, `email_verified` ou domínio recusados |
 | 500 | erro padrão do Spring | `GOOGLE_OAUTH_CLIENT_ID` não configurado |
 
-A mensagem de 401 é única de propósito: distinguir os motivos revelaria quais e-mails existem
-e qual verificação falhou.
+A mensagem de 401 é única de propósito: distinguir os motivos revelaria quais e-mails existem e
+qual verificação falhou. O frontend classifica pelo status, nunca pelo texto do corpo — e trata
+o 500 como "serviço indisponível", não como conta recusada.
 
-## Vinculação de contas
+`GET /auth/me` devolve o usuário do token: `{ id, name, email }`.
 
-Se o e-mail do Google já tem cadastro, a conta existente é reaproveitada e passa a ter
-`google_id` e `verified = true`. Quando essa conta **ainda não estava verificada**, a senha é
-apagada na vinculação: ela foi escolhida por alguém que nunca provou controlar a caixa, e mantê-la
-entregaria a conta a quem tivesse pré-cadastrado o e-mail da vítima. Essa pessoa pode definir uma
-senha nova pelo fluxo de recuperação, que exige acesso ao e-mail.
+## Criação de conta
 
-Contas criadas via Google ficam sem senha e não conseguem autenticar por `POST /auth/login`.
+Quem entra pela primeira vez tem a conta criada na hora, desde que o domínio do e-mail esteja
+permitido. Não há cadastro, aprovação nem confirmação por e-mail: o Google já provou a posse da
+caixa, e o `GoogleTokenProvider` recusa qualquer token com `email_verified: false`.
 
-## O que o frontend precisa fazer
+Nos acessos seguintes o usuário é localizado pelo e-mail, normalizado em minúsculas — o Google
+devolve o e-mail canonicalizado, mas o índice único do Postgres é case-sensitive, e sem normalizar
+o mesmo dono viraria duas contas.
 
-- `NEXT_PUBLIC_GOOGLE_CLIENT_ID` com o mesmo valor de `GOOGLE_OAUTH_CLIENT_ID`.
-- Carregar `https://accounts.google.com/gsi/client` e chamar
-  `google.accounts.id.initialize({ client_id, callback })`; o callback recebe `{ credential }`.
-- `POST /auth/google` com esse `credential` e, na resposta, reaproveitar o mesmo tratamento do
-  login por senha: gravar o cookie `inventarium.token` e guardar o `user`. Sem recaptcha e sem o
-  desvio de "e-mail não verificado".
-- O tipo `User` do frontend não muda.
+A coluna `google_id` guarda o `sub` do Google. Ela é `NOT NULL` porque todo usuário nasce por este
+caminho, mas **não é consultada para autenticar** — quem autentica é a assinatura do ID token.
 
 
 # - Limpeza de Dados com clear-all-data.sh

@@ -44,6 +44,17 @@ services:
   inventarium-front:
     container_name: inventarium-front
     image: "inventarium-front:0.0.1"
+    build:
+      context: ./frontend
+      args:
+        # Mesmo client id do backend: o GoogleTokenProvider valida o claim "aud"
+        # contra a cópia dele, e divergência vira um 401 impossível de depurar
+        # pela tela. O client id é público, vai no bundle do browser.
+        # O Next inlina no build, então trocar o valor exige rebuild da imagem.
+        # Sem :? de propósito: com ele qualquer comando do compose (down, ps)
+        # falharia enquanto a variável estivesse vazia. Quem barra o build sem
+        # client id é a guarda no next.config.ts, com mensagem explícita.
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
     depends_on:
       - inventarium-back
     ports:

@@ -27,18 +27,12 @@ public class SecurityFilter extends OncePerRequestFilter {
      * Como o frontend anexa o token em toda requisição, quem está com o JWT expirado não
      * conseguiria fazer login de novo sem esta exceção.
      *
-     * <p>A lista espelha o permitAll do SecurityConfig e não pode ser generalizada para
+     * <p>Espelha o permitAll do SecurityConfig e não pode ser generalizado para
      * "/auth/**": /auth/me exige autenticação e depende deste filtro para obtê-la.
      */
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getServletPath();
-
-        return path.equals("/new-user")
-                || path.equals("/auth/login")
-                || path.equals("/auth/google")
-                || path.startsWith("/auth/verify/")
-                || path.startsWith("/auth/reset-password");
+        return request.getServletPath().equals("/auth/google");
     }
 
     @Override
