@@ -8,7 +8,5 @@ BUILD_CONTEXT="$DIR/../backend"
 IMAGE_NAME="inventarium-back"
 IMAGE_TAG="0.0.1"
 BUILD_ARG="build/libs/*.jar"
-OUTPUT_PATH="/home/lucascs/Documentos"
 
-docker build --build-arg JAR_FILE="$BUILD_ARG" -t $IMAGE_NAME:$IMAGE_TAG "$BUILD_CONTEXT" && \
-docker save -o $OUTPUT_PATH/${IMAGE_NAME//\//-}-$IMAGE_TAG.tar $IMAGE_NAME:$IMAGE_TAG
+docker build --build-arg JAR_FILE="$BUILD_ARG" -t $IMAGE_NAME:$IMAGE_TAG "$BUILD_CONTEXT"
