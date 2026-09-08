@@ -29,10 +29,13 @@ Stack principal:
 - Gradle
 - PostgreSQL
 - Spring Security com JWT
+- Login com Google (OAuth 2.0 / OpenID Connect)
 
 Partes importantes:
 
 - `src/main/java/clp/inventory/controller`: endpoints da API.
+- `docs/AUTHENTICATION.md`: fluxo de autenticacao com Google.
+- `docs/GOOGLE_AUTH_SETUP.md`: configuracao das variaveis do login com Google.
 - `src/main/java/clp/inventory/service`: regras de negocio.
 - `src/main/java/clp/inventory/repository`: acesso a dados.
 - `src/main/java/clp/inventory/model`: entidades do dominio.
@@ -129,12 +132,13 @@ npm install
 
 O `npm install` na raiz instala as ferramentas compartilhadas do monorepo, como Husky, Commitlint, lint-staged e Secretlint.
 
-Para o backend, copie o arquivo de exemplo e defina os valores locais:
+Para rodar com Docker Compose, copie o arquivo de exemplo da raiz e defina os valores locais:
 
 ```bash
-cd backend
 cp .env.example .env
 ```
+
+Para rodar apenas o backend fora do Compose, use tambem o exemplo dentro de `backend` quando necessario.
 
 Arquivos `.env` reais nao devem ser commitados.
 
@@ -148,9 +152,9 @@ Exemplos de variaveis usadas pelo backend:
 SPRING_DATASOURCE_URL
 SPRING_DATASOURCE_USERNAME
 SPRING_DATASOURCE_PASSWORD
-SPRING_MAIL_USERNAME
-SPRING_MAIL_PASSWORD
 SECURITY_TOKEN_SECRET
+GOOGLE_OAUTH_CLIENT_ID
+GOOGLE_ALLOWED_DOMAINS
 ```
 
 Antes de cada commit, o Secretlint roda nos arquivos staged para reduzir o risco de commitar tokens, senhas, chaves privadas ou credenciais.
