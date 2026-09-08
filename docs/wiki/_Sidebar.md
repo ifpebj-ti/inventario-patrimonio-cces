@@ -8,6 +8,7 @@
 - [Documento de Requisitos](./Documento-de-Requisitos)
 - [Documento de Arquitetura C4](./Documento-de-Arquitetura-C4)
 - [Documento de Modelagem de Dados](./Documento-de-Modelagem-de-Dados)
+- [Architecture Decision Records](./Architecture-Decision-Records)
 - [Guia de Execucao e Configuracao](./Guia-de-Execucao-e-Configuracao)
 - [Manual do Usuario](./Manual-do-Usuario)
 - [Guia de Desenvolvimento Seguro](./Guia-de-Boas-Praticas-de-Desenvolvimento-Seguro)

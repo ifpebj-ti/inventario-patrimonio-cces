@@ -61,11 +61,12 @@ Documentos planejados:
 2. [Documento de Requisitos](./Documento-de-Requisitos)
 3. [Documento de Arquitetura C4](./Documento-de-Arquitetura-C4)
 4. [Documento de Modelagem de Dados](./Documento-de-Modelagem-de-Dados)
-5. [Guia de Execucao e Configuracao](./Guia-de-Execucao-e-Configuracao)
-6. [Manual do Usuario](./Manual-do-Usuario)
-7. [Guia de Boas Praticas de Desenvolvimento Seguro](./Guia-de-Boas-Praticas-de-Desenvolvimento-Seguro)
-8. [Modelagem de Ameacas](./Modelagem-de-Ameacas)
-9. [Guia de Testes de Usuario](./Guia-de-Testes-de-Usuario)
+5. [Architecture Decision Records](./Architecture-Decision-Records)
+6. [Guia de Execucao e Configuracao](./Guia-de-Execucao-e-Configuracao)
+7. [Manual do Usuario](./Manual-do-Usuario)
+8. [Guia de Boas Praticas de Desenvolvimento Seguro](./Guia-de-Boas-Praticas-de-Desenvolvimento-Seguro)
+9. [Modelagem de Ameacas](./Modelagem-de-Ameacas)
+10. [Guia de Testes de Usuario](./Guia-de-Testes-de-Usuario)
 
 ---
 
@@ -79,6 +80,8 @@ Os niveis inicialmente previstos sao:
 - Containers: distribuicao entre web, mobile, API, banco de dados e servicos auxiliares;
 - Componentes: principais modulos internos do backend e das aplicacoes clientes;
 - Implantacao: visao de ambientes, infraestrutura e dependencias de execucao.
+
+As decisoes arquiteturais relevantes sao registradas como Architecture Decision Records em [Architecture Decision Records](./Architecture-Decision-Records). Esses registros documentam contexto, decisao, consequencias, alternativas e status das escolhas tecnicas do projeto.
 
 ---
 

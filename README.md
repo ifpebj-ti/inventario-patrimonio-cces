@@ -243,6 +243,12 @@ Mais detalhes de contribuicao estao em:
 docs/contributing.md
 ```
 
+As decisoes arquiteturais relevantes sao registradas como ADRs em:
+
+```text
+docs/architecture/adr
+```
+
 ## Apresentação
 
 Apresentação disponível no [Canva](https://canva.link/1df0uvva66e2vrf)
