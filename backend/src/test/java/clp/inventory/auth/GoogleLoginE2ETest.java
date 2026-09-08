@@ -83,14 +83,14 @@ class GoogleLoginE2ETest {
     @Autowired
     UserRepository userRepository;
 
-    private String signToken(String email, boolean emailVerified) throws JOSEException {
+    private String signToken(String email) throws JOSEException {
         var now = Instant.now();
         var claims = new JWTClaimsSet.Builder()
                 .subject("google-sub-" + email)
                 .issuer("https://accounts.google.com")
                 .audience(CLIENT_ID)
                 .claim("email", email)
-                .claim("email_verified", emailVerified)
+                .claim("email_verified", true)
                 .claim("name", "Test User")
                 .issueTime(Date.from(now))
                 .expirationTime(Date.from(now.plusSeconds(3600)))
@@ -104,7 +104,7 @@ class GoogleLoginE2ETest {
 
     @Test
     void successfulLogin_createsUserAndReturnsValidToken() throws Exception {
-        String idToken = signToken(ALLOWED_EMAIL, true);
+        String idToken = signToken(ALLOWED_EMAIL);
 
         var response = restTemplate.postForEntity(
                 "/auth/google", Map.of("credential", idToken), Map.class);
@@ -126,7 +126,7 @@ class GoogleLoginE2ETest {
 
     @Test
     void disallowedDomain_returns401AndDoesNotCreateUser() throws Exception {
-        String idToken = signToken(REJECTED_EMAIL, true);
+        String idToken = signToken(REJECTED_EMAIL);
 
         var response = restTemplate.postForEntity(
                 "/auth/google", Map.of("credential", idToken), String.class);
