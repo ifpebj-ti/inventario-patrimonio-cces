@@ -249,6 +249,14 @@ As decisoes arquiteturais relevantes sao registradas como ADRs em:
 docs/architecture/adr
 ```
 
+O historico de versoes fica em:
+
+```text
+CHANGELOG.md
+```
+
+Tags e GitHub Releases seguem o formato `vMAJOR.MINOR.PATCH` e sao preparadas pelo workflow `Release Please`.
+
 ## Apresentação
 
 Apresentação disponível no [Canva](https://canva.link/1df0uvva66e2vrf)
