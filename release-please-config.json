@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "simple",
+  "separate-pull-requests": false,
+  "packages": {
+    ".": {
+      "package-name": "inventarium",
+      "release-type": "simple",
+      "changelog-path": "CHANGELOG.md"
+    }
+  }
+}
