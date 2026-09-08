@@ -2,7 +2,7 @@
 
 Bem-vindo a Wiki do projeto **Inventarium**.
 
-O Inventarium e uma plataforma academica desenvolvida para apoiar o processo de tombamento e gerenciamento dos patrimonios do IFPE. A solucao combina uma aplicacao web de gerenciamento, um aplicativo mobile para operacoes em campo e uma API backend responsavel pelas regras de negocio, autenticacao e persistencia dos dados.
+O Inventarium e uma plataforma academica desenvolvida para apoiar o processo de tombamento e gerenciamento dos patrimonios do IFPE. A solucao combina uma aplicacao web de gerenciamento, um aplicativo mobile para operacoes em campo e uma API backend responsavel pelas regras de negocio, autenticacao via Google e persistencia dos dados.
 
 O projeto foi desenvolvido inicialmente para atender a demanda de Marcia Bandeira no contexto da disciplina de Engenharia de Software e, a partir dessa base, busca evoluir para uma solucao capaz de abranger o processo de gestao patrimonial em todo o IFPE.
 
@@ -19,7 +19,7 @@ Entre as capacidades previstas e implementadas no ecossistema do projeto estao:
 - identificacao de itens por codigo de barras e QR Code;
 - uso de aplicativo mobile para leitura e consulta em campo;
 - interface web para administracao e acompanhamento;
-- backend com API REST, autenticacao e integracao com banco de dados;
+- backend com API REST, autenticacao via Google e integracao com banco de dados;
 - geracao de materiais auxiliares, como etiquetas, PDFs ou planilhas, conforme suporte da API.
 
 ---
@@ -45,8 +45,8 @@ A documentacao e o sistema sao voltados para:
 
 | Aplicacao | Descricao | Tecnologia principal |
 | --- | --- | --- |
-| Backend | API responsavel por regras de negocio, autenticacao, persistencia e geracao de artefatos auxiliares. | Java, Spring Boot, Gradle, PostgreSQL |
-| Frontend | Aplicacao web para gerenciamento e acompanhamento dos dados patrimoniais. | Next.js, React, TypeScript |
+| Backend | API responsavel por regras de negocio, validacao do login com Google, emissao do JWT da aplicacao, persistencia e geracao de artefatos auxiliares. | Java, Spring Boot, Gradle, PostgreSQL |
+| Frontend | Aplicacao web para login com Google, gerenciamento e acompanhamento dos dados patrimoniais. | Next.js, React, TypeScript |
 | Mobile | Aplicativo para operacoes em campo, incluindo consulta e leitura de identificadores patrimoniais. | Expo, React Native, TypeScript |
 
 ---
