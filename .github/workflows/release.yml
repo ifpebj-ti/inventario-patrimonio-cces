@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  pull_request_target:
+    types:
+      - closed
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Publish release from merged PR
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Prepare release files
+        id: prepare
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: node .github/scripts/release/prepare-release.js
+
+      - name: Commit release changes and create tag
+        if: steps.prepare.outputs.skip != 'true'
+        env:
+          TAG: ${{ steps.prepare.outputs.tag }}
+        run: |
+          git fetch --tags
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json CHANGELOG.md
+          if git diff --cached --quiet; then
+            echo "Release files already committed."
+          else
+            git commit -m "chore(release): ${TAG}"
+            git push origin HEAD:main
+          fi
+
+          if git rev-parse -q --verify "refs/tags/${TAG}"; then
+            echo "Tag ${TAG} already exists."
+          else
+            git tag "${TAG}"
+            git push origin "${TAG}"
+          fi
+
+      - name: Publish GitHub Release
+        if: steps.prepare.outputs.skip != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          TAG: ${{ steps.prepare.outputs.tag }}
+          RELEASE_NOTES_PATH: ${{ steps.prepare.outputs.release_notes_path }}
+        run: node .github/scripts/release/publish-github-release.js
