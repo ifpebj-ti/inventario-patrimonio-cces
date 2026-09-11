@@ -2,7 +2,7 @@
 
 Todas as mudancas relevantes do Inventarium serao documentadas neste arquivo.
 
-O projeto segue Conventional Commits e usa Release Please para preparar pull requests de release, atualizar este changelog, criar tags e publicar GitHub Releases.
+O projeto segue Conventional Commits e usa o tipo de release marcado no pull request para atualizar este changelog, criar tags e publicar GitHub Releases.
 
 ## [0.1.0] - 2026-09-08
 

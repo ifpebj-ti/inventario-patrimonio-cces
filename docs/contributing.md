@@ -49,15 +49,24 @@ v0.2.1
 - `MINOR`: novas funcionalidades ou entregas relevantes sem quebra esperada.
 - `PATCH`: correcoes pequenas e ajustes compativeis.
 
-As releases sao preparadas automaticamente pelo workflow `Release Please`.
+As releases sao preparadas automaticamente pelo workflow `Release`, com base no tipo de release marcado no pull request.
 
 Fluxo esperado:
 
-1. Pull requests normais entram na `main` usando Conventional Commits.
-2. O workflow `Release Please` analisa os commits da `main`.
-3. Quando houver mudancas publicaveis, ele abre ou atualiza um pull request de release.
-4. O pull request de release atualiza `CHANGELOG.md` e `.release-please-manifest.json`.
-5. Ao fazer merge desse pull request, o workflow cria a tag `vX.Y.Z` e publica a GitHub Release.
+1. Toda issue deve ser aberta pelo template `Tarefa`, registrando contexto, objetivo, escopo e criterios de aceite.
+2. Todo pull request deve referenciar a issue usando `Closes #numero`, `Fixes #numero` ou `Resolves #numero`.
+3. Ao abrir ou editar o pull request, o workflow `Sync PR with Issue` copia a descricao da issue vinculada para o corpo do PR.
+4. O workflow `Validate PR Template` confere se existe uma issue vinculada e se exatamente um tipo de release foi marcado.
+5. Ao fazer merge do pull request na `main`, o workflow `Release` usa o tipo marcado para atualizar `package.json`, `package-lock.json` e `CHANGELOG.md`, criar a tag `vX.Y.Z` e publicar a GitHub Release.
+
+Tipos de release no pull request:
+
+- `patch`: correcoes compativeis, incrementando `PATCH`.
+- `minor`: novas funcionalidades compativeis, incrementando `MINOR`.
+- `major`: mudancas incompativeis, incrementando `MAJOR`.
+- `sem release`: nao cria tag nem GitHub Release.
+
+O commit de versao e feito automaticamente pelo `github-actions[bot]` apos o merge do PR. Se a `main` tiver protecao que bloqueie esse push, ajuste a regra da branch ou adapte o workflow para abrir um pull request interno de release.
 
 No fluxo atual, a release e do monorepo inteiro. Nao existem releases separadas para backend, frontend e mobile.
 
@@ -65,7 +74,7 @@ No fluxo atual, a release e do monorepo inteiro. Nao existem releases separadas 
 
 O arquivo `CHANGELOG.md` registra o historico de releases de forma legivel para pessoas.
 
-Ele deve ser atualizado preferencialmente pelo Release Please. Evite editar releases antigas para esconder decisoes ou mudancas ja publicadas. Caso seja necessario corrigir uma informacao, adicione uma nova entrada ou uma nota de correcao.
+Ele deve ser atualizado preferencialmente pelo workflow `Release`. Evite editar releases antigas para esconder decisoes ou mudancas ja publicadas. Caso seja necessario corrigir uma informacao, adicione uma nova entrada ou uma nota de correcao.
 
 ## Hooks locais
 
