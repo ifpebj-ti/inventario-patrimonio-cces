@@ -255,7 +255,7 @@ O historico de versoes fica em:
 CHANGELOG.md
 ```
 
-Tags e GitHub Releases seguem o formato `vMAJOR.MINOR.PATCH` e sao preparadas pelo workflow `Release Please`.
+Tags e GitHub Releases seguem o formato `vMAJOR.MINOR.PATCH` e sao preparadas pelo workflow `Release`, com base no tipo marcado no pull request.
 
 ## Apresentação
 
