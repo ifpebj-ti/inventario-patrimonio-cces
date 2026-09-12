@@ -1,28 +1,36 @@
-FROM node:20.16
+FROM node:22-alpine AS deps
+WORKDIR /app
 
-WORKDIR /opt/docker/app
-
-# Copiar package.json e package-lock.json
-COPY package*.json .
-
-# Executar npm ci para instalar as dependências
+COPY package*.json ./
 RUN npm ci
 
-# Copiar o restante do código para o contêiner
+FROM node:22-alpine AS builder
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# O Next inlina as variáveis NEXT_PUBLIC_* no bundle durante o build, então ela
-# precisa existir AQUI: definir no runtime do contêiner não tem efeito nenhum.
-# Declarada depois do npm ci para que trocar o client id não invalide a camada
-# de instalação de dependências.
 ARG NEXT_PUBLIC_GOOGLE_CLIENT_ID
+ARG NEXT_PUBLIC_API_URL=http://localhost:8080
 ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID}
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
-# Compilar o código
 RUN npm run build
 
-# Expor a porta 3000
+FROM node:22-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
+RUN addgroup --system --gid 1001 nodejs \
+    && adduser --system --uid 1001 nextjs
+
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
 EXPOSE 3000
 
-# Comando para iniciar a aplicação em produção
-CMD ["npm", "run", "start"]
+CMD ["node", "server.js"]

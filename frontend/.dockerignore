@@ -1,38 +1,20 @@
-# Diretórios e arquivos gerados
 node_modules
+.next
+out
 dist
-.build
-/.next/
-/out/
 coverage
 
-# Configuração de controle de versão
+.env
+.env.*
+!.env.example
+
 .git
+.gitignore
 
-# Configuração de IDE
-.idea
-.vscode
-
-# Arquivos temporários e logs
 npm-debug.log
 yarn-error.log
 *.log
 *.tmp
 *.cache
 
-# Arquivos de ambiente
-.env
-.env.development
-.env.test
-.env.local
-.env*.local
-.env.production
-
-# Documentação e outros arquivos não necessários
-*.md
-
-# Testes
-test
-tests
-*.test.ts
-*.test.js
+README.md
