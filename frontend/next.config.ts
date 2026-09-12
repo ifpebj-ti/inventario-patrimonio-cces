@@ -1,7 +1,10 @@
 import type { NextConfig } from 'next'
 import { PHASE_PRODUCTION_BUILD } from 'next/constants'
+import path from 'node:path'
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
+  outputFileTracingRoot: path.resolve(__dirname),
   typescript: {
     ignoreBuildErrors: true,
   },
