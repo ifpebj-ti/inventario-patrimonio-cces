@@ -8,6 +8,7 @@
     "lint:web": "npm --prefix frontend run lint",
     "lint:mobile": "npm --prefix mobile run lint",
     "test:backend": "cd backend && gradlew.bat test",
+    "test:github": "node --test .github/scripts/github/*.test.js",
     "secretlint": "secretlint \"**/*\" --secretlintrc .secretlintrc.json --maskSecrets",
     "commitlint": "commitlint --from HEAD~1 --to HEAD --verbose"
   },
