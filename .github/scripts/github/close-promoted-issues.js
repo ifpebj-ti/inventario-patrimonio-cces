@@ -13,12 +13,22 @@ async function main() {
   console.log(
     `Promotion PR #${promotionPrNumber}: ${result.pullRequests.length} PR(s), ${result.issueNumbers.length} issue(s), ${result.closedIssues.length} closed, ${result.skippedIssues.length} already closed/skipped.`,
   );
-
-  for (const skippedPullRequest of result.skippedPullRequests) {
-    console.log(skippedPullRequest);
-  }
+  logList(
+    "Included pull requests",
+    result.pullRequests.map((pullRequest) => `#${pullRequest.number}`),
+  );
+  logList(
+    "Linked issues",
+    result.issueNumbers.map((issueNumber) => `#${issueNumber}`),
+  );
+  logList(
+    "Closed issues",
+    result.closedIssues.map((issueNumber) => `#${issueNumber}`),
+  );
+  logList("Skipped", [...result.skippedIssues, ...result.skippedPullRequests]);
 
   if (result.errors.length > 0) {
+    console.error("Errors:");
     for (const error of result.errors) {
       console.error(error);
     }
@@ -134,6 +144,19 @@ function dedupeIssueNumbers(issueNumbers) {
   return [...new Set(issueNumbers.map(String))].sort(
     (left, right) => Number(left) - Number(right),
   );
+}
+
+function logList(title, items) {
+  console.log(`${title}:`);
+
+  if (items.length === 0) {
+    console.log("- none");
+    return;
+  }
+
+  for (const item of items) {
+    console.log(`- ${item}`);
+  }
 }
 
 async function listPaginated(request, path) {
