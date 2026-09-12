@@ -1,5 +1,6 @@
 ## Issue vinculada
 
+<!-- Obrigatorio para branches de trabalho -> development e hotfix/* -> main. Nao use em development -> main ou main -> development. -->
 Closes #
 
 ## Descricao da issue
@@ -26,6 +27,13 @@ Esta secao sera preenchida automaticamente quando o PR referenciar uma issue com
 ## Tipo de release
 
 Marque exatamente uma opcao:
+
+<!--
+- PR de trabalho -> development: marque "sem release".
+- development -> main: marque patch, minor, major ou sem release.
+- hotfix/* -> main: marque "patch".
+- main -> development: marque "sem release".
+-->
 
 - [ ] patch - fix/correcao compativel
 - [ ] minor - feature/nova funcionalidade compativel

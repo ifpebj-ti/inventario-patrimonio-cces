@@ -6,11 +6,17 @@ const RELEASE_OPTIONS = [
 ];
 
 function getLinkedIssueNumber(body) {
-  const match = String(body || "").match(
-    /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)\b/i,
+  const [first] = getLinkedIssueNumbers(body);
+
+  return first || null;
+}
+
+function getLinkedIssueNumbers(body) {
+  const matches = String(body || "").matchAll(
+    /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)\b/gi,
   );
 
-  return match ? match[1] : null;
+  return [...new Set([...matches].map((match) => match[1]))];
 }
 
 function getSection(body, heading) {
@@ -65,6 +71,7 @@ function escapeRegExp(text) {
 module.exports = {
   RELEASE_OPTIONS,
   getLinkedIssueNumber,
+  getLinkedIssueNumbers,
   getReleaseOption,
   getSection,
   getSelectedReleaseOptions,

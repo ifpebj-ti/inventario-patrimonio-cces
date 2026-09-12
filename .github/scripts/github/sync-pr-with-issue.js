@@ -8,6 +8,15 @@ async function main() {
   const repository = requireEnv("GITHUB_REPOSITORY");
   const prNumber = requireEnv("PR_NUMBER");
   const prBody = process.env.PR_BODY || "";
+  const headRef = process.env.HEAD_REF || "";
+  const baseRef = process.env.BASE_REF || "";
+  const author = process.env.PR_AUTHOR || "";
+
+  if (!shouldSyncIssueSummary({ headRef, baseRef, author })) {
+    console.log(`Issue sync skipped for flow ${headRef} -> ${baseRef}.`);
+    return;
+  }
+
   const issueNumber = getLinkedIssueNumber(prBody);
 
   if (!issueNumber) {
@@ -43,6 +52,25 @@ async function main() {
   });
 
   console.log(`PR #${prNumber} synchronized with issue #${issueNumber}.`);
+}
+
+function shouldSyncIssueSummary({ headRef, baseRef, author }) {
+  if (author === "dependabot[bot]" && baseRef === "development") {
+    return false;
+  }
+
+  if (headRef === "development" && baseRef === "main") {
+    return false;
+  }
+
+  if (headRef === "main" && baseRef === "development") {
+    return false;
+  }
+
+  return (
+    baseRef === "development" ||
+    (baseRef === "main" && String(headRef || "").startsWith("hotfix/"))
+  );
 }
 
 function replaceBetweenMarkers(body, content) {
@@ -92,7 +120,14 @@ function requireEnv(name) {
   return value;
 }
 
-main().catch((error) => {
-  console.error(error.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error.message);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  replaceBetweenMarkers,
+  shouldSyncIssueSummary,
+};
