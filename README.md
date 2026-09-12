@@ -153,6 +153,12 @@ PostgreSQL:   localhost:5433
 
 O `docker-compose.yml` builda as imagens locais `inventarium-front:local` e `inventarium-back:local`, alem de subir o PostgreSQL. Em ambiente de VM, as variaveis `FRONTEND_IMAGE` e `BACKEND_IMAGE` podem apontar para imagens publicadas no GHCR. O app mobile nao faz parte desse Compose de runtime, pois continua sendo executado pelo Expo durante o desenvolvimento.
 
+O guia completo de execucao, configuracao e operacao esta em:
+
+```text
+docs/execucao-configuracao-operacao.md
+```
+
 Para rodar apenas o backend fora do Compose, use tambem o exemplo dentro de `backend` quando necessario.
 
 Arquivos `.env` reais nao devem ser commitados.
