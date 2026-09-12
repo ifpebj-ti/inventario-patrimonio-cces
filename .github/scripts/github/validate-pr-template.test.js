@@ -38,6 +38,18 @@ test("rejects work PRs to development with release option different from sem rel
   assert.match(result.errors.join("\n"), /sem release/);
 });
 
+test("rejects work PRs to development without linked issue", () => {
+  const result = validatePullRequest({
+    body: prBody({ release: "none" }),
+    headRef: "feat/containerize-app",
+    baseRef: "development",
+    author: "pedro",
+  });
+
+  assert.equal(result.valid, false);
+  assert.match(result.errors.join("\n"), /exatamente uma issue/);
+});
+
 test("accepts promotion PRs from development to main without linked issue", () => {
   const result = validatePullRequest({
     body: prBody({ release: "minor" }),
@@ -48,6 +60,42 @@ test("accepts promotion PRs from development to main without linked issue", () =
 
   assert.equal(result.valid, true);
   assert.equal(result.flow, "development-main");
+});
+
+test("accepts promotion PRs from development to main with sem release", () => {
+  const result = validatePullRequest({
+    body: prBody({ release: "none" }),
+    headRef: "development",
+    baseRef: "main",
+    author: "pedro",
+  });
+
+  assert.equal(result.valid, true);
+  assert.equal(result.selectedReleaseOption.key, "none");
+});
+
+test("rejects promotion PRs from development to main without release option", () => {
+  const result = validatePullRequest({
+    body: prBody({}),
+    headRef: "development",
+    baseRef: "main",
+    author: "pedro",
+  });
+
+  assert.equal(result.valid, false);
+  assert.match(result.errors.join("\n"), /Tipo de release/);
+});
+
+test("accepts hotfix PRs to main with linked issue and patch", () => {
+  const result = validatePullRequest({
+    body: prBody({ issue: 90, release: "patch" }),
+    headRef: "hotfix/login",
+    baseRef: "main",
+    author: "pedro",
+  });
+
+  assert.equal(result.valid, true);
+  assert.equal(result.flow, "hotfix-main");
 });
 
 test("requires patch for hotfix PRs to main", () => {
