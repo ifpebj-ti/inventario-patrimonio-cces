@@ -1,68 +1,72 @@
 services:
   postgres:
     container_name: inventarium-postgres
-    image: postgres:15
+    image: postgres:15-alpine
+    restart: unless-stopped
     ports:
-      - '5432:5432'
+      - "${POSTGRES_PORT:-5433}:5432"
     environment:
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=admin
-      - POSTGRES_DB=inventory_management
-
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin}
+      POSTGRES_DB: ${POSTGRES_DB:-inventory_management}
     volumes:
-      - ./config/data/postgres:/var/lib/postgresql/data
-
-      # Descomentar a linha abaixo caso deseje modificar algum parâmetro de configuração do PostgreSQL.
-      # Usar como referência o arquivo presente dentro da imagem, no caminho /etc/postgresql/postgresql.conf.
-      #- ./postgresql.conf:/etc/postgresql/postgresql.conf
-
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-admin} -d ${POSTGRES_DB:-inventory_management}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - inventarium-net
 
   inventarium-back:
     container_name: inventarium-back
-    image: "inventarium-back:0.0.1"
+    image: ${BACKEND_IMAGE:-inventarium-back:local}
+    build:
+      context: ./backend
+    restart: unless-stopped
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     ports:
-      - '8080:8080'
-
+      - "${BACKEND_PORT:-8080}:8080"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/inventory_management
-      - SPRING_DATASOURCE_USERNAME=admin
-      - SPRING_DATASOURCE_PASSWORD=admin
-      - SPRING_JPA_HIBERNATE_DDL_AUTO=none
-      - SPRING_MAIL_USERNAME=${SPRING_MAIL_USERNAME:-inventariumclp@gmail.com}
-      - SPRING_MAIL_PASSWORD=${SPRING_MAIL_PASSWORD:-change-me-to-a-long-random-secret}
-      - SECURITY_TOKEN_SECRET=${SECURITY_TOKEN_SECRET:?defina SECURITY_TOKEN_SECRET no .env}
-      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
-      - GOOGLE_ALLOWED_DOMAINS=${GOOGLE_ALLOWED_DOMAINS:-ifpe.edu.br}
-
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-inventory_management}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-admin}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-admin}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: none
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-inventariumclp@gmail.com}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-}
+      SECURITY_TOKEN_SECRET: ${SECURITY_TOKEN_SECRET:?defina SECURITY_TOKEN_SECRET no .env}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_ALLOWED_DOMAINS: ${GOOGLE_ALLOWED_DOMAINS:-ifpe.edu.br}
     networks:
       - inventarium-net
 
   inventarium-front:
     container_name: inventarium-front
-    image: "inventarium-front:0.0.1"
+    image: ${FRONTEND_IMAGE:-inventarium-front:local}
     build:
       context: ./frontend
       args:
-        # Mesmo client id do backend: o GoogleTokenProvider valida o claim "aud"
-        # contra a cópia dele, e divergência vira um 401 impossível de depurar
-        # pela tela. O client id é público, vai no bundle do browser.
-        # O Next inlina no build, então trocar o valor exige rebuild da imagem.
-        # Sem :? de propósito: com ele qualquer comando do compose (down, ps)
-        # falharia enquanto a variável estivesse vazia. Quem barra o build sem
-        # client id é a guarda no next.config.ts, com mensagem explícita.
-        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:?defina GOOGLE_OAUTH_CLIENT_ID no .env}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+    restart: unless-stopped
     depends_on:
-      - inventarium-back
+      inventarium-back:
+        condition: service_healthy
     ports:
-      - '3000:3000'
-
+      - "${FRONTEND_PORT:-3000}:3000"
     networks:
       - inventarium-net
 
 networks:
   inventarium-net:
     driver: bridge
+
+volumes:
+  postgres-data:
