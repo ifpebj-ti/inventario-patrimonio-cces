@@ -40,25 +40,24 @@ Partes importantes:
 - `src/main/java/clp/inventory/repository`: acesso a dados.
 - `src/main/java/clp/inventory/model`: entidades do dominio.
 - `src/main/resources/application.properties`: configuracao da aplicacao.
-- `docker-compose.yml`: banco PostgreSQL local.
-- `postgres/scripts`: scripts SQL de inicializacao.
+- `docker-compose.yml`: ambiente local com PostgreSQL, backend e frontend web.
 - `.env.example`: exemplo das variaveis de ambiente esperadas.
 
-Para rodar o banco local:
+Para empacotar a API:
 
 ```bash
 cd backend
-docker compose up -d
+./gradlew bootJar -x test
 ```
 
-Para rodar a API:
+No Windows:
 
 ```bash
 cd backend
-gradlew.bat bootRun
+gradlew.bat bootJar -x test
 ```
 
-No Linux/macOS:
+Para rodar a API fora do Docker:
 
 ```bash
 cd backend
@@ -137,6 +136,22 @@ Para rodar com Docker Compose, copie o arquivo de exemplo da raiz e defina os va
 ```bash
 cp .env.example .env
 ```
+
+Depois, suba a aplicacao web completa:
+
+```bash
+docker compose up --build
+```
+
+Servicos publicados:
+
+```text
+Frontend web: http://localhost:3000
+Backend API:  http://localhost:8080
+PostgreSQL:   localhost:5433
+```
+
+O `docker-compose.yml` builda as imagens locais `inventarium-front:local` e `inventarium-back:local`, alem de subir o PostgreSQL. Em ambiente de VM, as variaveis `FRONTEND_IMAGE` e `BACKEND_IMAGE` podem apontar para imagens publicadas no GHCR. O app mobile nao faz parte desse Compose de runtime, pois continua sendo executado pelo Expo durante o desenvolvimento.
 
 Para rodar apenas o backend fora do Compose, use tambem o exemplo dentro de `backend` quando necessario.
 
