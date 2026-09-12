@@ -12,10 +12,22 @@ function main() {
   const prBody = process.env.PR_BODY || "";
   const prNumber = process.env.PR_NUMBER || "";
   const prTitle = process.env.PR_TITLE || "Mudancas do PR";
+  const headRef = process.env.HEAD_REF || "";
+  const baseRef = process.env.BASE_REF || "";
   const releaseOption = getReleaseOption(prBody);
+
+  if (!shouldPrepareRelease({ headRef, baseRef })) {
+    writeOutput("skip", "true");
+    console.log(`Release skipped for unsupported flow ${headRef} -> ${baseRef}.`);
+    return;
+  }
 
   if (!releaseOption) {
     throw new Error("PR body does not contain exactly one release option.");
+  }
+
+  if (baseRef === "main" && headRef.startsWith("hotfix/") && releaseOption.key !== "patch") {
+    throw new Error("Hotfix PRs to main must be marked as patch releases.");
   }
 
   if (releaseOption.key === "none") {
@@ -89,11 +101,16 @@ function incrementVersion(version, type) {
   return `${major}.${minor}.${patch}`;
 }
 
+function shouldPrepareRelease({ headRef, baseRef }) {
+  return (
+    baseRef === "main" &&
+    (headRef === "development" || String(headRef || "").startsWith("hotfix/"))
+  );
+}
+
 function getReleaseSummary(prBody, prTitle, prNumber) {
   const doneSection = stripHtmlComments(getSection(prBody, "O que foi feito"));
-  const issueSection = stripHtmlComments(getSection(prBody, "Descricao da issue"));
-  const source = doneSection && doneSection !== "-" ? doneSection : issueSection;
-  const cleaned = normalizeMarkdownList(source);
+  const cleaned = normalizeMarkdownList(doneSection && doneSection !== "-" ? doneSection : "");
 
   if (cleaned) {
     return cleaned;
