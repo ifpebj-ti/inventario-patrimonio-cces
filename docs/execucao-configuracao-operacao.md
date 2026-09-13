@@ -71,6 +71,35 @@ Exemplo para gerar `SECURITY_TOKEN_SECRET`:
 openssl rand -hex 32
 ```
 
+## Imagens Publicadas No GHCR
+
+A pipeline publica imagens no GitHub Container Registry, mas nao injeta secrets de runtime dentro das imagens. Esse comportamento e intencional:
+
+- frontend: `NEXT_PUBLIC_GOOGLE_CLIENT_ID` e `NEXT_PUBLIC_API_URL` sao argumentos de build, porque o Next.js inclui variaveis `NEXT_PUBLIC_*` no bundle do navegador. No GitHub Actions, esses valores podem vir de repository variables; o Google Client ID tambem pode vir de GitHub Secrets, embora nao seja um segredo real depois que chega ao browser. A pipeline falha se esses valores nao estiverem configurados;
+- backend: `SECURITY_TOKEN_SECRET`, credenciais do banco, credenciais de email e configuracoes Spring sao variaveis de runtime e devem ficar na stack, no Compose, no Portainer ou no mecanismo de secrets da VM;
+- uma troca de imagem nao deve exigir redigitar secrets quando a stack reutiliza as mesmas variaveis salvas.
+
+Para homologacao, configure a stack da VM ou o `.env` protegido apontando para as tags moveis `latest-dev`:
+
+```bash
+BACKEND_IMAGE=ghcr.io/<owner>/<repo>-backend:latest-dev
+FRONTEND_IMAGE=ghcr.io/<owner>/<repo>-frontend:latest-dev
+
+SECURITY_TOKEN_SECRET=<valor-forte>
+POSTGRES_USER=<usuario>
+POSTGRES_PASSWORD=<senha>
+POSTGRES_DB=inventory_management
+SPRING_MAIL_USERNAME=<conta-smtp>
+SPRING_MAIL_PASSWORD=<senha-ou-app-password>
+GOOGLE_OAUTH_CLIENT_ID=<client-id-google>
+NEXT_PUBLIC_API_URL=<url-publica-da-api>
+GOOGLE_ALLOWED_DOMAINS=ifpe.edu.br
+```
+
+Para rollback de homologacao, troque apenas `BACKEND_IMAGE` e `FRONTEND_IMAGE` para uma tag `sha-<commit-sha>` ja publicada. As demais variaveis podem permanecer iguais.
+
+No Portainer, prefira manter essas variaveis como environment da stack, nao como valores digitados manualmente a cada recriacao de container. Se a pipeline passar a fazer deploy automatico na VM depois, ela deve atualizar somente a referencia da imagem ou forcar pull/recreate da stack, preservando as variaveis de runtime ja configuradas.
+
 ## Execucao Local Com Docker Compose
 
 Na raiz do repositorio, execute:
