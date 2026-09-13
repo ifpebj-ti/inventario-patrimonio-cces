@@ -82,8 +82,8 @@ A pipeline publica imagens no GitHub Container Registry, mas nao injeta secrets 
 Para homologacao, configure a stack da VM ou o `.env` protegido apontando para as tags moveis `latest-dev`:
 
 ```bash
-BACKEND_IMAGE=ghcr.io/<owner>/<repo>-backend:latest-dev
-FRONTEND_IMAGE=ghcr.io/<owner>/<repo>-frontend:latest-dev
+BACKEND_IMAGE=ghcr.io/<owner>/inventarium-back:latest-dev
+FRONTEND_IMAGE=ghcr.io/<owner>/inventarium-front:latest-dev
 
 SECURITY_TOKEN_SECRET=<valor-forte>
 POSTGRES_USER=<usuario>
