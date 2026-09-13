@@ -1,16 +1,15 @@
-name: Development container images
+name: Pull request container images
 
 on:
-  push:
+  pull_request:
     branches:
       - development
-  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: development-container-images-${{ github.ref }}
+  group: pull-request-container-images-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
@@ -24,23 +23,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
       - name: Detect changed image sources
         id: changes
         shell: bash
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "frontend=true" >> "${GITHUB_OUTPUT}"
-            echo "backend=true" >> "${GITHUB_OUTPUT}"
-            exit 0
-          fi
-
-          if [[ "${{ github.event.before }}" =~ ^0+$ ]]; then
-            changed_files="$(git diff-tree --no-commit-id --name-only -r "${{ github.sha }}")"
-          else
-            changed_files="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")"
-          fi
+          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+          changed_files="$(git diff --name-only "origin/${{ github.base_ref }}"...HEAD)"
 
           echo "${changed_files}"
 
@@ -56,29 +47,25 @@ jobs:
             echo "backend=false" >> "${GITHUB_OUTPUT}"
           fi
 
-  build-development-images:
-    name: Build development images
+  build-pr-images:
+    name: Build PR images
     needs: changes
-    if: github.ref_name == 'development' && (needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true')
+    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true'
     uses: ./.github/workflows/build-container-images.yml
     with:
-      deployment_environment: development
-      checkout_ref: ${{ github.sha }}
-      publish_images: true
-      publish_latest_dev: true
+      deployment_environment: pull-request
+      checkout_ref: ${{ github.event.pull_request.head.sha }}
+      publish_images: false
+      publish_latest_dev: false
       build_frontend: ${{ needs.changes.outputs.frontend == 'true' }}
       build_backend: ${{ needs.changes.outputs.backend == 'true' }}
       frontend_api_url: ${{ vars.NEXT_PUBLIC_API_URL_DEV }}
       frontend_google_client_id: ${{ vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID || vars.GOOGLE_OAUTH_CLIENT_ID }}
-    secrets: inherit
-    permissions:
-      contents: read
-      packages: write
 
   no-image-changes:
     name: No image changes
     needs: changes
-    if: github.ref_name == 'development' && needs.changes.outputs.frontend != 'true' && needs.changes.outputs.backend != 'true'
+    if: needs.changes.outputs.frontend != 'true' && needs.changes.outputs.backend != 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Skip image build
