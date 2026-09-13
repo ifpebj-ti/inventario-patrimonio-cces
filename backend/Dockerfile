@@ -10,14 +10,13 @@ RUN chmod +x gradlew && ./gradlew dependencies --no-daemon
 COPY src src
 RUN ./gradlew bootJar -x test --no-daemon
 
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && groupadd --system spring \
-    && useradd --system --gid spring spring
+RUN apk upgrade --no-cache \
+    && apk add --no-cache curl \
+    && addgroup -S spring \
+    && adduser -S -G spring spring
 
 COPY --from=builder /app/build/libs/*.jar app.jar
 
