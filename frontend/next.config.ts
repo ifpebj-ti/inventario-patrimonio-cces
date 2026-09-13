@@ -8,12 +8,9 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
 }
 
-export default (phase: string): NextConfig => {
+const config = (phase: string): NextConfig => {
   // O Next inlina NEXT_PUBLIC_* no bundle durante o build; definir a variável
   // só no runtime não surte efeito. Falhamos aqui em vez de publicar uma imagem
   // com a tela de login sem botão do Google.
@@ -33,3 +30,5 @@ export default (phase: string): NextConfig => {
 
   return nextConfig
 }
+
+export default config
