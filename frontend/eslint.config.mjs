@@ -31,7 +31,9 @@ const rocketseatEntries = compat.extends('@rocketseat/eslint-config/next')
 // "jsx-a11y-rocketseat") só onde há conflito real, e ajusta as regras dele
 // para o nome novo. As duas cópias do plugin continuam carregadas e ativas,
 // cada preset com a sua.
-const nextPluginNames = new Set(nextEntries.flatMap((e) => Object.keys(e.plugins ?? {})))
+const nextPluginNames = new Set(
+  nextEntries.flatMap((e) => Object.keys(e.plugins ?? {})),
+)
 
 const renamedRocketseatEntries = rocketseatEntries.map((entry) => {
   const conflicting = Object.keys(entry.plugins ?? {}).filter((name) =>
@@ -39,12 +41,16 @@ const renamedRocketseatEntries = rocketseatEntries.map((entry) => {
   )
   if (conflicting.length === 0) return entry
 
-  const rename = (name) => (conflicting.includes(name) ? `${name}-rocketseat` : name)
+  const rename = (name) =>
+    conflicting.includes(name) ? `${name}-rocketseat` : name
 
   return {
     ...entry,
     plugins: Object.fromEntries(
-      Object.entries(entry.plugins).map(([name, plugin]) => [rename(name), plugin]),
+      Object.entries(entry.plugins).map(([name, plugin]) => [
+        rename(name),
+        plugin,
+      ]),
     ),
     rules: Object.fromEntries(
       Object.entries(entry.rules ?? {}).map(([ruleId, value]) => {
@@ -67,6 +73,7 @@ const eslintConfig = [
       'react/no-unescaped-entities': 'off',
       '@next/next/no-page-custom-font': 'off',
       'react-hooks/exhaustive-deps': 'off',
+      'react-hooks/set-state-in-effect': 'off',
     },
   },
 ]
