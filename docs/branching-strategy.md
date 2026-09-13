@@ -57,7 +57,7 @@ Esse sync nao fecha issue, nao copia descricao de issue e nao publica release.
 
 Checks minimos esperados:
 
-- `Quality`: roda em PRs e em push para `main` e `development`.
+- `Quality`: roda em PRs para validar secrets e commits antes do merge.
 - `Pull request container images`: usa um check agregado `Container images` para buildar e escanear imagens alteradas em PRs para `development`, sem publicar no GHCR.
 - `Development container images`: usa um check agregado `Container images` para publicar imagens de homologacao no GHCR a cada push em `development`.
 - `Validate PR Template`: valida issue vinculada e tipo de release conforme o fluxo.
