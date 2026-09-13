@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { execFileSync } = require("child_process");
 const {
   getReleaseOption,
   getSection,
@@ -36,8 +37,8 @@ function main() {
     return;
   }
 
-  const existingRelease = getExistingReleaseForPr(prNumber);
   const summary = getReleaseSummary(prBody, prTitle, prNumber);
+  const existingRelease = getExistingReleaseForPr(prNumber);
 
   if (existingRelease) {
     const tag = `v${existingRelease.version}`;
@@ -52,17 +53,9 @@ function main() {
     return;
   }
 
-  const packageJsonPath = path.join(ROOT, "package.json");
-  const packageJson = readJson(packageJsonPath);
-  const currentVersion = packageJson.version;
+  const currentVersion = getLatestVersionFromTags();
   const nextVersion = incrementVersion(currentVersion, releaseOption.key);
   const tag = `v${nextVersion}`;
-  const today = new Date().toISOString().slice(0, 10);
-
-  packageJson.version = nextVersion;
-  writeJson(packageJsonPath, packageJson);
-  updatePackageLock(nextVersion);
-  updateChangelog(nextVersion, today, releaseOption.heading, summary, prNumber);
 
   const releaseNotesPath = writeReleaseNotes(tag, releaseOption.heading, summary);
 
@@ -137,74 +130,39 @@ function normalizeMarkdownList(text) {
   return `- ${lines.join(" ")}`;
 }
 
-function updatePackageLock(nextVersion) {
-  const lockPath = path.join(ROOT, "package-lock.json");
-
-  if (!fs.existsSync(lockPath)) {
-    return;
-  }
-
-  const lock = readJson(lockPath);
-  lock.version = nextVersion;
-
-  if (lock.packages?.[""]) {
-    lock.packages[""].version = nextVersion;
-  }
-
-  writeJson(lockPath, lock);
-}
-
 function getExistingReleaseForPr(prNumber) {
   if (!prNumber) {
     return null;
   }
 
-  const changelogPath = path.join(ROOT, "CHANGELOG.md");
+  const marker = `release-pr:${prNumber}`;
 
-  if (!fs.existsSync(changelogPath)) {
-    return null;
+  for (const tag of getSemverTags()) {
+    const contents = git(["for-each-ref", "--format=%(contents)", `refs/tags/${tag}`]);
+
+    if (contents.includes(marker)) {
+      return { version: tag.slice(1) };
+    }
   }
 
-  const changelog = fs.readFileSync(changelogPath, "utf8");
-  const marker = `<!-- release-pr:${prNumber} -->`;
-  const markerIndex = changelog.indexOf(marker);
-
-  if (markerIndex === -1) {
-    return null;
-  }
-
-  const afterMarker = changelog.slice(markerIndex + marker.length);
-  const versionMatch = afterMarker.match(/## \[(\d+\.\d+\.\d+)\]/);
-
-  return versionMatch ? { version: versionMatch[1] } : null;
+  return null;
 }
 
-function updateChangelog(version, date, heading, summary, prNumber) {
-  const changelogPath = path.join(ROOT, "CHANGELOG.md");
-  const current = fs.existsSync(changelogPath)
-    ? fs.readFileSync(changelogPath, "utf8")
-    : "# Changelog\n\nTodas as mudancas relevantes do Inventarium serao documentadas neste arquivo.\n";
-  const marker = prNumber ? `<!-- release-pr:${prNumber} -->\n` : "";
-  const entry = [
-    `${marker}## [${version}] - ${date}`,
-    "",
-    `### ${heading}`,
-    "",
-    summary,
-    "",
-  ].join("\n");
-  const lines = current.split(/\r?\n/);
-  const firstReleaseIndex = lines.findIndex((line) => /^## \[/.test(line));
+function getLatestVersionFromTags() {
+  const [latestTag] = getSemverTags();
 
-  if (firstReleaseIndex === -1) {
-    fs.writeFileSync(changelogPath, `${current.trim()}\n\n${entry}\n`);
-    return;
+  if (!latestTag) {
+    return "0.0.0";
   }
 
-  const before = lines.slice(0, firstReleaseIndex).join("\n").trimEnd();
-  const after = lines.slice(firstReleaseIndex).join("\n").trimStart();
+  return latestTag.slice(1);
+}
 
-  fs.writeFileSync(changelogPath, `${before}\n\n${entry}\n${after}\n`);
+function getSemverTags() {
+  return git(["tag", "--list", "v[0-9]*.[0-9]*.[0-9]*", "--sort=-v:refname"])
+    .split(/\r?\n/)
+    .map((tag) => tag.trim())
+    .filter((tag) => /^v\d+\.\d+\.\d+$/.test(tag));
 }
 
 function writeReleaseNotes(tag, heading, summary) {
@@ -221,12 +179,8 @@ function writeReleaseNotes(tag, heading, summary) {
   return releaseNotesPath;
 }
 
-function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, "utf8"));
-}
-
-function writeJson(filePath, value) {
-  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
+function git(args) {
+  return execFileSync("git", args, { encoding: "utf8" });
 }
 
 function writeOutput(name, value) {
