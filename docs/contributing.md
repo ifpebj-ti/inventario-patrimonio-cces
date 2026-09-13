@@ -67,7 +67,7 @@ Fluxo esperado:
 3. Ao abrir ou editar o PR de trabalho, o workflow `Sync PR with Issue` copia a descricao da issue vinculada para o corpo do PR.
 4. O workflow `Validate PR Template` confere as regras esperadas para cada origem e destino.
 5. Ao fazer merge do PR de promocao `development` -> `main`, o workflow `Close Promoted Issues` fecha as issues vinculadas aos PRs ja mergeados em `development`.
-6. Ao fazer merge em `main`, o workflow `Release` usa o tipo marcado no PR de promocao ou no hotfix para atualizar `package.json`, `package-lock.json` e `CHANGELOG.md`, criar a tag `vX.Y.Z` e publicar a GitHub Release.
+6. Ao fazer merge em `main`, o workflow `Release` usa o tipo marcado no PR de promocao ou no hotfix para criar a tag `vX.Y.Z`, publicar a GitHub Release e acionar a publicacao das imagens de producao no GHCR.
 
 Tipos de release no pull request:
 
@@ -76,7 +76,7 @@ Tipos de release no pull request:
 - `major`: mudancas incompativeis, incrementando `MAJOR`.
 - `sem release`: nao cria tag nem GitHub Release. Use em PRs de trabalho para `development`, sync `main` -> `development` e promocoes sem mudanca publicavel.
 
-O commit de versao e feito automaticamente pelo `github-actions[bot]` apos o merge do PR. Se a `main` tiver protecao que bloqueie esse push, ajuste a regra da branch ou adapte o workflow para abrir um pull request interno de release.
+O versionamento da entrega fica nas tags Git e nas GitHub Releases. O workflow nao altera `package.json`, `package-lock.json` nem arquivos de changelog durante a release.
 
 No fluxo atual, a release e do monorepo inteiro. Nao existem releases separadas para backend, frontend e mobile.
 
@@ -85,12 +85,6 @@ No fluxo atual, a release e do monorepo inteiro. Nao existem releases separadas 
 O Dependabot abre PRs para `development` nos ecossistemas npm, Gradle e GitHub Actions. Esses PRs sao dispensados da issue vinculada, do sync com issue e da marcacao manual de release.
 
 Limite conhecido: alertas de seguranca podem se comportar de forma diferente do agendamento comum do Dependabot, dependendo das configuracoes do GitHub para security updates. Caso o GitHub abra um PR de seguranca contra `main`, ajuste o alvo manualmente ou trate como hotfix quando fizer sentido.
-
-## Changelog
-
-O arquivo `CHANGELOG.md` registra o historico de releases de forma legivel para pessoas.
-
-Ele deve ser atualizado preferencialmente pelo workflow `Release`. Evite editar releases antigas para esconder decisoes ou mudancas ja publicadas. Caso seja necessario corrigir uma informacao, adicione uma nova entrada ou uma nota de correcao.
 
 ## Hooks locais
 

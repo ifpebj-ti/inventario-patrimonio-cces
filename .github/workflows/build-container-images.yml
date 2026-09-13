@@ -73,6 +73,7 @@ jobs:
 
           build_frontend=false
           build_backend=false
+          changed_files=""
 
           if [ "${{ inputs.force_build_all }}" = "true" ] || [ -n "${{ inputs.version_tag }}" ]; then
             build_frontend=true
@@ -85,7 +86,13 @@ jobs:
               git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
               changed_files="$(git diff --name-only "origin/${{ github.base_ref }}"...HEAD)"
             elif [ -n "${{ github.event.before }}" ] && ! [[ "${{ github.event.before }}" =~ ^0+$ ]]; then
-              changed_files="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")"
+              if git cat-file -e "${{ github.event.before }}^{commit}" 2>/dev/null; then
+                changed_files="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")"
+              else
+                echo "Previous commit ${{ github.event.before }} is unavailable. Building all images."
+                build_frontend=true
+                build_backend=true
+              fi
             else
               changed_files="$(git diff-tree --no-commit-id --name-only -r HEAD)"
             fi
@@ -214,13 +221,16 @@ jobs:
       - name: Validate frontend build arguments
         if: steps.changes.outputs.frontend == 'true'
         shell: bash
+        env:
+          FRONTEND_API_URL: ${{ inputs.frontend_api_url || vars.NEXT_PUBLIC_API_URL || vars.NEXT_PUBLIC_API_URL_DEV || vars.NEXT_PUBLIC_API_URL_PROD }}
+          FRONTEND_GOOGLE_CLIENT_ID: ${{ inputs.frontend_google_client_id || vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID || vars.GOOGLE_OAUTH_CLIENT_ID || secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID || secrets.GOOGLE_OAUTH_CLIENT_ID }}
         run: |
-          if [ -z "${{ inputs.frontend_api_url }}" ]; then
+          if [ -z "${FRONTEND_API_URL}" ]; then
             echo "Missing frontend_api_url. Configure NEXT_PUBLIC_API_URL_DEV or NEXT_PUBLIC_API_URL_PROD."
             exit 1
           fi
 
-          if [ -z "${{ inputs.frontend_google_client_id || secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID || secrets.GOOGLE_OAUTH_CLIENT_ID }}" ]; then
+          if [ -z "${FRONTEND_GOOGLE_CLIENT_ID}" ]; then
             echo "Missing frontend_google_client_id. Configure NEXT_PUBLIC_GOOGLE_CLIENT_ID or GOOGLE_OAUTH_CLIENT_ID as a repository variable or secret."
             exit 1
           fi
@@ -235,8 +245,8 @@ jobs:
           push: false
           tags: ${{ steps.meta.outputs.frontend_tags }}
           build-args: |
-            NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ inputs.frontend_google_client_id || secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID || secrets.GOOGLE_OAUTH_CLIENT_ID }}
-            NEXT_PUBLIC_API_URL=${{ inputs.frontend_api_url }}
+            NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ inputs.frontend_google_client_id || vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID || vars.GOOGLE_OAUTH_CLIENT_ID || secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID || secrets.GOOGLE_OAUTH_CLIENT_ID }}
+            NEXT_PUBLIC_API_URL=${{ inputs.frontend_api_url || vars.NEXT_PUBLIC_API_URL || vars.NEXT_PUBLIC_API_URL_DEV || vars.NEXT_PUBLIC_API_URL_PROD }}
           labels: |
             org.opencontainers.image.source=${{ steps.meta.outputs.source_url }}
             org.opencontainers.image.revision=${{ steps.meta.outputs.revision }}

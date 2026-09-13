@@ -32,12 +32,15 @@ jobs:
           ref: main
           fetch-depth: 0
 
+      - name: Fetch release tags
+        run: git fetch --tags --force
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Prepare release files
+      - name: Prepare release metadata
         id: prepare
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -48,26 +51,19 @@ jobs:
           RUNNER_TEMP: ${{ runner.temp }}
         run: node .github/scripts/release/prepare-release.js
 
-      - name: Commit release changes and create tag
+      - name: Create release tag
         if: steps.prepare.outputs.skip != 'true'
         env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           TAG: ${{ steps.prepare.outputs.tag }}
         run: |
-          git fetch --tags
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json package-lock.json CHANGELOG.md
-          if git diff --cached --quiet; then
-            echo "Release files already committed."
-          else
-            git commit -m "chore(release): ${TAG}"
-            git push origin HEAD:main
-          fi
 
           if git rev-parse -q --verify "refs/tags/${TAG}"; then
             echo "Tag ${TAG} already exists."
           else
-            git tag "${TAG}"
+            git tag -a "${TAG}" -m "Release ${TAG}" -m "release-pr:${PR_NUMBER}"
             git push origin "${TAG}"
           fi
 
