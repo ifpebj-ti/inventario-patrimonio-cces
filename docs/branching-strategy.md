@@ -58,6 +58,7 @@ Esse sync nao fecha issue, nao copia descricao de issue e nao publica release.
 Checks minimos esperados:
 
 - `Quality`: roda em PRs e em push para `main` e `development`.
+- `Pull request container images`: builda e escaneia imagens alteradas em PRs para `development`, sem publicar no GHCR.
 - `Development container images`: publica imagens de homologacao no GHCR a cada push em `development`.
 - `Validate PR Template`: valida issue vinculada e tipo de release conforme o fluxo.
 - `Validate PR Source`: impede PR direto para `main` fora de `development` ou `hotfix/*`.
@@ -70,8 +71,8 @@ Depois de criar o workflow `Validate PR Source`, configure manualmente a regra d
 
 As imagens do frontend e do backend sao publicadas no GitHub Container Registry como pacotes separados:
 
-- `ghcr.io/<owner>/<repo>-frontend`
-- `ghcr.io/<owner>/<repo>-backend`
+- `ghcr.io/<owner>/inventarium-front`
+- `ghcr.io/<owner>/inventarium-back`
 
 O workflow reutilizavel `Build container images` executa, nesta ordem:
 
@@ -79,19 +80,19 @@ O workflow reutilizavel `Build container images` executa, nesta ordem:
 2. scan de dependencias com Trivy em `frontend` e `backend`;
 3. build local das imagens;
 4. scan das imagens Docker com Trivy;
-5. push para o GHCR somente se todos os scans anteriores passarem.
+5. push para o GHCR somente se todos os scans anteriores passarem e o workflow chamador tiver solicitado publicacao.
 
-Os scans de dependencia e de imagem falham o workflow quando encontram vulnerabilidades `HIGH` ou `CRITICAL`. O push das imagens fica em um job separado e depende dos scans das duas imagens; assim, uma falha em qualquer artefato impede a publicacao de todos os artefatos daquele ciclo.
+Os scans de dependencia e de imagem falham o workflow quando encontram vulnerabilidades `HIGH` ou `CRITICAL`. PRs para `development` buildam e escaneiam as imagens afetadas, mas nao publicam no GHCR. Pushes em `development` publicam apenas as imagens afetadas por mudancas em `frontend`, `backend`, `docker-compose.yml`, `.env.example` ou nos workflows de container.
 
 Em `development`, as imagens recebem:
 
 - `latest-dev`, para a VM de homologacao sempre puxar a imagem corrente sem troca manual de tag;
 - `sha-<commit-sha>`, para rollback de homologacao.
 
-Em producao, as imagens sao publicadas apenas apos a GitHub Release ser criada pelo workflow `Release`. Como a release ainda e unica para a aplicacao, frontend e backend usam a mesma tag de versao, mas em imagens separadas:
+Em producao, as imagens sao publicadas durante o workflow `Release`, depois da tag ser criada e antes da GitHub Release ser publicada. Como a release ainda e unica para a aplicacao, frontend e backend usam a mesma tag de versao, mas em imagens separadas:
 
-- `ghcr.io/<owner>/<repo>-frontend:vX.Y.Z`
-- `ghcr.io/<owner>/<repo>-backend:vX.Y.Z`
+- `ghcr.io/<owner>/inventarium-front:vX.Y.Z`
+- `ghcr.io/<owner>/inventarium-back:vX.Y.Z`
 
 As imagens produtivas tambem recebem `sha-<commit-sha>` para rastreabilidade.
 
