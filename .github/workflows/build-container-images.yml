@@ -1,0 +1,288 @@
+name: Build container images
+
+on:
+  workflow_call:
+    inputs:
+      deployment_environment:
+        description: Target environment name used by GitHub Actions.
+        required: true
+        type: string
+      checkout_ref:
+        description: Git ref, SHA, or tag to build.
+        required: true
+        type: string
+      version_tag:
+        description: Immutable application version tag for production images.
+        required: false
+        default: ""
+        type: string
+      publish_latest_dev:
+        description: Publish the latest-dev mutable tag.
+        required: false
+        default: false
+        type: boolean
+      frontend_api_url:
+        description: NEXT_PUBLIC_API_URL build argument for the frontend image.
+        required: false
+        default: ""
+        type: string
+      frontend_google_client_id:
+        description: NEXT_PUBLIC_GOOGLE_CLIENT_ID build argument for the frontend image.
+        required: false
+        default: ""
+        type: string
+    secrets:
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID:
+        description: Optional fallback for the frontend Google OAuth client ID.
+        required: false
+      GOOGLE_OAUTH_CLIENT_ID:
+        description: Optional fallback for the frontend Google OAuth client ID.
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout_ref }}
+
+      - name: Run Trivy secret scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: secret
+          exit-code: "1"
+          format: table
+
+  dependency-scan:
+    name: Dependency scan (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - service: frontend
+            context: ./frontend
+          - service: backend
+            context: ./backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout_ref }}
+
+      - name: Run Trivy dependency scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: ${{ matrix.context }}
+          scanners: vuln
+          vuln-type: library
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: false
+          format: table
+
+  build-and-scan:
+    name: Build and scan image (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    needs:
+      - secret-scan
+      - dependency-scan
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - service: frontend
+            context: ./frontend
+            dockerfile: ./frontend/Dockerfile
+            image_suffix: frontend
+          - service: backend
+            context: ./backend
+            dockerfile: ./backend/Dockerfile
+            image_suffix: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout_ref }}
+
+      - name: Resolve image metadata
+        id: meta
+        shell: bash
+        run: |
+          repository="${GITHUB_REPOSITORY,,}"
+          owner="${repository%%/*}"
+          repo="${repository#*/}"
+          image="ghcr.io/${owner}/${repo}-${{ matrix.image_suffix }}"
+          commit_sha="$(git rev-parse HEAD)"
+          tags_file="${RUNNER_TEMP}/${{ matrix.service }}-tags.txt"
+
+          : > "${tags_file}"
+
+          if [ -n "${{ inputs.version_tag }}" ]; then
+            printf "%s\n" "${image}:${{ inputs.version_tag }}" >> "${tags_file}"
+          fi
+
+          printf "%s\n" "${image}:sha-${commit_sha}" >> "${tags_file}"
+
+          if [ "${{ inputs.publish_latest_dev }}" = "true" ]; then
+            printf "%s\n" "${image}:latest-dev" >> "${tags_file}"
+          fi
+
+          primary_tag="$(head -n 1 "${tags_file}")"
+
+          {
+            echo "image=${image}"
+            echo "primary_tag=${primary_tag}"
+            echo "tags_file=${tags_file}"
+            echo "source_url=https://github.com/${GITHUB_REPOSITORY}"
+            echo "revision=${commit_sha}"
+            echo "tags<<EOF"
+            cat "${tags_file}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Validate frontend build arguments
+        if: matrix.service == 'frontend'
+        shell: bash
+        run: |
+          if [ -z "${{ inputs.frontend_api_url }}" ]; then
+            echo "Missing frontend_api_url. Configure NEXT_PUBLIC_API_URL_DEV or NEXT_PUBLIC_API_URL_PROD."
+            exit 1
+          fi
+
+          if [ -z "${{ inputs.frontend_google_client_id || secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID || secrets.GOOGLE_OAUTH_CLIENT_ID }}" ]; then
+            echo "Missing frontend_google_client_id. Configure NEXT_PUBLIC_GOOGLE_CLIENT_ID or GOOGLE_OAUTH_CLIENT_ID as a repository variable or secret."
+            exit 1
+          fi
+
+      - name: Build local image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          load: true
+          push: false
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ inputs.frontend_google_client_id || secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID || secrets.GOOGLE_OAUTH_CLIENT_ID }}
+            NEXT_PUBLIC_API_URL=${{ inputs.frontend_api_url }}
+          labels: |
+            org.opencontainers.image.source=${{ steps.meta.outputs.source_url }}
+            org.opencontainers.image.revision=${{ steps.meta.outputs.revision }}
+            org.opencontainers.image.version=${{ inputs.version_tag }}
+
+      - name: Run Trivy image scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ steps.meta.outputs.primary_tag }}
+          scan-type: image
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: false
+          format: table
+
+      - name: Save scanned image
+        id: archive
+        shell: bash
+        run: |
+          image_archive="${RUNNER_TEMP}/${{ matrix.service }}.tar"
+          image_tags=()
+
+          while IFS= read -r tag; do
+            if [ -n "${tag}" ]; then
+              image_tags+=("${tag}")
+            fi
+          done < "${{ steps.meta.outputs.tags_file }}"
+
+          docker save --output "${image_archive}" "${image_tags[@]}"
+          echo "path=${image_archive}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload scanned image
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.service }}-image
+          path: ${{ steps.archive.outputs.path }}
+          retention-days: 1
+          if-no-files-found: error
+
+  publish:
+    name: Publish images
+    runs-on: ubuntu-latest
+    needs: build-and-scan
+    environment: ${{ inputs.deployment_environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout_ref }}
+
+      - name: Download frontend image
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-image
+          path: ${{ runner.temp }}/images/frontend
+
+      - name: Download backend image
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-image
+          path: ${{ runner.temp }}/images/backend
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image tags
+        shell: bash
+        run: |
+          repository="${GITHUB_REPOSITORY,,}"
+          owner="${repository%%/*}"
+          repo="${repository#*/}"
+          commit_sha="$(git rev-parse HEAD)"
+
+          publish_image() {
+            local service="$1"
+            local image_suffix="$2"
+            local image="ghcr.io/${owner}/${repo}-${image_suffix}"
+            local tags_file="${RUNNER_TEMP}/${service}-tags.txt"
+
+            : > "${tags_file}"
+
+            if [ -n "${{ inputs.version_tag }}" ]; then
+              printf "%s\n" "${image}:${{ inputs.version_tag }}" >> "${tags_file}"
+            fi
+
+            printf "%s\n" "${image}:sha-${commit_sha}" >> "${tags_file}"
+
+            if [ "${{ inputs.publish_latest_dev }}" = "true" ]; then
+              printf "%s\n" "${image}:latest-dev" >> "${tags_file}"
+            fi
+
+            docker load --input "${RUNNER_TEMP}/images/${service}/${service}.tar"
+
+            while IFS= read -r tag; do
+              if [ -n "${tag}" ]; then
+                docker push "${tag}"
+              fi
+            done < "${tags_file}"
+          }
+
+          publish_image frontend frontend
+          publish_image backend backend
