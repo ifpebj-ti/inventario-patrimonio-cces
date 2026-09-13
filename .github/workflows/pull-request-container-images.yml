@@ -13,60 +13,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  changes:
-    name: Detect image changes
-    runs-on: ubuntu-latest
-    outputs:
-      frontend: ${{ steps.changes.outputs.frontend }}
-      backend: ${{ steps.changes.outputs.backend }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-
-      - name: Detect changed image sources
-        id: changes
-        shell: bash
-        run: |
-          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
-          changed_files="$(git diff --name-only "origin/${{ github.base_ref }}"...HEAD)"
-
-          echo "${changed_files}"
-
-          if echo "${changed_files}" | grep -Eq '^(frontend/|docker-compose\.yml|\.env\.example|\.github/workflows/(build-container-images|development-container-images|pull-request-container-images)\.yml)'; then
-            echo "frontend=true" >> "${GITHUB_OUTPUT}"
-          else
-            echo "frontend=false" >> "${GITHUB_OUTPUT}"
-          fi
-
-          if echo "${changed_files}" | grep -Eq '^(backend/|docker-compose\.yml|\.env\.example|\.github/workflows/(build-container-images|development-container-images|pull-request-container-images)\.yml)'; then
-            echo "backend=true" >> "${GITHUB_OUTPUT}"
-          else
-            echo "backend=false" >> "${GITHUB_OUTPUT}"
-          fi
-
-  build-pr-images:
-    name: Build PR images
-    needs: changes
-    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true'
+  container-images:
+    name: Container images
     uses: ./.github/workflows/build-container-images.yml
     with:
       deployment_environment: pull-request
       checkout_ref: ${{ github.event.pull_request.head.sha }}
       publish_images: false
       publish_latest_dev: false
-      build_frontend: ${{ needs.changes.outputs.frontend == 'true' }}
-      build_backend: ${{ needs.changes.outputs.backend == 'true' }}
       frontend_api_url: ${{ vars.NEXT_PUBLIC_API_URL_DEV }}
       frontend_google_client_id: ${{ vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID || vars.GOOGLE_OAUTH_CLIENT_ID }}
-
-  no-image-changes:
-    name: No image changes
-    needs: changes
-    if: needs.changes.outputs.frontend != 'true' && needs.changes.outputs.backend != 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Skip image build
-        run: echo "No frontend/backend image sources changed."

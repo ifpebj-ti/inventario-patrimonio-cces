@@ -58,8 +58,8 @@ Esse sync nao fecha issue, nao copia descricao de issue e nao publica release.
 Checks minimos esperados:
 
 - `Quality`: roda em PRs e em push para `main` e `development`.
-- `Pull request container images`: builda e escaneia imagens alteradas em PRs para `development`, sem publicar no GHCR.
-- `Development container images`: publica imagens de homologacao no GHCR a cada push em `development`.
+- `Pull request container images`: usa um check agregado `Container images` para buildar e escanear imagens alteradas em PRs para `development`, sem publicar no GHCR.
+- `Development container images`: usa um check agregado `Container images` para publicar imagens de homologacao no GHCR a cada push em `development`.
 - `Validate PR Template`: valida issue vinculada e tipo de release conforme o fluxo.
 - `Validate PR Source`: impede PR direto para `main` fora de `development` ou `hotfix/*`.
 - `Close Promoted Issues`: fecha issues quando `development` e promovida para `main`.
@@ -82,7 +82,7 @@ O workflow reutilizavel `Build container images` executa, nesta ordem:
 4. scan das imagens Docker com Trivy;
 5. push para o GHCR somente se todos os scans anteriores passarem e o workflow chamador tiver solicitado publicacao.
 
-Os scans de dependencia e de imagem falham o workflow quando encontram vulnerabilidades `HIGH` ou `CRITICAL`. PRs para `development` buildam e escaneiam as imagens afetadas, mas nao publicam no GHCR. Pushes em `development` publicam apenas as imagens afetadas por mudancas em `frontend`, `backend`, `docker-compose.yml`, `.env.example` ou nos workflows de container.
+Os scans de dependencia e de imagem falham o workflow quando encontram vulnerabilidades `HIGH` ou `CRITICAL`. PRs para `development` buildam e escaneiam as imagens afetadas, mas nao publicam no GHCR. Pushes em `development` publicam apenas as imagens afetadas por mudancas em `frontend`, `backend`, `docker-compose.yml`, `.env.example` ou nos workflows de container. A deteccao de mudancas acontece dentro do proprio job `Container images`, reduzindo a quantidade de checks separados e de jobs marcados como skipped.
 
 Em `development`, as imagens recebem:
 
