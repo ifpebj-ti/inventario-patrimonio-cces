@@ -258,6 +258,7 @@ jobs:
         with:
           image-ref: ${{ steps.meta.outputs.frontend_primary_tag }}
           scan-type: image
+          scanners: vuln
           vuln-type: os,library
           severity: HIGH,CRITICAL
           exit-code: "1"
@@ -284,6 +285,7 @@ jobs:
         with:
           image-ref: ${{ steps.meta.outputs.backend_primary_tag }}
           scan-type: image
+          scanners: vuln
           vuln-type: os,library
           severity: HIGH,CRITICAL
           exit-code: "1"
