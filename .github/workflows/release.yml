@@ -8,9 +8,7 @@ on:
       - main
 
 permissions:
-  contents: write
-  packages: write
-  pull-requests: read
+  contents: read
 
 concurrency:
   group: release-main
@@ -21,6 +19,9 @@ jobs:
     name: Publish release from merged PR
     if: github.event.pull_request.merged == true && (github.event.pull_request.head.ref == 'development' || startsWith(github.event.pull_request.head.ref, 'hotfix/'))
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
     outputs:
       skip: ${{ steps.prepare.outputs.skip }}
       tag: ${{ steps.prepare.outputs.tag }}
@@ -70,14 +71,14 @@ jobs:
             git push origin "${TAG}"
           fi
 
-      - name: Publish GitHub Release
+      - name: Upload release notes
         if: steps.prepare.outputs.skip != 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          TAG: ${{ steps.prepare.outputs.tag }}
-          RELEASE_NOTES_PATH: ${{ steps.prepare.outputs.release_notes_path }}
-        run: node .github/scripts/release/publish-github-release.js
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: ${{ steps.prepare.outputs.release_notes_path }}
+          retention-days: 1
+          if-no-files-found: error
 
   build-production-images:
     name: Build production images
@@ -88,10 +89,55 @@ jobs:
       deployment_environment: production
       checkout_ref: ${{ needs.release.outputs.tag }}
       version_tag: ${{ needs.release.outputs.tag }}
+      publish_images: true
       publish_latest_dev: false
+      build_frontend: true
+      build_backend: true
       frontend_api_url: ${{ vars.NEXT_PUBLIC_API_URL_PROD }}
       frontend_google_client_id: ${{ vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID || vars.GOOGLE_OAUTH_CLIENT_ID }}
     secrets: inherit
     permissions:
       contents: read
       packages: write
+
+  publish-github-release:
+    name: Publish GitHub Release
+    needs:
+      - release
+      - build-production-images
+    if: needs.release.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Download release notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: ${{ runner.temp }}/release-notes
+
+      - name: Resolve release notes path
+        id: notes
+        shell: bash
+        run: |
+          release_notes_path="$(find "${RUNNER_TEMP}/release-notes" -type f -name 'release-notes-*.md' | head -n 1)"
+
+          if [ -z "${release_notes_path}" ]; then
+            echo "Release notes artifact not found."
+            exit 1
+          fi
+
+          echo "path=${release_notes_path}" >> "${GITHUB_OUTPUT}"
+
+      - name: Publish GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          TAG: ${{ needs.release.outputs.tag }}
+          RELEASE_NOTES_PATH: ${{ steps.notes.outputs.path }}
+        run: node .github/scripts/release/publish-github-release.js
