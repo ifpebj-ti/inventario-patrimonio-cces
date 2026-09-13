@@ -14,72 +14,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  changes:
-    name: Detect image changes
-    runs-on: ubuntu-latest
-    outputs:
-      frontend: ${{ steps.changes.outputs.frontend }}
-      backend: ${{ steps.changes.outputs.backend }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Detect changed image sources
-        id: changes
-        shell: bash
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "frontend=true" >> "${GITHUB_OUTPUT}"
-            echo "backend=true" >> "${GITHUB_OUTPUT}"
-            exit 0
-          fi
-
-          if [[ "${{ github.event.before }}" =~ ^0+$ ]]; then
-            changed_files="$(git diff-tree --no-commit-id --name-only -r "${{ github.sha }}")"
-          else
-            changed_files="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")"
-          fi
-
-          echo "${changed_files}"
-
-          if echo "${changed_files}" | grep -Eq '^(frontend/|docker-compose\.yml|\.env\.example|\.github/workflows/(build-container-images|development-container-images|pull-request-container-images)\.yml)'; then
-            echo "frontend=true" >> "${GITHUB_OUTPUT}"
-          else
-            echo "frontend=false" >> "${GITHUB_OUTPUT}"
-          fi
-
-          if echo "${changed_files}" | grep -Eq '^(backend/|docker-compose\.yml|\.env\.example|\.github/workflows/(build-container-images|development-container-images|pull-request-container-images)\.yml)'; then
-            echo "backend=true" >> "${GITHUB_OUTPUT}"
-          else
-            echo "backend=false" >> "${GITHUB_OUTPUT}"
-          fi
-
-  build-development-images:
-    name: Build development images
-    needs: changes
-    if: github.ref_name == 'development' && (needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true')
+  container-images:
+    name: Container images
+    if: github.ref_name == 'development'
     uses: ./.github/workflows/build-container-images.yml
     with:
       deployment_environment: development
       checkout_ref: ${{ github.sha }}
       publish_images: true
       publish_latest_dev: true
-      build_frontend: ${{ needs.changes.outputs.frontend == 'true' }}
-      build_backend: ${{ needs.changes.outputs.backend == 'true' }}
       frontend_api_url: ${{ vars.NEXT_PUBLIC_API_URL_DEV }}
       frontend_google_client_id: ${{ vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID || vars.GOOGLE_OAUTH_CLIENT_ID }}
     secrets: inherit
     permissions:
       contents: read
       packages: write
-
-  no-image-changes:
-    name: No image changes
-    needs: changes
-    if: github.ref_name == 'development' && needs.changes.outputs.frontend != 'true' && needs.changes.outputs.backend != 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Skip image build
-        run: echo "No frontend/backend image sources changed."
