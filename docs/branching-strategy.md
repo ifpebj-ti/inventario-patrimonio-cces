@@ -58,12 +58,44 @@ Esse sync nao fecha issue, nao copia descricao de issue e nao publica release.
 Checks minimos esperados:
 
 - `Quality`: roda em PRs e em push para `main` e `development`.
+- `Development container images`: publica imagens de homologacao no GHCR a cada push em `development`.
 - `Validate PR Template`: valida issue vinculada e tipo de release conforme o fluxo.
 - `Validate PR Source`: impede PR direto para `main` fora de `development` ou `hotfix/*`.
 - `Close Promoted Issues`: fecha issues quando `development` e promovida para `main`.
-- `Release`: publica tag e GitHub Release somente em `main`, quando aplicavel.
+- `Release`: publica tag e GitHub Release somente em `main`, quando aplicavel, e depois publica as imagens produtivas.
 
 Depois de criar o workflow `Validate PR Source`, configure manualmente a regra de protecao da `main` para exigir o status check `Validate source branch`.
+
+## Imagens Docker
+
+As imagens do frontend e do backend sao publicadas no GitHub Container Registry como pacotes separados:
+
+- `ghcr.io/<owner>/<repo>-frontend`
+- `ghcr.io/<owner>/<repo>-backend`
+
+O workflow reutilizavel `Build container images` executa, nesta ordem:
+
+1. scan de secrets com Trivy no repositorio;
+2. scan de dependencias com Trivy em `frontend` e `backend`;
+3. build local das imagens;
+4. scan das imagens Docker com Trivy;
+5. push para o GHCR somente se todos os scans anteriores passarem.
+
+Os scans de dependencia e de imagem falham o workflow quando encontram vulnerabilidades `HIGH` ou `CRITICAL`. O push das imagens fica em um job separado e depende dos scans das duas imagens; assim, uma falha em qualquer artefato impede a publicacao de todos os artefatos daquele ciclo.
+
+Em `development`, as imagens recebem:
+
+- `latest-dev`, para a VM de homologacao sempre puxar a imagem corrente sem troca manual de tag;
+- `sha-<commit-sha>`, para rollback de homologacao.
+
+Em producao, as imagens sao publicadas apenas apos a GitHub Release ser criada pelo workflow `Release`. Como a release ainda e unica para a aplicacao, frontend e backend usam a mesma tag de versao, mas em imagens separadas:
+
+- `ghcr.io/<owner>/<repo>-frontend:vX.Y.Z`
+- `ghcr.io/<owner>/<repo>-backend:vX.Y.Z`
+
+As imagens produtivas tambem recebem `sha-<commit-sha>` para rastreabilidade.
+
+Configure as variaveis de repositorio `NEXT_PUBLIC_API_URL_DEV`, `NEXT_PUBLIC_API_URL_PROD` e `NEXT_PUBLIC_GOOGLE_CLIENT_ID` ou `GOOGLE_OAUTH_CLIENT_ID` para preencher os build args do frontend. Se o Google Client ID estiver cadastrado como secret em vez de variavel, o workflow tambem aceita `NEXT_PUBLIC_GOOGLE_CLIENT_ID` ou `GOOGLE_OAUTH_CLIENT_ID` via GitHub Secrets. O build do frontend falha se esses valores nao estiverem configurados, para evitar publicar uma imagem apontando para uma URL incorreta.
 
 ## Dependabot
 
