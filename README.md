@@ -270,13 +270,7 @@ As decisoes arquiteturais relevantes sao registradas como ADRs em:
 docs/architecture/adr
 ```
 
-O historico de versoes fica em:
-
-```text
-CHANGELOG.md
-```
-
-Tags e GitHub Releases seguem o formato `vMAJOR.MINOR.PATCH` e sao preparadas pelo workflow `Release`, com base no tipo marcado no pull request.
+Tags e GitHub Releases seguem o formato `vMAJOR.MINOR.PATCH` e sao preparadas pelo workflow `Release`, com base no tipo marcado no pull request. As imagens de producao publicadas no GHCR usam a mesma tag da release.
 
 ## Apresentação
 
