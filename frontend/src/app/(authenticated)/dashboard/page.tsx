@@ -1,9 +1,8 @@
 'use client'
 
 import { Table } from '@/components/organisms/table'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import {
-  getUserInventoriesRequest,
   deleteInventoryRequest,
   InventoryResponse,
   updateInventoryRequest,
@@ -15,9 +14,10 @@ import { NewInventoryModal } from '@/components/organisms/newInventoryModal'
 import { ConfirmationModal } from '@/components/organisms/modalConfirmation'
 import toast from 'react-hot-toast'
 import { EditInventoryModal } from '@/components/organisms/editInventoryModal'
+import { useInventory } from '@/contexts/InventoryContext'
 
 export default function Dashboard() {
-  const [inventoryData, setInventoryData] = useState<InventoryResponse[]>([])
+  const { inventories: inventoryData, refreshInventories } = useInventory()
   const [isNewInventoryModalOpen, setIsNewInventoryModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [inventoryToDelete, setInventoryToDelete] =
@@ -30,24 +30,10 @@ export default function Dashboard() {
   const openNewInventoryModal = () => setIsNewInventoryModalOpen(true)
   const closeNewInventoryModal = () => setIsNewInventoryModalOpen(false)
 
-  const fetchInventories = useCallback(async () => {
-    try {
-      const response = await getUserInventoriesRequest()
-      setInventoryData(response)
-    } catch (error) {
-      console.error('Erro ao carregar inventários:', error)
-      toast.error('Não foi possível carregar seus inventários.')
-    }
-  }, [])
-
-  const handleInventoryCreated = useCallback(() => {
-    fetchInventories()
+  const handleInventoryCreated = useCallback(async () => {
+    await refreshInventories()
     closeNewInventoryModal()
-  }, [fetchInventories])
-
-  useEffect(() => {
-    fetchInventories()
-  }, [fetchInventories])
+  }, [refreshInventories])
 
   const handleRowDoubleClick = (inventory: InventoryResponse) => {
     router.push(`/inventory/${inventory.id}`)
@@ -68,9 +54,7 @@ export default function Dashboard() {
 
     try {
       await deleteInventoryRequest(inventoryToDelete.id)
-      setInventoryData((currentInventories) =>
-        currentInventories.filter((inv) => inv.id !== inventoryToDelete.id),
-      )
+      await refreshInventories()
       toast.success(
         `Inventário "${inventoryToDelete.name}" deletado com sucesso!`,
       )
@@ -99,12 +83,7 @@ export default function Dashboard() {
         data,
         inventoryToEdit.id,
       )
-      console.log('teste', updatedInventory)
-      setInventoryData((current) =>
-        current.map((inv) =>
-          inv.id === inventoryToEdit.id ? updatedInventory : inv,
-        ),
-      )
+      await refreshInventories()
       toast.success(
         `Inventário "${updatedInventory.name}" atualizado com sucesso!`,
       )
