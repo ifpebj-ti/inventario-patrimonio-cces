@@ -3,6 +3,9 @@ import '../globals.css'
 import { Toaster } from 'react-hot-toast'
 import AuthenticatedOnlyFeatureWrapper from '@/components/template/authenticated'
 import { Header } from '@/components/molecules/header'
+import { SidebarProvider } from '@/contexts/SidebarContext'
+import { InventoryProvider } from '@/contexts/InventoryContext'
+import { Sidebar } from '@/components/organisms/sidebar'
 
 export const metadata: Metadata = {
   title: 'Inventarium',
@@ -18,11 +21,18 @@ export default function RootLayout({
   return (
     // Somente pessoas autenticadas podem acessar as páginas dentro de (authenticated)
     <AuthenticatedOnlyFeatureWrapper>
-      <div>
-        <Header></Header>
-        {children}
-        <Toaster position="top-right" />
-      </div>
+      <InventoryProvider>
+        <SidebarProvider>
+          <div className="flex min-h-screen bg-gray-50 overflow-x-hidden">
+            <Sidebar />
+            <div className="flex flex-col flex-1 min-w-0 overflow-x-hidden">
+              <Header />
+              <main className="flex-1">{children}</main>
+            </div>
+            <Toaster position="top-right" />
+          </div>
+        </SidebarProvider>
+      </InventoryProvider>
     </AuthenticatedOnlyFeatureWrapper>
   )
 }
