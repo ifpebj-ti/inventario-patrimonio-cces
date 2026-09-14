@@ -1,10 +1,11 @@
 import axios from 'axios'
+import { API_URL } from '@/commons/env'
 import { parseCookies } from 'nookies'
 
 // criando porta da api com axios
 // basicamente vai permitir o frontend fazer requisicoes ao backend
 export const api = axios.create({
-  baseURL: `http://localhost:8080`, // URL base do backend, esta hospedada na porta 8080
+  baseURL: API_URL, // URL base publica do backend
   headers: {
     'Content-Type': 'application/json', // indica que vai comunicar via arquivos json
   },

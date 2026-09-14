@@ -1,0 +1,31 @@
+name: Development container images
+
+on:
+  push:
+    branches:
+      - development
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: development-container-images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  container-images:
+    name: Container images
+    if: github.ref_name == 'development'
+    uses: ./.github/workflows/build-container-images.yml
+    with:
+      deployment_environment: development
+      checkout_ref: ${{ github.sha }}
+      publish_images: true
+      publish_latest_dev: true
+      frontend_api_url: ${{ vars.NEXT_PUBLIC_API_URL_DEV }}
+      frontend_google_client_id: ${{ vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID || vars.GOOGLE_OAUTH_CLIENT_ID }}
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write

@@ -30,6 +30,7 @@ public class SecurityConfig {
                             // Sem isto, o encaminhamento para /error de qualquer exceção não
                             // tratada é barrado e o cliente recebe 403 vazio no lugar do 500.
                             .requestMatchers("/error").permitAll()
+                            .requestMatchers("/actuator/health/**").permitAll()
                             // Sem HttpMethod: o preflight OPTIONS precisa casar também.
                             .requestMatchers("/auth/google").permitAll();
                     auth.anyRequest().authenticated();
