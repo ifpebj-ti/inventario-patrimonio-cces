@@ -60,7 +60,7 @@ jobs:
     environment: ${{ inputs.deployment_environment }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.checkout_ref }}
           fetch-depth: 0
