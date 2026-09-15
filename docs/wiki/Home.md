@@ -58,15 +58,17 @@ Esta Wiki sera evoluida de forma incremental. A fonte oficial dos arquivos esta 
 Documentos disponiveis:
 
 1. [Mapa da Documentacao](./Mapa-da-Documentacao)
-2. [Analise de Concorrencia](./Analise-de-Concorrencia)
-3. [Documento de Modelagem de Dados](./Documento-de-Modelagem-de-Dados)
-4. [Architecture Decision Records](./Architecture-Decision-Records)
-5. [Guia de Execucao, Configuracao e Operacao](./Guia-de-Execucao-Configuracao-e-Operacao)
-6. [Guia de Boas Praticas de Desenvolvimento Seguro](./Guia-de-Boas-Praticas-de-Desenvolvimento-Seguro)
-7. [Modelagem de Ameacas](./Modelagem-de-Ameacas)
-8. [C4 - Contexto](./C4-Contexto)
-9. [C4 - Containers](./C4-Containers)
-10. [C4 - Componentes](./C4-Componentes)
+2. [Documento de Visao](./Documento-de-Visao)
+3. [Analise de Concorrencia](./Analise-de-Concorrencia)
+4. [Documento de Modelagem de Dados](./Documento-de-Modelagem-de-Dados)
+5. [Architecture Decision Records](./Architecture-Decision-Records)
+6. [Guia de Execucao, Configuracao e Operacao](./Guia-de-Execucao-Configuracao-e-Operacao)
+7. [Guia de Boas Praticas de Desenvolvimento Seguro](./Guia-de-Boas-Praticas-de-Desenvolvimento-Seguro)
+8. [Esteira de CI/CD](./Esteira-de-CI-CD)
+9. [Modelagem de Ameacas](./Modelagem-de-Ameacas)
+10. [C4 - Contexto](./C4-Contexto)
+11. [C4 - Containers](./C4-Containers)
+12. [C4 - Componentes](./C4-Componentes)
 
 Os documentos pendentes ou parcialmente cobertos estao acompanhados em [Mapa da Documentacao](./Mapa-da-Documentacao).
 
