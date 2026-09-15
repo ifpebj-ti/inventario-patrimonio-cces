@@ -27,7 +27,7 @@ jobs:
   commitlint:
     name: Commit messages
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]'
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]' && !(github.event.pull_request.head.ref == 'development' && github.event.pull_request.base.ref == 'main')
     steps:
       - name: Checkout
         uses: actions/checkout@v7
