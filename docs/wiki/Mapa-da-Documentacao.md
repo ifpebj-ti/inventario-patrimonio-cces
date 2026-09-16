@@ -22,6 +22,7 @@ Este mapa serve para saber rapidamente onde cada artefato esta. Ele nao substitu
 | Backlog e requisitos | GitHub Project | O Project e a fonte viva de tarefas, requisitos operacionais, prioridades e andamento. Duplicar isso na wiki tende a desatualizar. |
 | Arquitetura | [C4 - Contexto](./C4-Contexto), [C4 - Containers](./C4-Containers), [C4 - Componentes](./C4-Componentes) | Os diagramas mostram atores, containers e componentes principais. |
 | Modelagem de dados | [Documento de Modelagem de Dados](./Documento-de-Modelagem-de-Dados) | Registra entidades, relacionamentos, chaves e restricoes do schema atual. |
+| Proposta de evolucao da modelagem | [Proposta de Modelagem: Organizacoes, Setores e Permissoes](./Proposta-de-Modelagem-Organizacoes-Setores-e-Permissoes) | Registra o modelo alvo para organizacoes, setores, perfis, permissoes e historico de validacao. |
 | Decisoes tecnicas | [Architecture Decision Records](./Architecture-Decision-Records) | Guarda decisoes arquiteturais que precisam continuar rastreaveis. |
 
 ## Seguranca
@@ -48,6 +49,7 @@ Este mapa serve para saber rapidamente onde cada artefato esta. Ele nao substitu
 | Deploy automatico em VM | As imagens sao publicadas no GHCR, mas o deploy ainda nao esta automatizado no repositorio. |
 | Observabilidade e backup | Ainda precisam de definicao operacional quando o ambiente de producao estiver fechado. |
 | Evidencia de zero vulnerabilidades criticas | Depende do estado real da aba Security/Dependabot do GitHub. |
+| Implementacao do modelo por organizacao e setor | Proposta documentada, ainda dependente de implementacao no backend, migracoes, endpoints e testes de autorizacao. |
 
 ## Historico
 
@@ -55,3 +57,4 @@ Este mapa serve para saber rapidamente onde cada artefato esta. Ele nao substitu
 | --- | --- | --- |
 | 1.0 | 2026-09-15 | Criacao do mapa de artefatos da wiki com status por Engenharia, Seguranca e Infraestrutura. |
 | 1.1 | 2026-09-15 | Ajuste do mapa para registrar a fonte dos requisitos no GitHub Project e incluir a esteira de CI/CD. |
+| 1.2 | 2026-09-16 | Inclusao da proposta de modelagem para organizacoes, setores, perfis, permissoes e historico de validacao. |
