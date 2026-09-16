@@ -8,6 +8,7 @@
 - [Documento de Visao](./Documento-de-Visao)
 - [Analise de Concorrencia](./Analise-de-Concorrencia)
 - [Documento de Modelagem de Dados](./Documento-de-Modelagem-de-Dados)
+- [Proposta de Modelagem: Organizacoes, Setores e Permissoes](./Proposta-de-Modelagem-Organizacoes-Setores-e-Permissoes)
 - [Architecture Decision Records](./Architecture-Decision-Records)
 - [Guia de Execucao, Configuracao e Operacao](./Guia-de-Execucao-Configuracao-e-Operacao)
 - [Guia de Boas Praticas de Desenvolvimento Seguro](./Guia-de-Boas-Praticas-de-Desenvolvimento-Seguro)
