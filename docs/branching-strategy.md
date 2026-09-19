@@ -9,7 +9,7 @@ Este projeto usa `development` como branch de integracao e `main` como branch es
 - `feat/*`, `fix/*`, `docs/*`, `infra/*`, `ci/*`: branches de trabalho abertas contra `development`.
 - `hotfix/*`: correcao urgente aberta diretamente contra `main`.
 
-Nao existe branch `qa` neste momento. Quando houver ambiente de homologacao, a branch `development` deve representar esse ambiente. Quando houver producao, a branch `main` deve representar o codigo liberado para producao.
+Nao existe branch `qa` ou ambiente de homologacao neste momento. A branch `development` e apenas integracao de trabalho; deploy e publicacao de imagens versionadas acontecem somente quando as mudancas sao promovidas para `main`.
 
 ## Destinos de PR
 
@@ -59,7 +59,6 @@ Checks minimos esperados:
 
 - `Quality`: roda em PRs para validar secrets e commits antes do merge.
 - `Pull request container images`: usa um check agregado `Container images` para buildar e escanear imagens alteradas em PRs para `development`, sem publicar no GHCR.
-- `Development container images`: usa um check agregado `Container images` para publicar imagens de homologacao no GHCR a cada push em `development`.
 - `Validate PR Template`: valida issue vinculada e tipo de release conforme o fluxo.
 - `Validate PR Source`: impede PR direto para `main` fora de `development` ou `hotfix/*`.
 - `Close Promoted Issues`: fecha issues quando `development` e promovida para `main`.
@@ -82,21 +81,16 @@ O workflow reutilizavel `Build container images` executa, nesta ordem:
 4. scan das imagens Docker com Trivy;
 5. push para o GHCR somente se todos os scans anteriores passarem e o workflow chamador tiver solicitado publicacao.
 
-Os scans de dependencia e de imagem falham o workflow quando encontram vulnerabilidades `HIGH` ou `CRITICAL`. PRs para `development` buildam e escaneiam as imagens afetadas, mas nao publicam no GHCR. Pushes em `development` publicam apenas as imagens afetadas por mudancas em `frontend`, `backend`, `docker-compose.yml`, `.env.example` ou nos workflows de container. A deteccao de mudancas acontece dentro do proprio job `Container images`, reduzindo a quantidade de checks separados e de jobs marcados como skipped.
-
-Em `development`, as imagens recebem:
-
-- `latest-dev`, para a VM de homologacao sempre puxar a imagem corrente sem troca manual de tag;
-- `sha-<commit-sha>`, para rollback de homologacao.
+Os scans de dependencia e de imagem falham o workflow quando encontram vulnerabilidades `HIGH` ou `CRITICAL`. PRs para `development` buildam e escaneiam as imagens afetadas, mas nao publicam no GHCR. Pushes em `development` nao publicam imagens, pois nao existe mais VM de homologacao.
 
 Em producao, as imagens sao publicadas durante o workflow `Release`, depois da tag ser criada e antes da GitHub Release ser publicada. Como a release ainda e unica para a aplicacao, frontend e backend usam a mesma tag de versao, mas em imagens separadas:
 
 - `ghcr.io/<owner>/inventarium-front:vX.Y.Z`
 - `ghcr.io/<owner>/inventarium-back:vX.Y.Z`
 
-As imagens produtivas tambem recebem `sha-<commit-sha>` para rastreabilidade.
+As imagens produtivas recebem somente a tag de versao da release. Para deploy na VM, use tags imutaveis como `v0.2.1`, evitando tags moveis e tags por commit.
 
-Configure as variaveis de repositorio `NEXT_PUBLIC_API_URL_DEV`, `NEXT_PUBLIC_API_URL_PROD` e `NEXT_PUBLIC_GOOGLE_CLIENT_ID` ou `GOOGLE_OAUTH_CLIENT_ID` para preencher os build args do frontend. Se o Google Client ID estiver cadastrado como secret em vez de variavel, o workflow tambem aceita `NEXT_PUBLIC_GOOGLE_CLIENT_ID` ou `GOOGLE_OAUTH_CLIENT_ID` via GitHub Secrets. O build do frontend falha se esses valores nao estiverem configurados, para evitar publicar uma imagem apontando para uma URL incorreta.
+Configure as variaveis de repositorio `NEXT_PUBLIC_API_URL` e `NEXT_PUBLIC_GOOGLE_CLIENT_ID` ou `GOOGLE_OAUTH_CLIENT_ID` para preencher os build args do frontend. Se o Google Client ID estiver cadastrado como secret em vez de variavel, o workflow tambem aceita `NEXT_PUBLIC_GOOGLE_CLIENT_ID` ou `GOOGLE_OAUTH_CLIENT_ID` via GitHub Secrets. O build do frontend falha se esses valores nao estiverem configurados, para evitar publicar uma imagem apontando para uma URL incorreta.
 
 ## Dependabot
 

@@ -4,6 +4,8 @@ Este documento descreve o modelo de dados atual do Inventarium conforme o change
 
 O objetivo e registrar as entidades principais, relacionamentos, cardinalidades, chaves, restricoes relevantes e decisoes de modelagem que impactam o funcionamento do sistema.
 
+> Nota: existe uma proposta de evolucao para organizacoes, setores, perfis, permissoes e historico de validacao em [Proposta de Modelagem: Organizacoes, Setores e Permissoes](./Proposta-de-Modelagem-Organizacoes-Setores-e-Permissoes). Este documento permanece como referencia do modelo atualmente implementado.
+
 ## Visao Geral
 
 O modelo atual organiza os dados patrimoniais em quatro entidades principais:
