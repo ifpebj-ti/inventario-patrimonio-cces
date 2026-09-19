@@ -162,4 +162,38 @@
 
     </changeSet>
 
+    <!-- =========================== ORGANIZATION ================================== -->
+
+    <changeSet id="20260816-22" author="Lucas Silva">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="im_organization"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="im_organization">
+            <column name="id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="acronym" type="VARCHAR(50)"/>
+            <column name="domain" type="VARCHAR(255)"/>
+            <column name="created_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addPrimaryKey tableName="im_organization" columnNames="id" constraintName="pk_organization"/>
+
+        <addUniqueConstraint tableName="im_organization" columnNames="name" constraintName="uk_6938349274896"/>
+
+        <createSequence sequenceName="im_organization_id" incrementBy="1" startValue="1"/>
+
+    </changeSet>
+
 </databaseChangeLog>
