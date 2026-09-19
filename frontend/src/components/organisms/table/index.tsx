@@ -135,9 +135,7 @@ export const Table = ({
             <div className="w-24 shrink-0">
               <span
                 className={`font-semibold whitespace-nowrap ${
-                  row.original.isValid
-                    ? 'text-emerald-600'
-                    : 'text-red-500'
+                  row.original.isValid ? 'text-emerald-600' : 'text-red-500'
                 }`}
               >
                 {row.original.code}
@@ -428,17 +426,18 @@ export const Table = ({
                             <span className="font-bold text-base text-emerald-600 truncate">
                               {item.code}
                             </span>
-                            {'isValid' in item && item.isValid !== undefined && (
-                              <span
-                                className={`text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
-                                  item.isValid
-                                    ? 'bg-emerald-100 text-emerald-700'
-                                    : 'bg-amber-100 text-amber-700'
-                                }`}
-                              >
-                                {item.isValid ? 'Verificado' : 'Pendente'}
-                              </span>
-                            )}
+                            {'isValid' in item &&
+                              item.isValid !== undefined && (
+                                <span
+                                  className={`text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
+                                    item.isValid
+                                      ? 'bg-emerald-100 text-emerald-700'
+                                      : 'bg-amber-100 text-amber-700'
+                                  }`}
+                                >
+                                  {item.isValid ? 'Verificado' : 'Pendente'}
+                                </span>
+                              )}
                           </>
                         ) : (
                           <span className="font-bold text-base text-slate-800 truncate">

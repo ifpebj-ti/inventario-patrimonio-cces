@@ -55,8 +55,12 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
             &times;
           </button>
           {/* Título e mensagem do modal, preenchidos dinamicamente via props. */}
-          <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mb-3">{title}</h2>
-          <p className="text-slate-600 text-sm sm:text-base leading-relaxed">{message}</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mb-3">
+            {title}
+          </h2>
+          <p className="text-slate-600 text-sm sm:text-base leading-relaxed">
+            {message}
+          </p>
           {/* Contêiner para os botões de ação, alinhados à direita. */}
           <div className="mt-6 sm:mt-8 flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4">
             {/* Botão de Cancelar, que chama a função onClose. */}

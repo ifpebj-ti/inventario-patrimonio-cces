@@ -162,7 +162,9 @@ export const ObservationModal: React.FC<ObservationModalProps> = ({
                     autoFocus
                   />
                 ) : (
-                  <span className="text-gray-800 text-sm flex-1 break-words">{obs.content}</span>
+                  <span className="text-gray-800 text-sm flex-1 break-words">
+                    {obs.content}
+                  </span>
                 )}
 
                 {/* Ícones de ação para editar e deletar cada observação com touch target adequado */}

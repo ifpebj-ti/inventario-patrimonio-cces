@@ -18,7 +18,9 @@ export const InventoryItemsStatus = ({ content = [] }: ItemsValid) => {
           <div className="text-5xl sm:text-7xl font-light text-green-500 mb-2">
             {verifiedCount}
           </div>
-          <div className="text-gray-600 text-xs sm:text-sm font-medium">Itens verificados</div>
+          <div className="text-gray-600 text-xs sm:text-sm font-medium">
+            Itens verificados
+          </div>
         </div>
 
         {/* Seção para exibir a contagem de itens não verificados. */}
@@ -26,7 +28,9 @@ export const InventoryItemsStatus = ({ content = [] }: ItemsValid) => {
           <div className="text-5xl sm:text-7xl font-light text-red-500 mb-2">
             {unverifiedCount}
           </div>
-          <div className="text-gray-600 text-xs sm:text-sm font-medium">Itens não verificados</div>
+          <div className="text-gray-600 text-xs sm:text-sm font-medium">
+            Itens não verificados
+          </div>
         </div>
       </div>
 
