@@ -17,9 +17,7 @@ jobs:
     name: Container images
     uses: ./.github/workflows/build-container-images.yml
     with:
-      deployment_environment: pull-request
       checkout_ref: ${{ github.event.pull_request.head.sha }}
       publish_images: false
-      publish_latest_dev: false
-      frontend_api_url: ${{ vars.NEXT_PUBLIC_API_URL_DEV }}
+      frontend_api_url: ${{ vars.NEXT_PUBLIC_API_URL }}
       frontend_google_client_id: ${{ vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID || vars.GOOGLE_OAUTH_CLIENT_ID }}

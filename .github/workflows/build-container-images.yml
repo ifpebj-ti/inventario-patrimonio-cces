@@ -3,10 +3,6 @@ name: Build container images
 on:
   workflow_call:
     inputs:
-      deployment_environment:
-        description: Target environment name used by GitHub Actions.
-        required: true
-        type: string
       checkout_ref:
         description: Git ref, SHA, or tag to build.
         required: true
@@ -16,11 +12,6 @@ on:
         required: false
         default: ""
         type: string
-      publish_latest_dev:
-        description: Publish the latest-dev mutable tag.
-        required: false
-        default: false
-        type: boolean
       publish_images:
         description: Push scanned images to GHCR.
         required: false
@@ -57,7 +48,6 @@ jobs:
   container-images:
     name: Container images
     runs-on: ubuntu-latest
-    environment: ${{ inputs.deployment_environment }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -100,11 +90,11 @@ jobs:
             echo "Changed files:"
             echo "${changed_files:-none}"
 
-            if echo "${changed_files}" | grep -Eq '^(frontend/|docker-compose\.yml|\.env\.example|\.github/workflows/(build-container-images|development-container-images|pull-request-container-images)\.yml)'; then
+            if echo "${changed_files}" | grep -Eq '^(frontend/|docker-compose\.yml|\.env\.example|\.github/workflows/(build-container-images|pull-request-container-images)\.yml)'; then
               build_frontend=true
             fi
 
-            if echo "${changed_files}" | grep -Eq '^(backend/|docker-compose\.yml|\.env\.example|\.github/workflows/(build-container-images|development-container-images|pull-request-container-images)\.yml)'; then
+            if echo "${changed_files}" | grep -Eq '^(backend/|docker-compose\.yml|\.env\.example|\.github/workflows/(build-container-images|pull-request-container-images)\.yml)'; then
               build_backend=true
             fi
           fi
@@ -181,17 +171,14 @@ jobs:
           build_tags() {
             local image="$1"
             local tags_file="$2"
+            local local_tag="$3"
 
             : > "${tags_file}"
 
             if [ -n "${{ inputs.version_tag }}" ]; then
               printf "%s\n" "${image}:${{ inputs.version_tag }}" >> "${tags_file}"
-            fi
-
-            printf "%s\n" "${image}:sha-${commit_sha}" >> "${tags_file}"
-
-            if [ "${{ inputs.publish_latest_dev }}" = "true" ]; then
-              printf "%s\n" "${image}:latest-dev" >> "${tags_file}"
+            else
+              printf "%s\n" "${local_tag}" >> "${tags_file}"
             fi
           }
 
@@ -200,8 +187,8 @@ jobs:
           frontend_tags_file="${RUNNER_TEMP}/frontend-tags.txt"
           backend_tags_file="${RUNNER_TEMP}/backend-tags.txt"
 
-          build_tags "${frontend_image}" "${frontend_tags_file}"
-          build_tags "${backend_image}" "${backend_tags_file}"
+          build_tags "${frontend_image}" "${frontend_tags_file}" "inventarium-front:ci"
+          build_tags "${backend_image}" "${backend_tags_file}" "inventarium-back:ci"
 
           {
             echo "frontend_image=${frontend_image}"
@@ -222,11 +209,11 @@ jobs:
         if: steps.changes.outputs.frontend == 'true'
         shell: bash
         env:
-          FRONTEND_API_URL: ${{ inputs.frontend_api_url || vars.NEXT_PUBLIC_API_URL || vars.NEXT_PUBLIC_API_URL_DEV || vars.NEXT_PUBLIC_API_URL_PROD }}
+          FRONTEND_API_URL: ${{ inputs.frontend_api_url || vars.NEXT_PUBLIC_API_URL }}
           FRONTEND_GOOGLE_CLIENT_ID: ${{ inputs.frontend_google_client_id || vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID || vars.GOOGLE_OAUTH_CLIENT_ID || secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID || secrets.GOOGLE_OAUTH_CLIENT_ID }}
         run: |
           if [ -z "${FRONTEND_API_URL}" ]; then
-            echo "Missing frontend_api_url. Configure NEXT_PUBLIC_API_URL_DEV or NEXT_PUBLIC_API_URL_PROD."
+            echo "Missing frontend_api_url. Configure NEXT_PUBLIC_API_URL as a repository variable."
             exit 1
           fi
 
@@ -246,7 +233,7 @@ jobs:
           tags: ${{ steps.meta.outputs.frontend_tags }}
           build-args: |
             NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ inputs.frontend_google_client_id || vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID || vars.GOOGLE_OAUTH_CLIENT_ID || secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID || secrets.GOOGLE_OAUTH_CLIENT_ID }}
-            NEXT_PUBLIC_API_URL=${{ inputs.frontend_api_url || vars.NEXT_PUBLIC_API_URL || vars.NEXT_PUBLIC_API_URL_DEV || vars.NEXT_PUBLIC_API_URL_PROD }}
+            NEXT_PUBLIC_API_URL=${{ inputs.frontend_api_url || vars.NEXT_PUBLIC_API_URL }}
           labels: |
             org.opencontainers.image.source=${{ steps.meta.outputs.source_url }}
             org.opencontainers.image.revision=${{ steps.meta.outputs.revision }}
