@@ -45,30 +45,35 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
       {/* Contêiner que usa Flexbox para centralizar o modal na tela. */}
       <div className="fixed inset-0 flex justify-center items-center z-50 p-4">
         {/* Painel branco principal do modal. */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 relative w-full max-w-lg">
+        <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 relative w-full max-w-lg">
           {/* Botão de fechar (X) no canto superior direito. */}
           <button
-            className="absolute top-3 right-4 text-gray-400 hover:text-gray-600 text-3xl font-bold transition-colors cursor-pointer"
+            className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 text-3xl font-bold transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl"
             onClick={onClose}
+            aria-label="Fechar modal"
           >
             &times;
           </button>
           {/* Título e mensagem do modal, preenchidos dinamicamente via props. */}
-          <h2 className="text-2xl font-bold text-slate-800 mb-4">{title}</h2>
-          <p className="text-slate-600">{message}</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mb-3">
+            {title}
+          </h2>
+          <p className="text-slate-600 text-sm sm:text-base leading-relaxed">
+            {message}
+          </p>
           {/* Contêiner para os botões de ação, alinhados à direita. */}
-          <div className="mt-8 flex justify-end gap-4">
+          <div className="mt-6 sm:mt-8 flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4">
             {/* Botão de Cancelar, que chama a função onClose. */}
             <button
               onClick={onClose}
-              className="px-6 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 font-semibold text-slate-800 transition-colors cursor-pointer"
+              className="w-full sm:w-auto px-6 py-2.5 min-h-[44px] rounded-xl bg-slate-200 hover:bg-slate-300 font-semibold text-slate-800 transition-colors cursor-pointer flex items-center justify-center"
             >
               {cancelButtonText}
             </button>
             {/* Botão de Confirmar, que chama a função onConfirm. */}
             <button
               onClick={onConfirm}
-              className="px-6 py-2 rounded-lg bg-red-500 text-white font-semibold hover:bg-red-600 transition-colors cursor-pointer"
+              className="w-full sm:w-auto px-6 py-2.5 min-h-[44px] rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 transition-colors cursor-pointer flex items-center justify-center"
             >
               {confirmButtonText}
             </button>

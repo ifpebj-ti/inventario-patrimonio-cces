@@ -59,11 +59,12 @@ export const Modal = ({
       {/* Contêiner que centraliza o modal na tela. */}
       <div className="fixed inset-0 flex justify-center items-center z-60 p-4">
         {/* O painel branco do modal com a estilização principal. */}
-        <div className="bg-white rounded-3xl shadow-2xl flex justify-center flex-col gap-6 p-8 relative max-h-screen overflow-y-auto w-2/5 max-w-md">
+        <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl flex justify-center flex-col gap-6 p-6 sm:p-8 relative max-h-[90vh] overflow-y-auto w-full max-w-md">
           {/* Botão para fechar o modal no canto superior direito. */}
           <button
-            className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl font-bold transition-colors cursor-pointer"
+            className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 text-2xl font-bold transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl"
             onClick={onClose}
+            aria-label="Fechar modal"
           >
             &times;
           </button>

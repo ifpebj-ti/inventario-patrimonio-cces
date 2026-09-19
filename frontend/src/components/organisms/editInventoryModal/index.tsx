@@ -60,16 +60,17 @@ export const EditInventoryModal = ({
     // O contêiner do modal, que inclui o fundo escuro (backdrop) e o painel centralizado.
     <div className="fixed inset-0 bg-opacity-30 backdrop-blur-sm flex justify-center items-center z-50 p-4">
       {/* O painel branco do modal com a estilização principal. */}
-      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-lg relative">
+      <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-xl w-full max-w-lg relative max-h-[90vh] overflow-y-auto">
         {/* Botão para fechar o modal no canto superior direito. */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-3xl cursor-pointer"
+          className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 text-3xl cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl"
+          aria-label="Fechar modal"
         >
           &times;
         </button>
 
-        <h2 className="text-2xl font-bold text-slate-800 mb-6">
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mb-6">
           Editar Inventário
         </h2>
 
@@ -123,18 +124,19 @@ export const EditInventoryModal = ({
           </div>
 
           {/* Seção com os botões de ação do formulário. */}
-          <div className="mt-6 flex justify-end gap-4">
+          <div className="mt-6 flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4">
             <Button
               type="button"
               text="Cancelar"
               variant={2}
               onClick={onClose}
+              width="w-full sm:w-auto"
             />
             <Button
               type="submit"
-              // O texto do botão e seu estado 'disabled' mudam durante a submissão.
               text={isSubmitting ? 'Salvando...' : 'Salvar Alterações'}
               disabled={isSubmitting}
+              width="w-full sm:w-auto"
             />
           </div>
         </form>

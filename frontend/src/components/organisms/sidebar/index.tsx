@@ -136,7 +136,7 @@ export function Sidebar() {
       {/* 1. Versão Desktop (>= 768px): Fixa na lateral esquerda */}
       <aside
         aria-label="Menu lateral de navegação"
-        className={`hidden md:flex flex-col border-r border-gray-200 bg-white sticky top-0 h-screen transition-all duration-300 ease-in-out shrink-0 z-50 font-['Linden_Hill',serif] ${
+        className={`sticky top-0 h-screen hidden md:flex flex-col shrink-0 border-r border-gray-200 bg-white z-40 transition-all duration-300 ease-in-out font-['Linden_Hill',serif] ${
           isCollapsed ? 'w-24' : 'w-64'
         }`}
       >
@@ -222,7 +222,7 @@ export function Sidebar() {
         {/* Rodapé da Sidebar: Card de Perfil com Seta Persistente e Popover Completo */}
         <div
           ref={profileMenuRef}
-          className="mt-auto border-t border-gray-100 p-2.5 relative select-none"
+          className="mt-auto shrink-0 border-t border-gray-100 p-2.5 relative select-none"
         >
           {/* Popover Flutuante para Cima com Dados do Usuário */}
           <AnimatePresence>

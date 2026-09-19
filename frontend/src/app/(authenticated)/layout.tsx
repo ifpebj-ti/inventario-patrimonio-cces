@@ -23,11 +23,11 @@ export default function RootLayout({
     <AuthenticatedOnlyFeatureWrapper>
       <InventoryProvider>
         <SidebarProvider>
-          <div className="flex min-h-screen bg-gray-50 overflow-x-hidden">
+          <div className="flex min-h-screen w-full bg-gray-50">
             <Sidebar />
-            <div className="flex flex-col flex-1 min-w-0 overflow-x-hidden">
+            <div className="flex-1 min-w-0 flex flex-col w-full">
               <Header />
-              <main className="flex-1">{children}</main>
+              <main className="flex-1 w-full">{children}</main>
             </div>
             <Toaster position="top-right" />
           </div>

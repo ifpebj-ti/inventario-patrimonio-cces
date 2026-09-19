@@ -157,9 +157,9 @@ export default function ItemDetailPage() {
   }
 
   return (
-    <div className="overflow-x-hidden flex flex-col justify-start items-center min-h-screen">
+    <div className="overflow-x-hidden flex flex-col justify-start items-center min-h-screen w-full px-2 sm:px-4 py-4 sm:py-6">
       {/* Container principal da página de detalhes */}
-      <div className="flex flex-col items-center align-items-center w-full max-w-4xl p-4">
+      <div className="flex flex-col items-center w-full max-w-4xl">
         {isLoading && (
           <p className="text-gray-500 text-lg mt-8">
             Carregando detalhes do item...
@@ -167,17 +167,17 @@ export default function ItemDetailPage() {
         )}
         {error && <p className="text-red-500 text-lg mt-8">{error}</p>}
         {item && editableItem && (
-          <div className="w-full bg-white shadow-md rounded-lg p-6 flex flex-col sm:flex-row justify-center items-start gap-12">
-            <div className="flex-1 flex flex-col items-start">
-              <div className="flex items-center gap-3">
-                <h2 className="text-4xl font-bold text-green-600 mr-2">
+          <div className="w-full bg-white shadow-md rounded-2xl p-4 sm:p-8 flex flex-col md:flex-row justify-center items-stretch md:items-start gap-8 md:gap-12">
+            <div className="flex-1 flex flex-col items-start min-w-0">
+              <div className="flex items-center gap-3 w-full">
+                <h2 className="text-2xl sm:text-4xl font-bold text-green-600 mr-2 break-all">
                   {isEditing ? (
                     <input
                       type="text"
                       name="code"
                       value={editableItem.code}
                       onChange={handleChange}
-                      className="border-b border-gray-400 text-green-600 text-4xl font-bold"
+                      className="border-b border-gray-400 text-green-600 text-2xl sm:text-4xl font-bold w-full max-w-xs"
                     />
                   ) : (
                     item.code
@@ -188,7 +188,7 @@ export default function ItemDetailPage() {
                     onClick={handleEditClick}
                     aria-label="Editar item"
                     title="Editar item"
-                    className="inline-flex items-center"
+                    className="min-h-[44px] min-w-[44px] p-2 inline-flex items-center justify-center rounded-xl hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
                   >
                     <RiPencilFill
                       className="text-gray-500 cursor-pointer"
@@ -267,7 +267,7 @@ export default function ItemDetailPage() {
                     ))
                   : 'Nenhuma observação.'}
               </div>
-              <div className="flex gap-4 mt-4">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-4 w-full">
                 {isEditing ? (
                   <>
                     <Button
