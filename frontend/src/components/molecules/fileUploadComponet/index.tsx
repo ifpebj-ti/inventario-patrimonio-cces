@@ -88,14 +88,14 @@ export const FileUploadComponent = ({
   }
 
   return (
-    <div className="flex items-center justify-center h-[80%]">
-      <div className="w-full max-w-md h-full">
+    <div className="flex items-center justify-center h-auto w-full">
+      <div className="w-full max-w-md h-auto">
         {/* Renderização condicional: mostra a área de upload ou a tela de confirmação. */}
         {!uploadedFile ? (
           // Estado inicial: área para arrastar ou clicar para selecionar um arquivo.
           <div
             className={`
-                relative rounded-lg shadow-md p-4 text-center transition-all duration-200 h-full
+                relative rounded-2xl shadow-md p-6 text-center transition-all duration-200 h-auto border-2 border-dashed
                 ${
                   isDragOver
                     ? 'border-blue-400 bg-blue-50'
@@ -108,11 +108,11 @@ export const FileUploadComponent = ({
           >
             <div className="mb-4 flex justify-center">
               <div className="w-16 h-20 rounded-lg relative">
-                <TbFileUpload className="w-24 h-24 text-gray-400 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+                <TbFileUpload className="w-20 h-20 sm:w-24 sm:h-24 text-gray-400 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
               </div>
             </div>
 
-            <p className="text-gray-500 mb-6 w-2/3 mx-auto">
+            <p className="text-gray-500 mb-6 w-full max-w-xs mx-auto text-xs sm:text-sm">
               Arraste aqui a planilha ou insira através do botão
             </p>
 
@@ -122,6 +122,7 @@ export const FileUploadComponent = ({
                 variant={3}
                 type="button"
                 onClick={handleButtonClick}
+                width="w-full sm:w-64"
               />
             </div>
 
@@ -136,7 +137,7 @@ export const FileUploadComponent = ({
           </div>
         ) : (
           // Estado após o upload: mostra o status do arquivo selecionado.
-          <div className="bg-white rounded-lg p-6 text-center h-full shadow-md">
+          <div className="bg-white rounded-2xl p-6 text-center h-auto shadow-md">
             <div className="mb-4">
               <TbFileUpload
                 className={`w-12 h-12 mx-auto

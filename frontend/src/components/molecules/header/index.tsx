@@ -9,7 +9,7 @@ export const Header = () => {
   const { toggleMobile } = useSidebar()
 
   return (
-    <header className="sticky top-0 z-30 flex items-center h-16 px-4 sm:px-6 bg-white/95 backdrop-blur-xs border-b border-gray-200 shadow-xs">
+    <header className="sticky top-0 z-30 flex items-center min-h-16 py-2 px-4 sm:px-6 bg-white/95 backdrop-blur-xs border-b border-gray-200/80 shadow-xs w-full">
       {/* Botão hambúrguer para abrir a barra lateral no mobile */}
       <button
         onClick={toggleMobile}

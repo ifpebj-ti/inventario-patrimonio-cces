@@ -7,11 +7,11 @@ import { usePathname } from 'next/navigation'
 // Objeto que define os diferentes estados (variantes) da animação.
 const variants = {
   // 'hidden': Estado inicial, antes de a página entrar na tela.
-  hidden: { opacity: 0, x: 300, y: 0 },
-  // 'enter': Estado final, quando a página está visível.
-  enter: { opacity: 1, x: 0, y: 0 },
+  hidden: { opacity: 0, x: 50 },
+  // 'enter': Estado final, quando a página está visível. Libera transform ao finalizar para não quebrar position: sticky.
+  enter: { opacity: 1, x: 0, transitionEnd: { transform: 'none' } },
   // 'quit': Estado de saída, quando a página está sendo removida.
-  quit: { opacity: 0, x: 300, y: 0 },
+  quit: { opacity: 0, x: 50 },
 }
 
 type Props = {

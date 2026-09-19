@@ -214,8 +214,8 @@ export default function Inventory() {
     }
   }
 
-  const handleOpenDeleteItemModal = (item: Item) => {
-    setItemToDelete(item)
+  const handleOpenDeleteItemModal = (item: Item | InventoryResponse) => {
+    setItemToDelete(item as Item)
     setIsDeleteItemModalOpen(true)
   }
 
@@ -242,17 +242,20 @@ export default function Inventory() {
   }
 
   return (
-    <div className="overflow-x-hidden flex flex-col justify-center items-center">
-      <div className="flex flex-col items-center min-h-screen pb-4">
-        <div className="flex items-center gap-4 mt-4 h-80">
-          <InventoryItemsStatus content={itemData}></InventoryItemsStatus>
+    <div className="w-full max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 flex flex-col gap-6 min-h-screen">
+      {/* Cards de Status e Upload de Planilha: empilhados no mobile/tablet e lado a lado no desktop */}
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-center gap-4 w-full">
+        <InventoryItemsStatus content={itemData} />
 
-          <FileUploadComponent
-            onFileSelect={handleFileUpload}
-            onValidateFile={handleSpreadsheetValidation}
-            validationErrors={validationErrors}
-          ></FileUploadComponent>
-        </div>
+        <FileUploadComponent
+          onFileSelect={handleFileUpload}
+          onValidateFile={handleSpreadsheetValidation}
+          validationErrors={validationErrors}
+        />
+      </div>
+
+      {/* Tabela Híbrida (Cards no mobile / Tabela no desktop) */}
+      <div className="w-full">
         <Table
           header={[
             { key: 'code', headerText: 'Código' },
@@ -272,7 +275,7 @@ export default function Inventory() {
           onExportSheet={handleExportSheet}
           onSendEmailSheet={handleOpenEmailModal}
           onDeleteItem={handleOpenDeleteItemModal}
-        ></Table>
+        />
       </div>
 
       {isUploading && (

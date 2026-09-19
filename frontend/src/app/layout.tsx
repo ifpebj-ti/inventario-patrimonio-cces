@@ -27,14 +27,14 @@ export default function RootLayout({
   return (
     <html lang="pt-br">
       {/* As classes no body são aplicadas a toda a aplicação. */}
-      <body className="antialiased min-h-screen">
+      <body className="antialiased min-h-screen overflow-x-hidden w-full">
         {/* AuthProvider: Fornece o contexto de autenticação (usuário, status de login, etc.)
             para todos os componentes filhos. Deve ser um dos wrappers mais externos. */}
         <AuthProvider>
           {/* MotionWrapper: Componente responsável por aplicar as animações de transição
               quando o usuário navega entre as páginas. */}
           <MotionWrapper>
-            <div>
+            <div className="w-full min-h-screen">
               {/* '{children}' é onde o conteúdo da página específica (ex: Dashboard, Login) será inserido. */}
               {children}
               {/* Toaster: Componente para exibir notificações (toasts) em toda a aplicação.
