@@ -79,11 +79,11 @@ A pipeline publica imagens no GitHub Container Registry, mas nao injeta secrets 
 - backend: `SECURITY_TOKEN_SECRET`, credenciais do banco, credenciais de email e configuracoes Spring sao variaveis de runtime e devem ficar na stack, no Compose, no Portainer ou no mecanismo de secrets da VM;
 - uma troca de imagem nao deve exigir redigitar secrets quando a stack reutiliza as mesmas variaveis salvas.
 
-Para homologacao, configure a stack da VM ou o `.env` protegido apontando para as tags moveis `latest-dev`:
+Para producao, configure a stack da VM ou o `.env` protegido apontando para as tags versionadas publicadas pelo workflow de release:
 
 ```bash
-BACKEND_IMAGE=ghcr.io/<owner>/inventarium-back:latest-dev
-FRONTEND_IMAGE=ghcr.io/<owner>/inventarium-front:latest-dev
+BACKEND_IMAGE=ghcr.io/<owner>/inventarium-back:v0.2.1
+FRONTEND_IMAGE=ghcr.io/<owner>/inventarium-front:v0.2.1
 
 SECURITY_TOKEN_SECRET=<valor-forte>
 POSTGRES_USER=<usuario>
@@ -96,9 +96,9 @@ NEXT_PUBLIC_API_URL=<url-publica-da-api>
 GOOGLE_ALLOWED_DOMAINS=ifpe.edu.br
 ```
 
-Para rollback de homologacao, troque apenas `BACKEND_IMAGE` e `FRONTEND_IMAGE` para uma tag `sha-<commit-sha>` ja publicada. As demais variaveis podem permanecer iguais.
+Para rollback, troque apenas `BACKEND_IMAGE` e `FRONTEND_IMAGE` para uma tag de versao anterior ja publicada, como `v0.2.0`. As demais variaveis podem permanecer iguais.
 
-No Portainer, prefira manter essas variaveis como environment da stack, nao como valores digitados manualmente a cada recriacao de container. Se a pipeline passar a fazer deploy automatico na VM depois, ela deve atualizar somente a referencia da imagem ou forcar pull/recreate da stack, preservando as variaveis de runtime ja configuradas.
+No Portainer, prefira manter essas variaveis como environment da stack, nao como valores digitados manualmente a cada recriacao de container. Se a pipeline passar a fazer deploy automatico na VM depois, ela deve atualizar somente a referencia da imagem versionada ou forcar pull/recreate da stack, preservando as variaveis de runtime ja configuradas.
 
 ## Execucao Local Com Docker Compose
 
@@ -406,4 +406,4 @@ Em producao:
 - Nao exponha o Postgres publicamente.
 - Restrinja portas de entrada na VM.
 - Guarde secrets fora do repositorio.
-- Use imagens versionadas e rastreaveis por tag.
+- Use imagens versionadas publicadas pela release.

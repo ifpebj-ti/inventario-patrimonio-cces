@@ -82,13 +82,11 @@ jobs:
     if: needs.release.outputs.skip != 'true'
     uses: ./.github/workflows/build-container-images.yml
     with:
-      deployment_environment: production
       checkout_ref: ${{ needs.release.outputs.tag }}
       version_tag: ${{ needs.release.outputs.tag }}
       publish_images: true
-      publish_latest_dev: false
       force_build_all: true
-      frontend_api_url: ${{ vars.NEXT_PUBLIC_API_URL_PROD }}
+      frontend_api_url: ${{ vars.NEXT_PUBLIC_API_URL }}
       frontend_google_client_id: ${{ vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID || vars.GOOGLE_OAUTH_CLIENT_ID }}
     secrets: inherit
     permissions:
