@@ -6,9 +6,6 @@ import { Header } from '@/components/molecules/header'
 import { SidebarProvider } from '@/contexts/SidebarContext'
 import { InventoryProvider } from '@/contexts/InventoryContext'
 import { Sidebar } from '@/components/organisms/sidebar'
-import { SidebarProvider } from '@/contexts/SidebarContext'
-import { InventoryProvider } from '@/contexts/InventoryContext'
-import { Sidebar } from '@/components/organisms/sidebar'
 
 export const metadata: Metadata = {
   title: 'Inventarium',
