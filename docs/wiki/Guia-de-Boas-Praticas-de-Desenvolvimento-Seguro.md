@@ -94,7 +94,7 @@ Boas praticas:
 - rodar testes e checks relevantes;
 - corrigir vulnerabilidades criticas antes de promover release;
 - evitar bibliotecas sem manutencao ou com risco conhecido;
-- manter imagens Docker rastreaveis por tag de versao e `sha-<commit-sha>`.
+- manter imagens Docker rastreaveis por tag de versao.
 
 Os workflows de imagens usam Trivy para scan de secrets, dependencias e imagens. Vulnerabilidades `HIGH` ou `CRITICAL` em dependencias ou imagens devem falhar a pipeline conforme configuracao atual.
 
@@ -105,10 +105,9 @@ Boas praticas para execucao e operacao:
 - usar HTTPS em producao;
 - nao expor o banco diretamente para a internet;
 - manter secrets de runtime fora da imagem Docker;
-- separar valores de desenvolvimento e producao;
-- publicar imagens no GHCR apenas depois de build e scan;
+- publicar imagens no GHCR apenas depois de build e scan na release;
 - usar tags versionadas para producao;
-- usar tags `sha-<commit-sha>` para rastreabilidade e rollback;
+- usar tags versionadas anteriores para rollback;
 - acompanhar logs sem registrar segredos.
 
 O guia operacional completo esta em [Guia de Execucao, Configuracao e Operacao](./Guia-de-Execucao-Configuracao-e-Operacao).
