@@ -14,6 +14,9 @@ Neste primeiro passo, o Terraform ainda nao cria recursos. Ele apenas configura 
 - `locals.tf`: monta listas de regras de rede a partir das variaveis.
 - `security.tf`: declara os NSGs e as regras de entrada/saida das VMs.
 - `state.tf`: cria o bucket privado e versionado que sera usado como backend remoto do Terraform state.
+- `compute.tf`: declara as VMs de aplicacao e observabilidade.
+- `cloud-init-app.yaml.tftpl`: prepara a VM de aplicacao com Nginx, Docker e Portainer CE.
+- `cloud-init-observability.yaml.tftpl`: prepara a VM de observabilidade com Nginx e Docker.
 - `backend.oci.hcl.example`: modelo de configuracao do backend remoto, usado depois que o bucket existir.
 - `outputs.tf`: mostra os Availability Domains retornados pela Oracle.
 - `terraform.tfvars.example`: modelo versionado dos valores locais.
@@ -51,9 +54,16 @@ O NSG da aplicacao libera:
 
 - SSH `22` somente para `allowed_ssh_cidrs`.
 - HTTP `80` e HTTPS `443` somente para `allowed_web_cidrs`.
+- Portainer `9443` somente para `allowed_admin_cidrs`.
 - Saida para internet.
 
 O NSG de observabilidade nao recebe trafego direto da internet. Ele libera SSH `22` somente a partir da subnet publica da aplicacao, permitindo um acesso futuro via VM da aplicacao como ponto de entrada interno.
+
+## VMs iniciais
+
+A VM de aplicacao nasce na subnet publica, recebe IP publico e usa o NSG da aplicacao. O cloud-init instala Nginx, Docker e Portainer CE.
+
+A VM de observabilidade nasce na subnet privada, sem IP publico, e usa o NSG de observabilidade. O cloud-init instala Nginx e Docker para receber a stack de observabilidade e SonarQube depois.
 
 ## State remoto
 

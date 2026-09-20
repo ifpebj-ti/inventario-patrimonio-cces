@@ -1,0 +1,29 @@
+#cloud-config
+package_update: true
+packages:
+  - nginx
+  - dnf-utils
+
+write_files:
+  - path: /etc/motd
+    permissions: "0644"
+    content: |
+      Inventarium application VM
+
+      Planned services:
+      - Nginx reverse proxy
+      - Docker containers for frontend, backend and database
+      - Portainer CE for container administration
+
+runcmd:
+  - dnf config-manager --add-repo=https://download.docker.com/linux/centos/docker-ce.repo
+  - dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - systemctl enable --now docker
+  - systemctl enable --now nginx
+  - firewall-cmd --permanent --add-service=http || true
+  - firewall-cmd --permanent --add-service=https || true
+  - firewall-cmd --permanent --add-port=9443/tcp || true
+  - firewall-cmd --reload || true
+  - mkdir -p /opt/inventarium-app
+  - docker volume create portainer_data
+  - docker run -d --name portainer --restart=always -p 9443:9443 -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:lts
