@@ -12,6 +12,7 @@ compartment_ocid = "ocid1.compartment.oc1..example"
 vcn_cidr                          = "10.42.0.0/24"
 app_public_subnet_cidr            = "10.42.0.0/26"
 observability_private_subnet_cidr = "10.42.0.64/26"
+terraform_state_bucket_name       = "inventarium-terraform-state"
 
 # VM access
 ssh_public_key = "ssh-ed25519 AAAA... usuario@maquina"

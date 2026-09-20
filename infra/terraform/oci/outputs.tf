@@ -27,3 +27,13 @@ output "observability_nsg_id" {
   description = "OCID do NSG da VM de observabilidade."
   value       = oci_core_network_security_group.observability.id
 }
+
+output "object_storage_namespace" {
+  description = "Namespace do OCI Object Storage usado pelo backend remoto."
+  value       = data.oci_objectstorage_namespace.current.namespace
+}
+
+output "terraform_state_bucket_name" {
+  description = "Nome do bucket criado para armazenar Terraform state remoto."
+  value       = oci_objectstorage_bucket.terraform_state.name
+}
