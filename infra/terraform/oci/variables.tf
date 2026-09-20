@@ -57,6 +57,12 @@ variable "observability_private_subnet_cidr" {
   default     = "10.42.0.64/26"
 }
 
+variable "terraform_state_bucket_name" {
+  description = "Nome do bucket OCI Object Storage que armazenara o Terraform state remoto."
+  type        = string
+  default     = "inventarium-terraform-state"
+}
+
 variable "ssh_public_key" {
   description = "Chave publica SSH que sera adicionada nas VMs."
   type        = string

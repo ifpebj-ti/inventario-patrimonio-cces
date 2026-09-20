@@ -1,0 +1,8 @@
+bucket           = "inventarium-terraform-state"
+namespace        = "substitua-pelo-namespace-do-object-storage"
+key              = "inventarium/terraform.tfstate"
+region           = "sa-saopaulo-1"
+tenancy_ocid     = "ocid1.tenancy.oc1..example"
+user_ocid        = "ocid1.user.oc1..example"
+fingerprint      = "00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00"
+private_key_path = "~/.oci/inventarium_api_key.pem"
