@@ -33,6 +33,18 @@ variable "compartment_ocid" {
   sensitive   = true
 }
 
+variable "project_name" {
+  description = "Nome usado como prefixo dos recursos."
+  type        = string
+  default     = "inventarium"
+}
+
+variable "vcn_cidr" {
+  description = "CIDR da VCN principal do Inventarium."
+  type        = string
+  default     = "10.42.0.0/24"
+}
+
 variable "ssh_public_key" {
   description = "Chave publica SSH que sera adicionada nas VMs."
   type        = string

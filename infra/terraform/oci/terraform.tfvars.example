@@ -8,6 +8,9 @@ region           = "sa-saopaulo-1"
 # Target compartment
 compartment_ocid = "ocid1.compartment.oc1..example"
 
+# Network
+vcn_cidr = "10.42.0.0/24"
+
 # VM access
 ssh_public_key = "ssh-ed25519 AAAA... usuario@maquina"
 
