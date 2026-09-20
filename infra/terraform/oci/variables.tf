@@ -45,6 +45,18 @@ variable "vcn_cidr" {
   default     = "10.42.0.0/24"
 }
 
+variable "app_public_subnet_cidr" {
+  description = "CIDR da subnet publica da VM de aplicacao."
+  type        = string
+  default     = "10.42.0.0/26"
+}
+
+variable "observability_private_subnet_cidr" {
+  description = "CIDR da subnet privada da VM de observabilidade."
+  type        = string
+  default     = "10.42.0.64/26"
+}
+
 variable "ssh_public_key" {
   description = "Chave publica SSH que sera adicionada nas VMs."
   type        = string
