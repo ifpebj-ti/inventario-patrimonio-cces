@@ -196,4 +196,20 @@ class OrganizationE2ETest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
+
+    @Test
+    void delete_organizationWithSectors_returns409() {
+        var created = create("Organizacao Com Setor", null, null);
+        long organizationId = ((Number) created.getBody().get("id")).longValue();
+
+        var sectorBody = new HashMap<String, Object>();
+        sectorBody.put("name", "Setor Vinculado");
+        sectorBody.put("organizationId", organizationId);
+        restTemplate.postForEntity("/sectors", new HttpEntity<>(sectorBody, authHeaders()), Map.class);
+
+        var response = restTemplate.exchange(
+                "/organizations/" + organizationId, HttpMethod.DELETE, new HttpEntity<>(authHeaders()), Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    }
 }
