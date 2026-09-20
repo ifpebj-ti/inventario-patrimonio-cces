@@ -105,35 +105,35 @@ variable "instance_operating_system_version" {
 variable "app_instance_shape" {
   description = "Shape da VM de aplicacao."
   type        = string
-  default     = "VM.Standard.E4.Flex"
+  default     = "VM.Standard.E5.Flex"
 }
 
 variable "app_instance_ocpus" {
   description = "OCPUs da VM de aplicacao quando o shape for flexivel."
   type        = number
-  default     = 2
+  default     = 1
 }
 
 variable "app_instance_memory_gbs" {
   description = "Memoria em GB da VM de aplicacao quando o shape for flexivel."
   type        = number
-  default     = 4
+  default     = 2
 }
 
 variable "observability_instance_shape" {
   description = "Shape da VM de observabilidade."
   type        = string
-  default     = "VM.Standard.E4.Flex"
+  default     = "VM.Standard.E5.Flex"
 }
 
 variable "observability_instance_ocpus" {
   description = "OCPUs da VM de observabilidade quando o shape for flexivel."
   type        = number
-  default     = 2
+  default     = 1
 }
 
 variable "observability_instance_memory_gbs" {
   description = "Memoria em GB da VM de observabilidade quando o shape for flexivel."
   type        = number
-  default     = 4
+  default     = 2
 }

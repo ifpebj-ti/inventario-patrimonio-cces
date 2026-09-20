@@ -24,10 +24,10 @@ allowed_web_cidrs   = ["203.0.113.10/32"]
 allowed_admin_cidrs = ["203.0.113.10/32"]
 
 # Compute
-app_instance_shape      = "VM.Standard.E4.Flex"
-app_instance_ocpus      = 2
-app_instance_memory_gbs = 4
+app_instance_shape      = "VM.Standard.E5.Flex"
+app_instance_ocpus      = 1
+app_instance_memory_gbs = 2
 
-observability_instance_shape      = "VM.Standard.E4.Flex"
-observability_instance_ocpus      = 2
-observability_instance_memory_gbs = 4
+observability_instance_shape      = "VM.Standard.E5.Flex"
+observability_instance_ocpus      = 1
+observability_instance_memory_gbs = 2
