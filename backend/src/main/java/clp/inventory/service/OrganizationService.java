@@ -3,6 +3,7 @@ package clp.inventory.service;
 import clp.inventory.dto.OrganizationDto;
 import clp.inventory.model.Organization;
 import clp.inventory.repository.OrganizationRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,7 +47,12 @@ public class OrganizationService {
         if (!organizationRepository.existsById(id)) {
             throw new NoSuchElementException("Organization not found with id: " + id);
         }
-        organizationRepository.deleteById(id);
+        try {
+            organizationRepository.deleteById(id);
+            organizationRepository.flush();
+        } catch (DataIntegrityViolationException e) {
+            throw new IllegalStateException("Organization has sectors and cannot be deleted");
+        }
     }
 
     public Organization findOrganizationById(long id) {

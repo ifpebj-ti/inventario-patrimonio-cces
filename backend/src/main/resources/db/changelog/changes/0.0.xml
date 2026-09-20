@@ -196,4 +196,47 @@
 
     </changeSet>
 
+    <!-- =========================== SECTOR ================================== -->
+
+    <changeSet id="20260816-23" author="Lucas Silva">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="im_sector"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="im_sector">
+            <column name="id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="code" type="VARCHAR(100)"/>
+            <column name="id_organization" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="id_parent_sector" type="BIGINT"/>
+            <column name="created_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addPrimaryKey tableName="im_sector" columnNames="id" constraintName="pk_sector"/>
+
+        <addForeignKeyConstraint baseTableName="im_sector" baseColumnNames="id_organization"
+                                 referencedTableName="im_organization" referencedColumnNames="id"
+                                 constraintName="fk_3781321006050"/>
+
+        <addForeignKeyConstraint baseTableName="im_sector" baseColumnNames="id_parent_sector"
+                                 referencedTableName="im_sector" referencedColumnNames="id"
+                                 constraintName="fk_1965792945521"/>
+
+        <createSequence sequenceName="im_sector_id" incrementBy="1" startValue="1"/>
+
+    </changeSet>
+
 </databaseChangeLog>
