@@ -10,7 +10,7 @@ Neste primeiro passo, o Terraform ainda nao cria recursos. Ele apenas configura 
 - `providers.tf`: configura o provider OCI com os dados vindos das variaveis.
 - `variables.tf`: declara os valores esperados no `terraform.tfvars`.
 - `auth-check.tf`: faz uma consulta read-only na Oracle para validar autenticacao.
-- `network.tf`: declara a VCN, a subnet publica da aplicacao, a subnet privada de observabilidade, o Internet Gateway, a tabela de rotas publica e uma security list base.
+- `network.tf`: declara a VCN, a subnet publica da aplicacao, a subnet privada de observabilidade, gateways, route tables e uma security list base.
 - `locals.tf`: monta listas de regras de rede a partir das variaveis.
 - `security.tf`: declara os NSGs e as regras de entrada/saida das VMs.
 - `state.tf`: cria o bucket privado e versionado que sera usado como backend remoto do Terraform state.
@@ -40,6 +40,8 @@ A VCN usa `10.42.0.0/24`, dividida inicialmente em subnets `/26`:
 A subnet publica tem uma route table com `0.0.0.0/0` apontando para o Internet Gateway. Isso permite que VMs nessa subnet recebam IP publico e acessem a internet, desde que as regras de seguranca permitam.
 
 A subnet privada usa `prohibit_public_ip_on_vnic = true`. Isso impede IP publico nas VMs dessa subnet. O acesso a ela deve acontecer por caminho interno, como SSH via VM da aplicacao, Bastion/VPN ou proxy controlado no futuro.
+
+Para permitir atualizacoes e download de imagens sem expor a observabilidade para entrada publica, a subnet privada usa uma route table propria com `0.0.0.0/0` apontando para o NAT Gateway.
 
 As duas subnets usam uma security list base sem regras de entrada. Ela libera apenas saida para internet. As regras de entrada, como SSH, HTTP e HTTPS, devem ser criadas depois com NSGs especificos por tipo de VM.
 
