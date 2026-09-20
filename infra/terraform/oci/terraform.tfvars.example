@@ -1,0 +1,18 @@
+# OCI authentication
+tenancy_ocid     = "ocid1.tenancy.oc1..example"
+user_ocid        = "ocid1.user.oc1..example"
+fingerprint      = "00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00"
+private_key_path = "~/.oci/inventarium_api_key.pem"
+region           = "sa-saopaulo-1"
+
+# Target compartment
+compartment_ocid = "ocid1.compartment.oc1..example"
+
+# VM access
+ssh_public_key = "ssh-ed25519 AAAA... usuario@maquina"
+
+# Network access allowlists.
+# Use /32 when allowing a single public IP.
+allowed_ssh_cidrs   = ["203.0.113.10/32"]
+allowed_web_cidrs   = ["203.0.113.10/32"]
+allowed_admin_cidrs = ["203.0.113.10/32"]
