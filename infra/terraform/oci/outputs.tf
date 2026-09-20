@@ -17,3 +17,13 @@ output "observability_private_subnet_id" {
   description = "OCID da subnet privada de observabilidade."
   value       = oci_core_subnet.observability_private.id
 }
+
+output "app_nsg_id" {
+  description = "OCID do NSG da VM de aplicacao."
+  value       = oci_core_network_security_group.app.id
+}
+
+output "observability_nsg_id" {
+  description = "OCID do NSG da VM de observabilidade."
+  value       = oci_core_network_security_group.observability.id
+}
