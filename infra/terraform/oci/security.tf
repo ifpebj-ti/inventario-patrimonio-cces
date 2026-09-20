@@ -44,6 +44,23 @@ resource "oci_core_network_security_group_security_rule" "app_web_ingress" {
   }
 }
 
+resource "oci_core_network_security_group_security_rule" "app_admin_ingress" {
+  for_each = { for rule in local.app_admin_ingress_rules : "${rule.cidr}:${rule.port}" => rule }
+
+  network_security_group_id = oci_core_network_security_group.app.id
+  direction                 = "INGRESS"
+  protocol                  = "6"
+  source                    = each.value.cidr
+  source_type               = "CIDR_BLOCK"
+
+  tcp_options {
+    destination_port_range {
+      min = each.value.port
+      max = each.value.port
+    }
+  }
+}
+
 resource "oci_core_network_security_group_security_rule" "app_egress" {
   network_security_group_id = oci_core_network_security_group.app.id
   direction                 = "EGRESS"

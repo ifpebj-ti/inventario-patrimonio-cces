@@ -1,4 +1,7 @@
 locals {
+  app_is_flexible_shape           = endswith(var.app_instance_shape, ".Flex")
+  observability_is_flexible_shape = endswith(var.observability_instance_shape, ".Flex")
+
   app_ssh_ingress_rules = [
     for cidr in var.allowed_ssh_cidrs : {
       cidr = cidr
@@ -14,4 +17,11 @@ locals {
       }
     ]
   ])
+
+  app_admin_ingress_rules = [
+    for cidr in var.allowed_admin_cidrs : {
+      cidr = cidr
+      port = 9443
+    }
+  ]
 }

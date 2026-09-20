@@ -37,3 +37,18 @@ output "terraform_state_bucket_name" {
   description = "Nome do bucket criado para armazenar Terraform state remoto."
   value       = oci_objectstorage_bucket.terraform_state.name
 }
+
+output "app_public_ip" {
+  description = "IP publico da VM de aplicacao."
+  value       = oci_core_instance.app.public_ip
+}
+
+output "app_private_ip" {
+  description = "IP privado da VM de aplicacao."
+  value       = oci_core_instance.app.private_ip
+}
+
+output "observability_private_ip" {
+  description = "IP privado da VM de observabilidade."
+  value       = oci_core_instance.observability.private_ip
+}

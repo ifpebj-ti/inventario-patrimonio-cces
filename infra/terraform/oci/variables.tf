@@ -83,3 +83,57 @@ variable "allowed_admin_cidrs" {
   description = "CIDRs autorizados a acessar ferramentas administrativas."
   type        = list(string)
 }
+
+variable "availability_domain_index" {
+  description = "Indice do Availability Domain usado pelas VMs."
+  type        = number
+  default     = 0
+}
+
+variable "instance_operating_system" {
+  description = "Sistema operacional usado para selecionar a imagem das VMs."
+  type        = string
+  default     = "Oracle Linux"
+}
+
+variable "instance_operating_system_version" {
+  description = "Versao do sistema operacional usado para selecionar a imagem das VMs."
+  type        = string
+  default     = "8"
+}
+
+variable "app_instance_shape" {
+  description = "Shape da VM de aplicacao."
+  type        = string
+  default     = "VM.Standard.E4.Flex"
+}
+
+variable "app_instance_ocpus" {
+  description = "OCPUs da VM de aplicacao quando o shape for flexivel."
+  type        = number
+  default     = 2
+}
+
+variable "app_instance_memory_gbs" {
+  description = "Memoria em GB da VM de aplicacao quando o shape for flexivel."
+  type        = number
+  default     = 4
+}
+
+variable "observability_instance_shape" {
+  description = "Shape da VM de observabilidade."
+  type        = string
+  default     = "VM.Standard.E4.Flex"
+}
+
+variable "observability_instance_ocpus" {
+  description = "OCPUs da VM de observabilidade quando o shape for flexivel."
+  type        = number
+  default     = 2
+}
+
+variable "observability_instance_memory_gbs" {
+  description = "Memoria em GB da VM de observabilidade quando o shape for flexivel."
+  type        = number
+  default     = 4
+}
