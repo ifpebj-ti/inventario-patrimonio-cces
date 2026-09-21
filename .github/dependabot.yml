@@ -3,7 +3,6 @@ updates:
   - package-ecosystem: "npm"
     directories:
       - "/frontend"
-      - "/mobile"
     target-branch: "development"
     schedule:
       interval: "weekly"

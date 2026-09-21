@@ -6,7 +6,6 @@
   "scripts": {
     "prepare": "husky",
     "lint:web": "npm --prefix frontend run lint",
-    "lint:mobile": "npm --prefix mobile run lint",
     "test:backend": "cd backend && gradlew.bat test",
     "test:github": "node --test .github/scripts/github/*.test.js",
     "secretlint": "secretlint \"**/*\" --secretlintrc .secretlintrc.json --maskSecrets",
@@ -15,10 +14,6 @@
   "lint-staged": {
     "frontend/**/*.{js,jsx,ts,tsx}": [
       "cd frontend && eslint"
-    ],
-    "mobile/**/*.{js,jsx,ts,tsx,json}": [
-      "cd mobile && eslint",
-      "cd mobile && prettier -c"
     ],
     "*": [
       "secretlint --secretlintrc .secretlintrc.json --maskSecrets"
