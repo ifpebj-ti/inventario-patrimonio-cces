@@ -155,7 +155,7 @@ jobs:
 
       - name: Set up Docker Buildx
         if: steps.changes.outputs.frontend == 'true' || steps.changes.outputs.backend == 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Resolve image metadata
         if: steps.changes.outputs.frontend == 'true' || steps.changes.outputs.backend == 'true'
