@@ -272,4 +272,206 @@
 
     </changeSet>
 
+    <!-- =========================== PERMISSION ================================== -->
+
+    <changeSet id="20260816-25" author="Lucas Silva">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="im_permission"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="im_permission">
+            <column name="id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="VARCHAR(255)"/>
+        </createTable>
+
+        <addPrimaryKey tableName="im_permission" columnNames="id" constraintName="pk_permission"/>
+
+        <addUniqueConstraint tableName="im_permission" columnNames="name" constraintName="uk_6834716892658"/>
+
+        <createSequence sequenceName="im_permission_id" incrementBy="1" startValue="1"/>
+
+    </changeSet>
+
+    <!-- =========================== PROFILE_PERMISSION ================================== -->
+
+    <changeSet id="20260816-26" author="Lucas Silva">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="im_profile_permission"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="im_profile_permission">
+            <column name="id_profile" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="id_permission" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addPrimaryKey tableName="im_profile_permission" columnNames="id_profile, id_permission"
+                       constraintName="pk_profile_permission"/>
+
+        <addForeignKeyConstraint baseTableName="im_profile_permission" baseColumnNames="id_profile"
+                                 referencedTableName="im_profile" referencedColumnNames="id"
+                                 constraintName="fk_6817783948865"/>
+
+        <addForeignKeyConstraint baseTableName="im_profile_permission" baseColumnNames="id_permission"
+                                 referencedTableName="im_permission" referencedColumnNames="id"
+                                 constraintName="fk_7295054806827"/>
+
+    </changeSet>
+
+    <!-- =========================== SEED: PERMISSIONS ================================== -->
+
+    <changeSet id="20260816-27" author="Lucas Silva">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">SELECT COUNT(*) FROM im_permission</sqlCheck>
+        </preConditions>
+
+        <insert tableName="im_permission">
+            <column name="id" valueComputed="nextval('im_permission_id')"/>
+            <column name="name" value="ORGANIZATION_MANAGE"/>
+            <column name="description" value="Criar e editar organizacoes."/>
+        </insert>
+        <insert tableName="im_permission">
+            <column name="id" valueComputed="nextval('im_permission_id')"/>
+            <column name="name" value="SECTOR_MANAGE"/>
+            <column name="description" value="Criar e editar setores."/>
+        </insert>
+        <insert tableName="im_permission">
+            <column name="id" valueComputed="nextval('im_permission_id')"/>
+            <column name="name" value="USER_ASSIGN_SECTOR"/>
+            <column name="description" value="Vincular usuario a setor."/>
+        </insert>
+        <insert tableName="im_permission">
+            <column name="id" valueComputed="nextval('im_permission_id')"/>
+            <column name="name" value="USER_ASSIGN_PROFILE"/>
+            <column name="description" value="Vincular usuario a perfil."/>
+        </insert>
+        <insert tableName="im_permission">
+            <column name="id" valueComputed="nextval('im_permission_id')"/>
+            <column name="name" value="INVENTORY_CREATE"/>
+            <column name="description" value="Criar inventarios."/>
+        </insert>
+        <insert tableName="im_permission">
+            <column name="id" valueComputed="nextval('im_permission_id')"/>
+            <column name="name" value="INVENTORY_UPDATE"/>
+            <column name="description" value="Editar inventarios do setor."/>
+        </insert>
+        <insert tableName="im_permission">
+            <column name="id" valueComputed="nextval('im_permission_id')"/>
+            <column name="name" value="INVENTORY_DELETE"/>
+            <column name="description" value="Remover inventarios do setor."/>
+        </insert>
+        <insert tableName="im_permission">
+            <column name="id" valueComputed="nextval('im_permission_id')"/>
+            <column name="name" value="ITEM_IMPORT"/>
+            <column name="description" value="Importar itens por planilha."/>
+        </insert>
+        <insert tableName="im_permission">
+            <column name="id" valueComputed="nextval('im_permission_id')"/>
+            <column name="name" value="ITEM_UPDATE"/>
+            <column name="description" value="Editar dados de itens."/>
+        </insert>
+        <insert tableName="im_permission">
+            <column name="id" valueComputed="nextval('im_permission_id')"/>
+            <column name="name" value="ITEM_VALIDATE"/>
+            <column name="description" value="Validar itens do proprio setor."/>
+        </insert>
+        <insert tableName="im_permission">
+            <column name="id" valueComputed="nextval('im_permission_id')"/>
+            <column name="name" value="ITEM_VALIDATE_EXTERNAL_SECTOR"/>
+            <column name="description" value="Registrar validacao parcial de itens de outro setor."/>
+        </insert>
+        <insert tableName="im_permission">
+            <column name="id" valueComputed="nextval('im_permission_id')"/>
+            <column name="name" value="VALIDATION_RESOLVE_PENDING"/>
+            <column name="description" value="Confirmar ou rejeitar pendencias recebidas pelo setor."/>
+        </insert>
+        <insert tableName="im_permission">
+            <column name="id" valueComputed="nextval('im_permission_id')"/>
+            <column name="name" value="REPORT_EXPORT"/>
+            <column name="description" value="Exportar planilhas, PDFs e relatorios."/>
+        </insert>
+
+    </changeSet>
+
+    <!-- =========================== SEED: PROFILES ================================== -->
+
+    <changeSet id="20260816-28" author="Lucas Silva">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">SELECT COUNT(*) FROM im_profile</sqlCheck>
+        </preConditions>
+
+        <insert tableName="im_profile">
+            <column name="id" valueComputed="nextval('im_profile_id')"/>
+            <column name="name" value="ADMIN_ORGANIZATION"/>
+            <column name="description" value="Administra a organizacao inteira."/>
+            <column name="created_at" valueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" valueComputed="CURRENT_TIMESTAMP"/>
+        </insert>
+        <insert tableName="im_profile">
+            <column name="id" valueComputed="nextval('im_profile_id')"/>
+            <column name="name" value="GESTOR_SETOR"/>
+            <column name="description" value="Gerencia inventarios, usuarios e pendencias do proprio setor."/>
+            <column name="created_at" valueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" valueComputed="CURRENT_TIMESTAMP"/>
+        </insert>
+        <insert tableName="im_profile">
+            <column name="id" valueComputed="nextval('im_profile_id')"/>
+            <column name="name" value="OPERADOR_CAMPO"/>
+            <column name="description" value="Realiza levantamento em campo."/>
+            <column name="created_at" valueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" valueComputed="CURRENT_TIMESTAMP"/>
+        </insert>
+        <insert tableName="im_profile">
+            <column name="id" valueComputed="nextval('im_profile_id')"/>
+            <column name="name" value="CONSULTA"/>
+            <column name="description" value="Apenas consulta informacoes."/>
+            <column name="created_at" valueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" valueComputed="CURRENT_TIMESTAMP"/>
+        </insert>
+
+    </changeSet>
+
+    <!-- =========================== SEED: PROFILE_PERMISSION ================================== -->
+
+    <changeSet id="20260816-29" author="Lucas Silva">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">SELECT COUNT(*) FROM im_profile_permission</sqlCheck>
+        </preConditions>
+
+        <!-- ADMIN_ORGANIZATION: todas as permissoes -->
+        <sql>
+            INSERT INTO im_profile_permission (id_profile, id_permission)
+            SELECT p.id, perm.id FROM im_profile p, im_permission perm
+            WHERE p.name = 'ADMIN_ORGANIZATION';
+
+            INSERT INTO im_profile_permission (id_profile, id_permission)
+            SELECT p.id, perm.id FROM im_profile p, im_permission perm
+            WHERE p.name = 'GESTOR_SETOR' AND perm.name IN (
+                'USER_ASSIGN_SECTOR', 'INVENTORY_CREATE', 'INVENTORY_UPDATE', 'INVENTORY_DELETE',
+                'ITEM_IMPORT', 'ITEM_UPDATE', 'ITEM_VALIDATE', 'VALIDATION_RESOLVE_PENDING', 'REPORT_EXPORT'
+            );
+
+            INSERT INTO im_profile_permission (id_profile, id_permission)
+            SELECT p.id, perm.id FROM im_profile p, im_permission perm
+            WHERE p.name = 'OPERADOR_CAMPO' AND perm.name IN (
+                'ITEM_UPDATE', 'ITEM_VALIDATE', 'ITEM_VALIDATE_EXTERNAL_SECTOR'
+            );
+
+            <!-- CONSULTA nao recebe nenhuma permissao: o documento nao define uma permissao de somente leitura. -->
+        </sql>
+
+    </changeSet>
+
 </databaseChangeLog>
