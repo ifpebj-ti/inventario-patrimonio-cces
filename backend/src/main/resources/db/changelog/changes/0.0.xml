@@ -474,4 +474,28 @@
 
     </changeSet>
 
+    <!-- =========================== USER SECTOR/PROFILE ================================== -->
+
+    <changeSet id="20260816-30" author="Lucas Silva">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="im_user" columnName="id_sector"/>
+            </not>
+        </preConditions>
+
+        <addColumn tableName="im_user">
+            <column name="id_sector" type="BIGINT"/>
+            <column name="id_profile" type="BIGINT"/>
+        </addColumn>
+
+        <addForeignKeyConstraint baseTableName="im_user" baseColumnNames="id_sector"
+                                 referencedTableName="im_sector" referencedColumnNames="id"
+                                 constraintName="fk_6424971323953"/>
+
+        <addForeignKeyConstraint baseTableName="im_user" baseColumnNames="id_profile"
+                                 referencedTableName="im_profile" referencedColumnNames="id"
+                                 constraintName="fk_4905885375880"/>
+
+    </changeSet>
+
 </databaseChangeLog>
