@@ -1,5 +1,7 @@
 package clp.inventory.profile;
 
+import clp.inventory.model.User;
+import clp.inventory.repository.UserRepository;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import org.junit.jupiter.api.Test;
@@ -43,6 +45,9 @@ class ProfileE2ETest {
 
     @Autowired
     TestRestTemplate restTemplate;
+
+    @Autowired
+    UserRepository userRepository;
 
     private String mintToken() {
         Algorithm algorithm = Algorithm.HMAC256(TEST_SECRET);
@@ -277,5 +282,25 @@ class ProfileE2ETest {
                 HttpMethod.DELETE, new HttpEntity<>(authHeaders()), Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void delete_profileWithAssignedUser_returns409() {
+        long profileId = ((Number) create("Perfil Com Usuario", null).getBody().get("id")).longValue();
+
+        User user = new User();
+        user.setName("Usuario Vinculado");
+        user.setEmail("usuario-vinculado-perfil@ifpe.edu.br");
+        user.setGoogleId("google-usuario-vinculado-perfil");
+        userRepository.save(user);
+
+        restTemplate.exchange(
+                "/users/" + user.getId() + "/profile", HttpMethod.PATCH,
+                new HttpEntity<>(Map.of("profileId", profileId), authHeaders()), Map.class);
+
+        var response = restTemplate.exchange(
+                "/profiles/" + profileId, HttpMethod.DELETE, new HttpEntity<>(authHeaders()), Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 }

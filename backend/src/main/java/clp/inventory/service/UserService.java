@@ -1,7 +1,11 @@
 package clp.inventory.service;
 
 import clp.inventory.dto.GoogleUserInfo;
+import clp.inventory.model.Profile;
+import clp.inventory.model.Sector;
 import clp.inventory.model.User;
+import clp.inventory.repository.ProfileRepository;
+import clp.inventory.repository.SectorRepository;
 import clp.inventory.repository.UserRepository;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
@@ -12,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.security.sasl.AuthenticationException;
 import java.util.List;
 import java.util.Locale;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 
 @Service
@@ -22,12 +27,16 @@ public class UserService {
     private List<String> allowedDomains = List.of();
 
     private final UserRepository userRepository;
+    private final SectorRepository sectorRepository;
+    private final ProfileRepository profileRepository;
 
     @Value("${security.token.secret}")
     private String secretKey;
 
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, SectorRepository sectorRepository, ProfileRepository profileRepository) {
         this.userRepository = userRepository;
+        this.sectorRepository = sectorRepository;
+        this.profileRepository = profileRepository;
     }
 
     /**
@@ -90,6 +99,44 @@ public class UserService {
     public User findUserById(long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
+    }
+
+    @Transactional
+    public User assignSector(long userId, Long sectorId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new NoSuchElementException("User not found with id: " + userId));
+        if (sectorId == null) {
+            user.setSector(null);
+        } else {
+            Sector sector = sectorRepository.findById(sectorId)
+                    .orElseThrow(() -> new IllegalArgumentException("Sector not found with id: " + sectorId));
+            user.setSector(sector);
+        }
+        return userRepository.save(user);
+    }
+
+    @Transactional
+    public User assignProfile(long userId, Long profileId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new NoSuchElementException("User not found with id: " + userId));
+        if (profileId == null) {
+            user.setProfile(null);
+        } else {
+            Profile profile = profileRepository.findById(profileId)
+                    .orElseThrow(() -> new IllegalArgumentException("Profile not found with id: " + profileId));
+            user.setProfile(profile);
+        }
+        return userRepository.save(user);
+    }
+
+    public List<User> listUsers(Long sectorId, Long profileId) {
+        if (sectorId != null) {
+            return userRepository.findBySector_Id(sectorId);
+        }
+        if (profileId != null) {
+            return userRepository.findByProfile_Id(profileId);
+        }
+        return userRepository.findAll();
     }
 
 }
