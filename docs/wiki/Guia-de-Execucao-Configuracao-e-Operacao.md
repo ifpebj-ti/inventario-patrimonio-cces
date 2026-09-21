@@ -12,13 +12,11 @@ inventarium-back   API Java/Spring Boot
 inventarium-front  Aplicacao web Next.js
 ```
 
-O aplicativo mobile nao faz parte do Compose de runtime. Durante o desenvolvimento, ele continua sendo executado pelo Expo.
-
 ## Pre-requisitos
 
 - Docker Desktop ou Docker Engine com Docker Compose v2.
 - Git.
-- Node.js e npm, caso deseje rodar frontend, mobile ou ferramentas da raiz fora do Docker.
+- Node.js e npm, caso deseje rodar frontend ou ferramentas da raiz fora do Docker.
 - JDK compativel com Gradle, caso deseje rodar o backend fora do Docker.
 
 Para conferir Docker e Compose:
@@ -302,14 +300,6 @@ Crie `frontend/.env.local` quando for rodar o frontend localmente sem Compose:
 ```env
 NEXT_PUBLIC_GOOGLE_CLIENT_ID=seu-client-id.apps.googleusercontent.com
 NEXT_PUBLIC_API_URL=http://localhost:8080
-```
-
-Para rodar o mobile:
-
-```bash
-cd mobile
-npm install
-npm run start
 ```
 
 ## Troubleshooting

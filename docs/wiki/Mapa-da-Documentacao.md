@@ -37,7 +37,7 @@ Este mapa serve para saber rapidamente onde cada artefato esta. Ele nao substitu
 
 | Artefato | Onde consultar | Nota |
 | --- | --- | --- |
-| Aplicacao conteinerizada | `docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile` | Compose sobe PostgreSQL, backend e frontend. O mobile segue pelo Expo durante desenvolvimento. |
+| Aplicacao conteinerizada | `docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile` | Compose sobe PostgreSQL, backend e frontend. |
 | Execucao, configuracao e operacao | [Guia de Execucao, Configuracao e Operacao](./Guia-de-Execucao-Configuracao-e-Operacao) | Explica ambiente local, variaveis, GHCR, logs, validacao e troubleshooting. |
 | Esteira de CI/CD | [Esteira de CI/CD](./Esteira-de-CI-CD) | Mostra o que existe hoje e o que ainda depende de evolucao para deploy, smoke tests e observabilidade. |
 

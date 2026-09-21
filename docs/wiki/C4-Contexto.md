@@ -2,6 +2,8 @@
 
 Este documento registra o nivel 1 do modelo C4 para o Inventarium. O objetivo e mostrar o sistema no seu contexto, identificando quem usa a solucao, quais sistemas externos participam do fluxo e quais relacoes principais existem entre esses elementos.
 
+> Nota: o aplicativo mobile foi removido do repositorio e deixou de fazer parte do escopo ativo. Este diagrama ainda contem referencias historicas ao mobile e deve ser revisado em uma atualizacao dedicada da documentacao arquitetural.
+
 ## Sistema Principal
 
 **Inventarium** e uma plataforma academica para apoio ao tombamento e gerenciamento de patrimonio institucional do IFPE. A solucao reune uma aplicacao web, um aplicativo mobile e uma API backend para centralizar autenticacao via Google, inventarios, itens patrimoniais, observacoes, importacao e exportacao de planilhas e geracao de etiquetas em PDF com QR Code.

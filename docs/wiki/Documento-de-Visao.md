@@ -2,7 +2,7 @@
 
 ## Produto
 
-O **Inventarium** e uma plataforma de apoio ao inventario patrimonial do IFPE. A solucao nasceu no contexto academico da disciplina de Engenharia de Software e foi organizada como um monorepo com backend, aplicacao web, aplicativo mobile e documentacao versionada.
+O **Inventarium** e uma plataforma de apoio ao inventario patrimonial do IFPE. A solucao nasceu no contexto academico da disciplina de Engenharia de Software e foi organizada como um monorepo com backend, aplicacao web e documentacao versionada.
 
 A proposta e reduzir trabalho manual no tombamento e na conferencia de bens, reunindo cadastro de inventarios, importacao de planilhas, consulta de itens, geracao de etiquetas com QR Code e autenticacao institucional via Google.
 
@@ -25,7 +25,7 @@ O produto deve permitir que a equipe:
 - gere etiquetas em PDF com QR Code;
 - exporte informacoes em planilha;
 - use autenticacao institucional com conta Google;
-- opere com frontend web, backend API e apoio mobile quando aplicavel.
+- opere com frontend web e backend API.
 
 ## Publico-Alvo
 
@@ -42,7 +42,6 @@ O escopo atual cobre:
 
 - backend em Spring Boot com API REST;
 - frontend web em Next.js;
-- aplicativo mobile em Expo/React Native;
 - PostgreSQL como banco de dados;
 - login com Google;
 - JWT proprio da aplicacao;
@@ -72,16 +71,13 @@ Esses pontos podem ser avaliados em ciclos futuros, se fizerem sentido para o us
 flowchart LR
     equipe["Equipe de patrimonio"]
     web["Aplicacao Web"]
-    mobile["Aplicativo Mobile"]
     api["Backend API"]
     banco["PostgreSQL"]
     google["Google Identity"]
     arquivos["Planilhas e PDFs"]
 
     equipe -->|"Login, cadastro, consulta e acompanhamento"| web
-    equipe -->|"Consulta e apoio em campo"| mobile
     web -->|"Requisicoes autenticadas"| api
-    mobile -->|"Requisicoes autenticadas"| api
     api -->|"Valida identidade"| google
     api -->|"Persiste inventarios, itens e usuarios"| banco
     api -->|"Importa, exporta e gera etiquetas"| arquivos
