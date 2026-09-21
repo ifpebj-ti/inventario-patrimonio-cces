@@ -2,6 +2,8 @@
 
 Este documento registra o nivel 3 do modelo C4 para o Inventarium. A visao de componentes complementa o diagrama de containers, detalhando os principais modulos internos dos containers Backend/API, Aplicacao Web e Aplicativo Mobile.
 
+> Nota: o aplicativo mobile foi removido do repositorio e deixou de fazer parte do escopo ativo. Este documento ainda contem referencias historicas ao mobile e deve ser revisado em uma atualizacao dedicada da documentacao arquitetural.
+
 O objetivo e mostrar responsabilidades arquiteturais, dependencias e formas de comunicacao relevantes, sem representar cada classe, arquivo ou componente visual isoladamente.
 
 ## Escopo

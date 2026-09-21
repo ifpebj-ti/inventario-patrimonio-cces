@@ -59,9 +59,9 @@ Boas praticas para o backend Spring Boot:
 - criar migrations pequenas, revisaveis e reversiveis quando possivel;
 - evitar logs com tokens, senhas, e-mails desnecessarios ou dados patrimoniais sensiveis.
 
-## Frontend e Mobile
+## Frontend
 
-Boas praticas para clientes web e mobile:
+Boas praticas para o cliente web:
 
 - nao armazenar segredos no codigo cliente;
 - tratar JWT como credencial sensivel;
@@ -119,7 +119,6 @@ Antes de abrir ou atualizar um pull request, execute os checks aplicaveis:
 ```bash
 npm run secretlint
 npm run lint:web
-npm run lint:mobile
 npm run test:github
 ```
 
@@ -191,7 +190,7 @@ Uma release normal acontece por promocao de `development` para `main`:
 
 Quando o PR entra em `main`, o workflow `Release` prepara a tag `vMAJOR.MINOR.PATCH`, publica a GitHub Release e aciona a publicacao das imagens produtivas no GHCR, quando o PR nao esta marcado como `sem release`.
 
-O versionamento atual e do monorepo inteiro. Nao existem releases separadas para backend, frontend e mobile.
+O versionamento atual e do monorepo inteiro. Nao existem releases separadas para backend e frontend.
 
 ## Hotfix
 

@@ -2,6 +2,8 @@
 
 Este documento registra o nivel 2 do modelo C4 para o Inventarium. A visao de containers mostra as principais partes executaveis ou persistentes da solucao, suas responsabilidades, tecnologias e comunicacoes.
 
+> Nota: o aplicativo mobile foi removido do repositorio e deixou de fazer parte do escopo ativo. Este diagrama ainda contem referencias historicas ao mobile e deve ser revisado em uma atualizacao dedicada da documentacao arquitetural.
+
 ## Visao Geral
 
 O Inventarium e composto por aplicacoes cliente, uma API backend, um banco de dados relacional e servicos externos de apoio. A Aplicacao Web concentra o login com Google e a experiencia principal dos usuarios. O Aplicativo Mobile apoia operacoes em campo. O Backend/API centraliza regras de negocio, validacao do ID token do Google, emissao do JWT da aplicacao, persistencia, importacao e exportacao de planilhas e geracao de etiquetas. O PostgreSQL armazena os dados estruturados do dominio.

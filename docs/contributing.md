@@ -78,7 +78,7 @@ Tipos de release no pull request:
 
 O versionamento da entrega fica nas tags Git e nas GitHub Releases. O workflow nao altera `package.json`, `package-lock.json` nem arquivos de changelog durante a release.
 
-No fluxo atual, a release e do monorepo inteiro. Nao existem releases separadas para backend, frontend e mobile.
+No fluxo atual, a release e do monorepo inteiro. Nao existem releases separadas para backend e frontend.
 
 ## Dependabot
 
