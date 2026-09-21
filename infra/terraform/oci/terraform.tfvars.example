@@ -1,0 +1,33 @@
+# OCI authentication
+tenancy_ocid     = "ocid1.tenancy.oc1..example"
+user_ocid        = "ocid1.user.oc1..example"
+fingerprint      = "00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00"
+private_key_path = "~/.oci/inventarium_api_key.pem"
+region           = "sa-saopaulo-1"
+
+# Target compartment
+compartment_ocid = "ocid1.compartment.oc1..example"
+
+# Network
+vcn_cidr                          = "10.42.0.0/24"
+app_public_subnet_cidr            = "10.42.0.0/26"
+observability_private_subnet_cidr = "10.42.0.64/26"
+terraform_state_bucket_name       = "inventarium-terraform-state"
+
+# VM access
+ssh_public_key = "ssh-ed25519 AAAA... usuario@maquina"
+
+# Network access allowlists.
+# Use /32 when allowing a single public IP.
+allowed_ssh_cidrs   = ["203.0.113.10/32"]
+allowed_web_cidrs   = ["203.0.113.10/32"]
+allowed_admin_cidrs = ["203.0.113.10/32"]
+
+# Compute
+app_instance_shape      = "VM.Standard.E5.Flex"
+app_instance_ocpus      = 1
+app_instance_memory_gbs = 2
+
+observability_instance_shape      = "VM.Standard.E5.Flex"
+observability_instance_ocpus      = 1
+observability_instance_memory_gbs = 2

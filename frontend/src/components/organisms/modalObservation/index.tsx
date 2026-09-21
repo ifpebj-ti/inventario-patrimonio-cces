@@ -120,11 +120,12 @@ export const ObservationModal: React.FC<ObservationModalProps> = ({
     // Container do modal com fundo escuro (backdrop).
     <div className="fixed inset-0 bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       {/* Painel branco principal do modal. */}
-      <div className="bg-white relative rounded-lg shadow-xl p-6 w-full max-w-md">
+      <div className="bg-white relative rounded-2xl shadow-xl p-5 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
         {/* Botão para fechar o modal no canto superior direito. */}
         <button
-          className="absolute top-0 right-4 text-gray-500 hover:text-gray-700 text-2xl font-bold transition-colors cursor-pointer"
+          className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 text-2xl font-bold transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl"
           onClick={onClose}
+          aria-label="Fechar modal"
         >
           &times;
         </button>
@@ -134,9 +135,9 @@ export const ObservationModal: React.FC<ObservationModalProps> = ({
         </h2>
 
         {/* Área de listagem das observações com rolagem interna. */}
-        <div className="max-h-60 overflow-y-auto mb-4 border border-gray-200 rounded p-2">
+        <div className="max-h-60 overflow-y-auto mb-4 border border-gray-200 rounded-xl p-2 divide-y divide-gray-100">
           {observations.length === 0 && editingIndex === null ? (
-            <p className="text-gray-500 text-sm italic text-center">
+            <p className="text-gray-500 text-sm italic text-center py-4">
               Nenhuma observação ainda.
             </p>
           ) : (
@@ -144,7 +145,7 @@ export const ObservationModal: React.FC<ObservationModalProps> = ({
             observations.map((obs, index) => (
               <div
                 key={index}
-                className="flex items-center justify-between bg-gray-50 p-2 rounded mb-2"
+                className="flex items-center justify-between bg-gray-50 p-2 rounded-lg mb-1.5 gap-2"
               >
                 {/* Renderização condicional: mostra um input se estiver em modo de edição, senão mostra o texto. */}
                 {editingIndex === index ? (
@@ -157,27 +158,35 @@ export const ObservationModal: React.FC<ObservationModalProps> = ({
                       if (e.key === 'Enter') handleSaveIndividualEdit(index)
                       if (e.key === 'Escape') handleCancelIndividualEdit()
                     }}
-                    className="flex-grow border-b border-gray-400 p-1 mr-2"
+                    className="flex-grow border-b border-gray-400 p-1 mr-2 text-sm"
                     autoFocus
                   />
                 ) : (
-                  <span className="text-gray-800">{obs.content}</span>
+                  <span className="text-gray-800 text-sm flex-1 break-words">
+                    {obs.content}
+                  </span>
                 )}
 
-                {/* Ícones de ação para editar e deletar cada observação. */}
-                <div className="flex gap-2">
+                {/* Ícones de ação para editar e deletar cada observação com touch target adequado */}
+                <div className="flex items-center gap-1 shrink-0">
                   {editingIndex !== index && (
-                    <FaPencilAlt
-                      className="text-gray-500 cursor-pointer"
-                      size={16}
+                    <button
+                      type="button"
                       onClick={() => handleStartEdit(index)}
-                    />
+                      className="min-h-[44px] min-w-[44px] p-2 text-gray-500 hover:text-blue-500 flex items-center justify-center cursor-pointer rounded-lg"
+                      aria-label="Editar observação"
+                    >
+                      <FaPencilAlt size={16} />
+                    </button>
                   )}
-                  <FaTrashAlt
-                    className="text-red-500 cursor-pointer"
-                    size={16}
+                  <button
+                    type="button"
                     onClick={() => handleDeleteObservation(index)}
-                  />
+                    className="min-h-[44px] min-w-[44px] p-2 text-red-500 hover:text-red-600 flex items-center justify-center cursor-pointer rounded-lg"
+                    aria-label="Deletar observação"
+                  >
+                    <FaTrashAlt size={16} />
+                  </button>
                 </div>
               </div>
             ))

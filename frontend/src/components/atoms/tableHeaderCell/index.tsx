@@ -30,7 +30,7 @@ export const TableHeaderCell = ({
     // Elemento de cabeçalho da tabela.
     <th
       scope="col"
-      className="px-6 py-4 text-center text-xl font-semibold text-slate-700 tracking-tight"
+      className="px-2 sm:px-3 py-3 text-center text-xs sm:text-sm font-semibold text-slate-700 tracking-tight whitespace-nowrap"
     >
       {/* Contêiner flexível para alinhar o texto e o ícone.
           Um clique nesta área inteira dispara a função 'afterClicked'. */}

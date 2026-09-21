@@ -11,19 +11,23 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       text, // O texto a ser exibido no botão.
       image, // Um elemento de imagem opcional.
       icon, // Um elemento de ícone opcional.
-      width = 'w-1/2', // A largura padrão do contêiner do botão.
+      width, // A largura do contêiner do botão.
       variant = 1, // A variante de estilo a ser aplicada, com 1 como padrão.
       tooltip, // O texto opcional para a dica de ferramenta (tooltip).
       ...props // Pega todas as outras props de um botão HTML (como onClick, disabled, etc.).
     },
     ref,
   ) => {
+    // Variantes de ícone (4, 5, 6 e 7) devem ter largura padrão 'w-auto' para não ocuparem 50% do contêiner
+    const defaultWidth = [4, 5, 6, 7].includes(variant) ? 'w-auto' : 'w-1/2'
+    const resolvedWidth = width || defaultWidth
+
     return (
       // Este 'div' serve como um contêiner para o botão e sua tooltip.
       // 'relative' é necessário para posicionar a tooltip de forma absoluta em relação a ele.
       // 'group' é uma classe do Tailwind que permite estilizar um elemento filho
       // quando o mouse passa por cima deste contêiner pai.
-      <div className={`relative group ${width}`}>
+      <div className={`relative group ${resolvedWidth}`}>
         {/* O elemento de botão real. */}
         <button
           type={type}

@@ -15,6 +15,7 @@ import { ConfirmationModal } from '@/components/organisms/modalConfirmation'
 import toast from 'react-hot-toast'
 import { EditInventoryModal } from '@/components/organisms/editInventoryModal'
 import { useInventory } from '@/contexts/InventoryContext'
+import { Item } from '@/commons/models/item'
 
 export default function Dashboard() {
   const { inventories: inventoryData, refreshInventories } = useInventory()
@@ -35,12 +36,12 @@ export default function Dashboard() {
     closeNewInventoryModal()
   }, [refreshInventories])
 
-  const handleRowDoubleClick = (inventory: InventoryResponse) => {
-    router.push(`/inventory/${inventory.id}`)
+  const handleRowDoubleClick = (item: InventoryResponse | Item) => {
+    router.push(`/inventory/${item.id}`)
   }
 
-  const handleOpenDeleteModal = (inventory: InventoryResponse) => {
-    setInventoryToDelete(inventory)
+  const handleOpenDeleteModal = (item: InventoryResponse | Item) => {
+    setInventoryToDelete(item as InventoryResponse)
     setIsDeleteModalOpen(true)
   }
 
@@ -76,11 +77,17 @@ export default function Dashboard() {
     setInventoryToEdit(null)
   }
 
-  const handleConfirmEdit = async (data: UpdateInventory) => {
+  const handleConfirmEdit = async (data: {
+    name: string
+    description?: string
+  }) => {
     if (!inventoryToEdit) return
     try {
       const updatedInventory = await updateInventoryRequest(
-        data,
+        {
+          name: data.name,
+          description: data.description || '',
+        },
         inventoryToEdit.id,
       )
       await refreshInventories()
@@ -96,8 +103,29 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="overflow-x-hidden flex flex-col justify-center items-center">
-      <div className="flex flex-col items-center min-h-screen">
+    <div className="w-full max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 flex flex-col gap-4 min-h-screen">
+      {/* Top Action Bar: Título e Botão Novo Inventário */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 w-full px-2 sm:px-4">
+        <div>
+          <h1 className="font-['Linden_Hill',serif] text-2xl sm:text-3xl text-slate-800 font-semibold">
+            Inventários
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500">
+            Gerencie e acompanhe todos os seus inventários cadastrados
+          </p>
+        </div>
+        <div className="w-full sm:w-auto">
+          <Button
+            text="Novo Inventário"
+            type="button"
+            width="w-full sm:w-60"
+            onClick={openNewInventoryModal}
+          />
+        </div>
+      </div>
+
+      {/* Tabela Híbrida (Cards no mobile / Tabela no desktop) */}
+      <div className="w-full">
         <Table
           header={[
             { key: 'name', headerText: 'Nome' },
@@ -108,12 +136,6 @@ export default function Dashboard() {
           onRowDoubleClick={handleRowDoubleClick}
           onDeleteItem={handleOpenDeleteModal}
           onEditItem={handleOpenEditModal}
-        />
-        <Button
-          text="Novo Inventário"
-          type="button"
-          width="w-72"
-          onClick={openNewInventoryModal}
         />
       </div>
 
