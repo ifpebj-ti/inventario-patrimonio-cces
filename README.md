@@ -1,6 +1,6 @@
 # Inventarium
 
-Inventarium e um monorepo do projeto academico de gerenciamento de inventario. Ele agrupa tres aplicacoes que antes viviam em repositorios separados: backend, frontend web e app mobile.
+Inventarium e um monorepo do projeto academico de gerenciamento de inventario. Ele agrupa a API backend, a aplicacao web e a documentacao do produto.
 
 ## Estrutura
 
@@ -8,7 +8,6 @@ Inventarium e um monorepo do projeto academico de gerenciamento de inventario. E
 .
 ├── backend/       # API Java/Spring Boot, banco PostgreSQL e scripts de apoio
 ├── frontend/      # Aplicacao web Next.js
-├── mobile/        # Aplicativo Expo/React Native
 ├── docs/          # Documentacao do repositorio e guias de contribuicao
 ├── infra/         # Espaco reservado para infraestrutura e deploy
 ├── .github/       # GitHub Actions e Dependabot
@@ -90,37 +89,6 @@ A aplicacao fica disponivel em:
 http://localhost:3000
 ```
 
-### Mobile
-
-Local: `mobile`
-
-Stack principal:
-
-- Expo
-- React Native
-- TypeScript
-- NativeWind
-- Axios
-- Expo Secure Store
-
-Para instalar e rodar:
-
-```bash
-cd mobile
-npm install
-npm run start
-```
-
-Comandos uteis:
-
-```bash
-npm run android
-npm run ios
-npm run web
-```
-
-O app mobile aponta para a API em `http://10.0.2.2:8080`, endereco comum para acessar o localhost da maquina host a partir do emulador Android.
-
 ## Configuracao local
 
 Instale as dependencias das aplicacoes que for usar e tambem as dependencias da raiz:
@@ -151,7 +119,7 @@ Backend API:  http://localhost:8080
 PostgreSQL:   localhost:5433
 ```
 
-O `docker-compose.yml` builda as imagens locais `inventarium-front:local` e `inventarium-back:local`, alem de subir o PostgreSQL. Em ambiente de VM, as variaveis `FRONTEND_IMAGE` e `BACKEND_IMAGE` podem apontar para imagens publicadas no GHCR. O app mobile nao faz parte desse Compose de runtime, pois continua sendo executado pelo Expo durante o desenvolvimento.
+O `docker-compose.yml` builda as imagens locais `inventarium-front:local` e `inventarium-back:local`, alem de subir o PostgreSQL. Em ambiente de VM, as variaveis `FRONTEND_IMAGE` e `BACKEND_IMAGE` podem apontar para imagens publicadas no GHCR.
 
 O guia completo de execucao, configuracao e operacao esta em:
 
@@ -239,7 +207,6 @@ O Dependabot esta configurado em `.github/dependabot.yml`.
 Ele verifica atualizacoes para:
 
 - `frontend`: dependencias npm.
-- `mobile`: dependencias npm.
 - `backend`: dependencias Gradle.
 - `/`: GitHub Actions.
 
