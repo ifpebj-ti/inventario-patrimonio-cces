@@ -74,6 +74,14 @@ class ProfileE2ETest {
                 Map.class);
     }
 
+    private long createPermission(String name) {
+        var body = new HashMap<String, Object>();
+        body.put("name", name);
+        var response = restTemplate.postForEntity(
+                "/permissions", new HttpEntity<>(body, authHeaders()), Map.class);
+        return ((Number) response.getBody().get("id")).longValue();
+    }
+
     @Test
     void create_returnsCreatedProfile() {
         var response = create("ADMIN", "Administra a organizacao inteira");
@@ -189,5 +197,85 @@ class ProfileE2ETest {
         var response = restTemplate.getForEntity("/profiles", Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void addPermission_returnsProfileWithPermission() {
+        long profileId = ((Number) create("Perfil Com Permissao", null).getBody().get("id")).longValue();
+        long permissionId = createPermission("Permissao Associavel");
+
+        var response = restTemplate.exchange(
+                "/profiles/" + profileId + "/permissions/" + permissionId,
+                HttpMethod.POST, new HttpEntity<>(authHeaders()), Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat((List<Object>) response.getBody().get("permissionIds")).contains((int) permissionId);
+    }
+
+    @Test
+    void addPermission_idempotent_returnsSameState() {
+        long profileId = ((Number) create("Perfil Idempotente", null).getBody().get("id")).longValue();
+        long permissionId = createPermission("Permissao Idempotente");
+
+        restTemplate.exchange(
+                "/profiles/" + profileId + "/permissions/" + permissionId,
+                HttpMethod.POST, new HttpEntity<>(authHeaders()), Map.class);
+        var second = restTemplate.exchange(
+                "/profiles/" + profileId + "/permissions/" + permissionId,
+                HttpMethod.POST, new HttpEntity<>(authHeaders()), Map.class);
+
+        assertThat(second.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat((List<?>) second.getBody().get("permissionIds")).hasSize(1);
+    }
+
+    @Test
+    void addPermission_profileNotFound_returns404() {
+        long permissionId = createPermission("Permissao Sem Perfil");
+
+        var response = restTemplate.exchange(
+                "/profiles/999999/permissions/" + permissionId,
+                HttpMethod.POST, new HttpEntity<>(authHeaders()), Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void addPermission_permissionNotFound_returns404() {
+        long profileId = ((Number) create("Perfil Sem Permissao", null).getBody().get("id")).longValue();
+
+        var response = restTemplate.exchange(
+                "/profiles/" + profileId + "/permissions/999999",
+                HttpMethod.POST, new HttpEntity<>(authHeaders()), Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void removePermission_returnsProfileWithoutPermission() {
+        long profileId = ((Number) create("Perfil Para Desassociar", null).getBody().get("id")).longValue();
+        long permissionId = createPermission("Permissao Para Desassociar");
+
+        restTemplate.exchange(
+                "/profiles/" + profileId + "/permissions/" + permissionId,
+                HttpMethod.POST, new HttpEntity<>(authHeaders()), Map.class);
+
+        var response = restTemplate.exchange(
+                "/profiles/" + profileId + "/permissions/" + permissionId,
+                HttpMethod.DELETE, new HttpEntity<>(authHeaders()), Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat((List<Object>) response.getBody().get("permissionIds")).doesNotContain((int) permissionId);
+    }
+
+    @Test
+    void removePermission_notAssociated_isIdempotent() {
+        long profileId = ((Number) create("Perfil Sem Associacao", null).getBody().get("id")).longValue();
+        long permissionId = createPermission("Permissao Nunca Associada");
+
+        var response = restTemplate.exchange(
+                "/profiles/" + profileId + "/permissions/" + permissionId,
+                HttpMethod.DELETE, new HttpEntity<>(authHeaders()), Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 }
