@@ -8,6 +8,7 @@ public record InventoryDto(
         long id,
         String name,
         String description,
+        Long sectorId,
         String createdAt
 ) {
 
@@ -23,6 +24,7 @@ public record InventoryDto(
                 inventory.id(),
                 inventory.name(),
                 inventory.description(),
+                inventory.sector() != null ? inventory.sector().id() : null,
                 formattedDate
         );
     }

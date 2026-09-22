@@ -35,6 +35,10 @@ public class Inventory {
     @JoinColumn(name = "id_user", nullable = false)
     private User user;
 
+    @ManyToOne
+    @JoinColumn(name = "id_sector")
+    private Sector sector;
+
     @OneToMany(
             mappedBy = "inventory",
             cascade = CascadeType.ALL,
@@ -50,10 +54,11 @@ public class Inventory {
         return user;
     }
 
-    public Inventory(String name, String description, User user) {
+    public Inventory(String name, String description, User user, Sector sector) {
         this.name = name;
         this.description = description;
         this.user = user;
+        this.sector = sector;
     }
 
     public Long id() {
@@ -78,6 +83,14 @@ public class Inventory {
 
     public LocalDateTime createdAt() {
         return createdAt;
+    }
+
+    public Sector sector() {
+        return sector;
+    }
+
+    public void setSector(Sector sector) {
+        this.sector = sector;
     }
 
     public List<Item> items() {

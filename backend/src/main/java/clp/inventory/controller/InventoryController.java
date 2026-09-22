@@ -234,6 +234,25 @@ public class InventoryController {
         }
     }
 
+    @GetMapping("/sector-inventories")
+    public ResponseEntity<?> getSectorInventories(@RequestParam("sectorId") long sectorId) {
+        try {
+            List<Inventory> inventories = inventoryService.getSectorInventories(sectorId);
+
+            List<InventoryDto> inventoryDtos = inventories.stream()
+                    .map(InventoryDto::from)
+                    .collect(Collectors.toList());
+
+            return ResponseEntity
+                    .status(HttpStatus.OK)
+                    .body(inventoryDtos);
+        } catch (RuntimeException e) {
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error retrieving inventories: " + e.getMessage());
+        }
+    }
+
     @GetMapping("/inventory-items")
     public ResponseEntity<?> getItemsByInventory(
             @RequestParam("inventoryId") long inventoryId,

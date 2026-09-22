@@ -289,4 +289,37 @@ class SectorE2ETest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
+
+    @Test
+    void delete_sectorWithInventory_returns409() {
+        long organizationId = createOrganization("Organizacao Setor Com Inventario");
+        long sectorId = ((Number) create("Setor Com Inventario", null, organizationId, null).getBody().get("id")).longValue();
+
+        User user = new User();
+        user.setName("Usuario Inventario");
+        user.setEmail("usuario-inventario-setor@ifpe.edu.br");
+        user.setGoogleId("google-usuario-inventario-setor");
+        userRepository.save(user);
+
+        Algorithm algorithm = Algorithm.HMAC256(TEST_SECRET);
+        String userToken = JWT.create()
+                .withIssuer("inventory")
+                .withSubject(String.valueOf(user.getId()))
+                .withExpiresAt(Instant.now().plus(Duration.ofHours(1)))
+                .sign(algorithm);
+        var userHeaders = new HttpHeaders();
+        userHeaders.setContentType(MediaType.APPLICATION_JSON);
+        userHeaders.setBearerAuth(userToken);
+
+        var inventoryBody = new HashMap<String, Object>();
+        inventoryBody.put("name", "Inventario Bloqueador");
+        inventoryBody.put("sectorId", sectorId);
+        restTemplate.postForEntity(
+                "/inventory/new-inventory", new HttpEntity<>(inventoryBody, userHeaders), Map.class);
+
+        var response = restTemplate.exchange(
+                "/sectors/" + sectorId, HttpMethod.DELETE, new HttpEntity<>(authHeaders()), Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    }
 }

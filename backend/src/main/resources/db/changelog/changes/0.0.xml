@@ -498,4 +498,23 @@
 
     </changeSet>
 
+    <!-- =========================== INVENTORY SECTOR ================================== -->
+
+    <changeSet id="20260816-31" author="Lucas Silva">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="im_inventory" columnName="id_sector"/>
+            </not>
+        </preConditions>
+
+        <addColumn tableName="im_inventory">
+            <column name="id_sector" type="BIGINT"/>
+        </addColumn>
+
+        <addForeignKeyConstraint baseTableName="im_inventory" baseColumnNames="id_sector"
+                                 referencedTableName="im_sector" referencedColumnNames="id"
+                                 constraintName="fk_2252307097266"/>
+
+    </changeSet>
+
 </databaseChangeLog>

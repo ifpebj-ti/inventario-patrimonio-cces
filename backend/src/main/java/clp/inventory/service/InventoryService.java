@@ -4,8 +4,10 @@ import clp.inventory.dto.InventoryDto;
 import clp.inventory.dto.ItemProcessingResult;
 import clp.inventory.model.Inventory;
 import clp.inventory.model.Item;
+import clp.inventory.model.Sector;
 import clp.inventory.model.User;
 import clp.inventory.repository.InventoryRepository;
+import clp.inventory.repository.SectorRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,10 +19,12 @@ public class InventoryService {
 
     private final InventoryRepository inventoryRepository;
     private final UserService userService;
+    private final SectorRepository sectorRepository;
 
-    public InventoryService(InventoryRepository inventoryRepository, UserService userService) {
+    public InventoryService(InventoryRepository inventoryRepository, UserService userService, SectorRepository sectorRepository) {
         this.inventoryRepository = inventoryRepository;
         this.userService = userService;
+        this.sectorRepository = sectorRepository;
     }
 
     public Inventory createInventory(InventoryDto inventoryDto, long userId) {
@@ -28,11 +32,13 @@ public class InventoryService {
 
         User user = userService.findUserById(userId);
         validateInventoryUniqueness(inventoryDto.name(), userId);
+        Sector sector = resolveSector(inventoryDto.sectorId());
 
         Inventory inventory = new Inventory(
                 inventoryDto.name(),
                 inventoryDto.description(),
-                user
+                user,
+                sector
         );
 
         return inventoryRepository.save(inventory);
@@ -56,6 +62,7 @@ public class InventoryService {
         }
         inventory.setName(inventoryDto.name());
         inventory.setDescription(inventoryDto.description());
+        inventory.setSector(resolveSector(inventoryDto.sectorId()));
         return inventoryRepository.save(inventory);
     }
 
@@ -115,6 +122,18 @@ public class InventoryService {
 
     public List<Inventory> getUserInventories(long userId) {
         return inventoryRepository.findByUser_Id(userId);
+    }
+
+    public List<Inventory> getSectorInventories(long sectorId) {
+        return inventoryRepository.findBySector_Id(sectorId);
+    }
+
+    private Sector resolveSector(Long sectorId) {
+        if (sectorId == null) {
+            return null;
+        }
+        return sectorRepository.findById(sectorId)
+                .orElseThrow(() -> new IllegalArgumentException("Sector not found with id: " + sectorId));
     }
 
     private void validateInventoryDto(InventoryDto inventoryDto) {
