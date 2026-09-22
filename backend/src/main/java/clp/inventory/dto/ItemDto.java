@@ -16,6 +16,7 @@ public record ItemDto(
         String price,
         String locale,
         boolean isValid,
+        String validatedAt,
         List<ObservationDto> observations
 ) {
 
@@ -44,6 +45,7 @@ public record ItemDto(
                 formattedPrice,
                 item.locale(),
                 item.isValid(),
+                item.validatedAt() != null ? item.validatedAt().toString() : null,
                 observationsDto
         );
     }

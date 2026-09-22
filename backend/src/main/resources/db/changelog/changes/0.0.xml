@@ -517,4 +517,64 @@
 
     </changeSet>
 
+    <!-- =========================== ITEM_AUDIT ================================== -->
+
+    <changeSet id="20260816-32" author="Lucas Silva">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="im_item_audit"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="im_item_audit">
+            <column name="id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="id_item" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="id_inventory" type="BIGINT"/>
+            <column name="id_actor_user" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="id_actor_sector" type="BIGINT"/>
+            <column name="id_target_sector" type="BIGINT"/>
+            <column name="event_type" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="details" type="VARCHAR(1000)"/>
+            <column name="occurred_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addPrimaryKey tableName="im_item_audit" columnNames="id" constraintName="pk_item_audit"/>
+
+        <addForeignKeyConstraint baseTableName="im_item_audit" baseColumnNames="id_item"
+                                 referencedTableName="im_item" referencedColumnNames="id"
+                                 constraintName="fk_3972161329937"/>
+
+        <addForeignKeyConstraint baseTableName="im_item_audit" baseColumnNames="id_inventory"
+                                 referencedTableName="im_inventory" referencedColumnNames="id"
+                                 constraintName="fk_4736702127494"/>
+
+        <addForeignKeyConstraint baseTableName="im_item_audit" baseColumnNames="id_actor_user"
+                                 referencedTableName="im_user" referencedColumnNames="id"
+                                 constraintName="fk_9566967947746"/>
+
+        <addForeignKeyConstraint baseTableName="im_item_audit" baseColumnNames="id_actor_sector"
+                                 referencedTableName="im_sector" referencedColumnNames="id"
+                                 constraintName="fk_2690359493241"/>
+
+        <addForeignKeyConstraint baseTableName="im_item_audit" baseColumnNames="id_target_sector"
+                                 referencedTableName="im_sector" referencedColumnNames="id"
+                                 constraintName="fk_7005239793748"/>
+
+        <createSequence sequenceName="im_item_audit_id" incrementBy="1" startValue="1"/>
+
+    </changeSet>
+
 </databaseChangeLog>

@@ -8,6 +8,7 @@ import clp.inventory.service.EmailService;
 import clp.inventory.service.ItemService;
 import clp.inventory.service.generatePdf.ItemPdfService;
 import clp.inventory.service.generateSheet.SheetBuilderService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
@@ -74,6 +75,13 @@ public class ItemController {
     public ResponseEntity<ItemDto> updateItemNotes(@PathVariable Long id, @RequestBody List<ObservationDto> notesList) {
         Item updatedItem = itemService.updateItemNotes(id, notesList);
         return ResponseEntity.ok(ItemDto.from(updatedItem));
+    }
+
+    @PatchMapping("/{id}/validate")
+    public ResponseEntity<ItemDto> validateItem(@PathVariable Long id, HttpServletRequest request) {
+        long userId = Long.parseLong(request.getAttribute("id_user").toString());
+        Item validated = itemService.validateItem(id, userId);
+        return ResponseEntity.ok(ItemDto.from(validated));
     }
 
     @PostMapping("/all-items-pdf")

@@ -34,7 +34,7 @@ public class Item {
 
     private String responsible;
 
-    @Column(nullable = false, updatable = false, unique = true)
+    @Column(nullable = false)
     private boolean isValid = false;
 
     private LocalDateTime validatedAt;
@@ -85,6 +85,14 @@ public class Item {
 
     public boolean isValid() {
         return isValid;
+    }
+
+    public LocalDateTime validatedAt() {
+        return validatedAt;
+    }
+
+    public Inventory inventory() {
+        return inventory;
     }
 
     public long price() {

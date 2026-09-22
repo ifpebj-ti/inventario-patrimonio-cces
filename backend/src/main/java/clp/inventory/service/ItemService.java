@@ -5,6 +5,7 @@ import clp.inventory.dto.ObservationDto;
 import clp.inventory.model.Inventory;
 import clp.inventory.model.Item;
 import clp.inventory.model.Observation;
+import clp.inventory.model.Sector;
 import clp.inventory.model.User;
 import clp.inventory.repository.InventoryRepository;
 import clp.inventory.repository.ItemRepository;
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,9 +27,14 @@ import java.util.Optional;
 public class ItemService {
 
     private final ItemRepository itemRepository;
+    private final UserService userService;
+    private final ItemAuditService itemAuditService;
 
-    public ItemService(ItemRepository itemRepository, InventoryRepository inventoryRepository) {
+    public ItemService(ItemRepository itemRepository, InventoryRepository inventoryRepository,
+                        UserService userService, ItemAuditService itemAuditService) {
         this.itemRepository = itemRepository;
+        this.userService = userService;
+        this.itemAuditService = itemAuditService;
     }
 
     public Page<Item> listInventoryItems(long inventoryId, int page, int size) {
@@ -57,6 +64,28 @@ public class ItemService {
         existingItem.setValid(updatedItem.isValid());
 
         return itemRepository.save(existingItem);
+    }
+
+    @Transactional
+    public Item validateItem(long itemId, long userId) {
+        Item item = itemRepository.findById(itemId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Item não encontrado com o ID: " + itemId));
+        User actor = userService.findUserById(userId);
+
+        Sector actorSector = actor.getSector();
+        Sector targetSector = item.inventory() != null ? item.inventory().sector() : null;
+
+        boolean crossSector = actorSector != null && targetSector != null && actorSector.id() != targetSector.id();
+        String eventType = crossSector ? ItemAuditService.EVENT_PARTIAL_VALIDATION : ItemAuditService.EVENT_VALIDATION;
+        String status = crossSector ? ItemAuditService.STATUS_PENDING_TARGET_SECTOR : ItemAuditService.STATUS_VALIDATED;
+
+        item.setValid(true);
+        item.setValidatedAt(LocalDateTime.now());
+        itemRepository.save(item);
+
+        itemAuditService.record(item, item.inventory(), actor, actorSector, targetSector, eventType, status, null);
+
+        return item;
     }
 
     public Item updateItemNotes(Long itemId, List<ObservationDto> newNotesStrings) {
