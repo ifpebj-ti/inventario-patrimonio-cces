@@ -71,6 +71,12 @@ public class ItemController {
     return ResponseEntity.ok(ItemDto.from(savedItem));
   }
 
+  @PatchMapping("/{id}/validate")
+  public ResponseEntity<ItemDto> validateItem(@PathVariable Long id, HttpServletRequest request) {
+    Item validated = itemService.validateItem(id, actingUserId(request));
+    return ResponseEntity.ok(ItemDto.from(validated));
+  }
+
   @PatchMapping("/{id}/notes")
   public ResponseEntity<ItemDto> updateItemNotes(
       @PathVariable Long id,

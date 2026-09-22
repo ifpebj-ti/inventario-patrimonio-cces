@@ -5,6 +5,7 @@ import clp.inventory.dto.ObservationDto;
 import clp.inventory.model.Inventory;
 import clp.inventory.model.Item;
 import clp.inventory.model.Observation;
+import clp.inventory.model.Sector;
 import clp.inventory.repository.InventoryRepository;
 import clp.inventory.repository.ItemRepository;
 import java.math.BigDecimal;
@@ -27,14 +28,20 @@ public class ItemService {
   private final ItemRepository itemRepository;
   private final InventoryRepository inventoryRepository;
   private final AuthorizationService authorizationService;
+  private final UserService userService;
+  private final ItemAuditService itemAuditService;
 
   public ItemService(
       ItemRepository itemRepository,
       InventoryRepository inventoryRepository,
-      AuthorizationService authorizationService) {
+      AuthorizationService authorizationService,
+      UserService userService,
+      ItemAuditService itemAuditService) {
     this.itemRepository = itemRepository;
     this.inventoryRepository = inventoryRepository;
     this.authorizationService = authorizationService;
+    this.userService = userService;
+    this.itemAuditService = itemAuditService;
   }
 
   /** Leitura de um item: quem enxerga o inventário a que ele pertence. */
@@ -96,6 +103,53 @@ public class ItemService {
    * (e observações); os demais dados são do gestor/admin. Depois da finalização do inventário a
    * validação deixa de poder ser alterada.
    */
+  /**
+   * Valida o item e registra a auditoria. Exige poder operar o inventário e não é permitido depois
+   * da finalização. Validar de novo um item já validado não gera outro registro.
+   */
+  @Transactional
+  public Item validateItem(long itemId, long userId) {
+    Item item = requireItem(itemId);
+    Inventory inventory = inventoryOf(item);
+    authorizationService.requireOperateInventory(userId, inventory);
+    if (inventory.status() == Inventory.Status.CONCLUIDO) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "Inventário finalizado: não é possível validar itens.");
+    }
+    if (item.isValid()) {
+      return item;
+    }
+
+    Sector targetSector = inventory.sector();
+    // O setor de quem valida é o do inventário quando a pessoa está alocada a ele; administrador
+    // não pertence a um setor, então a validação dele nunca é parcial.
+    boolean sameSector =
+        targetSector != null && authorizationService.isAllocatedTo(userId, targetSector.id());
+    boolean crossSector =
+        targetSector != null && !sameSector && !authorizationService.isAdmin(userId);
+    Sector actorSector = sameSector ? targetSector : null;
+    String eventType =
+        crossSector ? ItemAuditService.EVENT_PARTIAL_VALIDATION : ItemAuditService.EVENT_VALIDATION;
+    String status =
+        crossSector
+            ? ItemAuditService.STATUS_PENDING_TARGET_SECTOR
+            : ItemAuditService.STATUS_VALIDATED;
+
+    item.setValid(true);
+    item.setValidatedAt(LocalDateTime.now());
+    itemRepository.save(item);
+    itemAuditService.record(
+        item,
+        inventory,
+        userService.findUserById(userId),
+        actorSector,
+        targetSector,
+        eventType,
+        status,
+        null);
+    return item;
+  }
+
   @Transactional
   public Item updateItem(ItemDto updatedItem, long userId) {
     Item existingItem = requireItem(updatedItem.id());
