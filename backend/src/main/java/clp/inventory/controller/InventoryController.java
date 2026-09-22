@@ -297,6 +297,18 @@ public class InventoryController {
     }
   }
 
+  @GetMapping("/sector-inventories")
+  public ResponseEntity<?> getSectorInventories(
+      @RequestParam("sectorId") long sectorId, HttpServletRequest request) {
+    List<Inventory> inventories =
+        inventoryService.getSectorInventories(sectorId, actingUserId(request));
+
+    List<InventoryDto> inventoryDtos =
+        inventories.stream().map(inventoryService::toDto).collect(Collectors.toList());
+
+    return ResponseEntity.status(HttpStatus.OK).body(inventoryDtos);
+  }
+
   @GetMapping("/inventory-items")
   public ResponseEntity<?> getItemsByInventory(
       @RequestParam("inventoryId") long inventoryId,

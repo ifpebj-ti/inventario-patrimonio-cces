@@ -257,6 +257,13 @@ public class InventoryService {
     return inventoryRepository.findVisibleToUser(userId);
   }
 
+  /** Inventários de um setor; exige poder consultar o setor. */
+  @Transactional(readOnly = true)
+  public List<Inventory> getSectorInventories(long sectorId, long userId) {
+    authorizationService.requireViewSector(userId, sectorId);
+    return inventoryRepository.findBySector_Id(sectorId);
+  }
+
   // A conclusão é explícita; o atraso é um indicador derivado do prazo.
   public String getInventoryStatus(Inventory inventory) {
     if (inventory.status() == Inventory.Status.CONCLUIDO) {
