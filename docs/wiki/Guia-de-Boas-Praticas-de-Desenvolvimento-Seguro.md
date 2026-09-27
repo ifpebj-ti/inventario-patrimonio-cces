@@ -1,34 +1,34 @@
 # Guia de Boas Praticas de Desenvolvimento Seguro
 
-Este guia define boas praticas de desenvolvimento seguro para o Inventarium. Ele tambem resume o fluxo atual de versionamento, pull requests e releases do projeto.
+Este guia define boas praticas de desenvolvimento seguro para o Inventarium. Ele também resume o fluxo atual de versionamento, pull requests e releases do projeto.
 
-Para detalhes completos de branches, checks e release, consulte tambem [Branching Strategy](https://github.com/ifpebj-ti/inventario-patrimonio-cces/blob/main/docs/branching-strategy.md) e [Contributing](https://github.com/ifpebj-ti/inventario-patrimonio-cces/blob/main/docs/contributing.md).
+Para detalhes completos de branches, checks e release, consulte também [Branching Strategy](https://github.com/ifpebj-ti/inventário-patrimônio-cces/blob/main/docs/branching-strategy.md) e [Contributing](https://github.com/ifpebj-ti/inventário-patrimônio-cces/blob/main/docs/contributing.md).
 
 ## Principios
 
-- Proteger dados patrimoniais, dados de usuarios e credenciais de runtime.
-- Garantir que cada usuario acesse apenas os inventarios e itens autorizados.
-- Manter mudancas rastreaveis por issue, branch, pull request, commit, tag e release.
-- Preferir configuracao segura por padrao, com segredos fora do repositorio.
-- Revisar ameacas sempre que a superficie de ataque mudar.
+- Proteger dados patrimoniais, dados de usuários e credenciais de runtime.
+- Garantir que cada usuário acesse apenas os inventários e itens autorizados.
+- Manter mudanças rastreaveis por issue, branch, pull request, commit, tag e release.
+- Preferir configuração segura por padrão, com segredos fora do repositório.
+- Revisar ameaças sempre que a superficie de ataque mudar.
 
-## Autenticacao e Autorizacao
+## Autenticação e Autorização
 
-O Inventarium usa login com Google. O frontend recebe o ID token do Google e o backend valida assinatura, emissor, audiencia, expiracao e e-mail verificado antes de criar ou localizar o usuario local. Depois disso, o backend emite um JWT proprio da aplicacao.
+O Inventarium usa login com Google. O frontend recebe o ID token do Google e o backend valida assinatura, emissor, audiencia, expiração e e-mail verificado antes de criar ou localizar o usuário local. Depois disso, o backend emite um JWT próprio da aplicação.
 
 Boas praticas esperadas:
 
 - validar tokens Google somente no backend;
 - configurar `GOOGLE_OAUTH_CLIENT_ID` corretamente para o ambiente;
 - restringir dominios autorizados com `GOOGLE_ALLOWED_DOMAINS`;
-- nunca confiar apenas em dados enviados pelo cliente para identificar usuario ou permissao;
-- validar ownership em toda leitura, escrita, exportacao, geracao de PDF e envio de e-mail;
+- nunca confiar apenas em dados enviados pelo cliente para identificar usuário ou permissão;
+- validar ownership em toda leitura, escrita, exportação, geração de PDF e envio de e-mail;
 - adicionar testes negativos para BOLA/IDOR sempre que houver endpoint por `id`;
-- evitar mensagens de erro que permitam enumerar inventarios, itens ou usuarios.
+- evitar mensagens de erro que permitam enumerar inventários, itens ou usuários.
 
-## Segredos e Configuracao
+## Segredos e Configuração
 
-Segredos reais nao devem ser versionados.
+Segredos reais não devem ser versionados.
 
 Nao commitar:
 
@@ -41,49 +41,49 @@ Nao commitar:
 
 Manter versionados apenas arquivos de exemplo, como `.env.example`, sem segredo real.
 
-Variaveis sensiveis de runtime, como `SECURITY_TOKEN_SECRET`, `POSTGRES_PASSWORD` e `SPRING_MAIL_PASSWORD`, devem ficar em mecanismo de secrets, variaveis protegidas da VM, Portainer ou configuracao segura equivalente.
+Variáveis sensiveis de runtime, como `SECURITY_TOKEN_SECRET`, `POSTGRES_PASSWORD` e `SPRING_MAIL_PASSWORD`, devem ficar em mecanismo de secrets, variáveis protegidas da VM, Portainer ou configuração segura equivalente.
 
-Variaveis `NEXT_PUBLIC_*` sao embutidas no bundle do navegador quando usadas pelo Next.js. Portanto, nunca coloque segredo real em variaveis publicas do frontend.
+Variáveis `NEXT_PUBLIC_*` são embutidas no bundle do navegador quando usadas pelo Next.js. Portanto, nunca coloque segredo real em variáveis públicas do frontend.
 
 ## Backend e API
 
 Boas praticas para o backend Spring Boot:
 
 - validar entradas antes de persistir ou processar arquivos;
-- aplicar autorizacao por usuario, inventario e item em todos os servicos;
-- evitar regras criticas apenas no frontend;
+- aplicar autorização por usuário, inventário e item em todos os serviços;
+- evitar regras críticas apenas no frontend;
 - retornar erros consistentes e sem detalhes internos sensiveis;
 - limitar tamanho, quantidade de linhas, colunas e tempo de processamento de planilhas;
 - tratar risco de formula injection em exportacoes XLSX;
 - manter `SPRING_JPA_HIBERNATE_DDL_AUTO=none` e usar Liquibase para evolucao do banco;
-- criar migrations pequenas, revisaveis e reversiveis quando possivel;
+- criar migrations pequenas, revisaveis e reversiveis quando possível;
 - evitar logs com tokens, senhas, e-mails desnecessarios ou dados patrimoniais sensiveis.
 
 ## Frontend
 
 Boas praticas para o cliente web:
 
-- nao armazenar segredos no codigo cliente;
+- não armazenar segredos no código cliente;
 - tratar JWT como credencial sensivel;
-- reduzir impacto de XSS com validacao, escaping e politicas de seguranca quando aplicavel;
-- manter chamadas autenticadas centralizadas nos servicos de API;
-- nao montar URLs sensiveis a partir de entrada nao validada;
-- exibir mensagens de erro claras para o usuario, mas sem detalhes internos da API;
+- reduzir impacto de XSS com validação, escaping e politicas de segurança quando aplicável;
+- manter chamadas autenticadas centralizadas nos serviços de API;
+- não montar URLs sensiveis a partir de entrada não validada;
+- exibir mensagens de erro claras para o usuário, mas sem detalhes internos da API;
 - manter tipos TypeScript alinhados aos contratos esperados do backend.
 
 ## Banco de Dados
 
-Boas praticas para persistencia:
+Boas praticas para persistência:
 
 - evoluir schema por Liquibase;
-- preferir constraints no banco para invariantes criticas;
-- revisar indices e unicidades quando regras de negocio passarem a depender de concorrencia;
-- usar usuario de banco com privilegios minimos necessarios;
-- nao expor PostgreSQL publicamente em producao;
+- preferir constraints no banco para invariantes críticas;
+- revisar indices e unicidades quando regras de negocio passarem a depender de concorrência;
+- usar usuário de banco com privilegios minimos necessários;
+- não expor PostgreSQL publicamente em produção;
 - proteger backups e volumes;
-- documentar rotina de backup e restauracao antes de uso produtivo.
+- documentar rotina de backup e restauração antes de uso produtivo.
 
-## Dependencias e Supply Chain
+## Dependências e Supply Chain
 
 O projeto usa Dependabot para npm, Gradle e GitHub Actions com destino para `main`.
 
@@ -92,29 +92,29 @@ Boas praticas:
 - revisar PRs do Dependabot antes do merge;
 - observar changelogs quando houver major version;
 - rodar testes e checks relevantes;
-- corrigir vulnerabilidades criticas antes de fazer merge;
-- evitar bibliotecas sem manutencao ou com risco conhecido;
-- manter imagens Docker rastreaveis por tag de versao.
+- corrigir vulnerabilidades críticas antes de fazer merge;
+- evitar bibliotecas sem manutenção ou com risco conhecido;
+- manter imagens Docker rastreaveis por tag de versão.
 
-Os workflows de imagens usam Trivy para scan de secrets, dependencias e imagens. Vulnerabilidades `HIGH` ou `CRITICAL` em dependencias ou imagens devem falhar a pipeline conforme configuracao atual.
+Os workflows de imagens usam Trivy para scan de secrets, dependências e imagens. Vulnerabilidades `HIGH` ou `CRITICAL` em dependências ou imagens devem falhar a pipeline conforme configuração atual.
 
-## Containers e Operacao
+## Containers e Operação
 
-Boas praticas para execucao e operacao:
+Boas praticas para execução e operação:
 
-- usar HTTPS em producao;
-- nao expor o banco diretamente para a internet;
+- usar HTTPS em produção;
+- não expor o banco diretamente para a internet;
 - manter secrets de runtime fora da imagem Docker;
 - publicar imagens no GHCR apenas depois de build e scan na release;
-- usar tags versionadas para producao;
+- usar tags versionadas para produção;
 - usar tags versionadas anteriores para rollback;
 - acompanhar logs sem registrar segredos.
 
-O guia operacional completo esta em [Guia de Execucao, Configuracao e Operacao](./Guia-de-Execucao-Configuracao-e-Operacao).
+O guia operacional completo está em [Guia de Execução, Configuração e Operação](./Guia-de-Execução-Configuração-e-Operação).
 
 ## Checks Esperados
 
-Antes de abrir ou atualizar um pull request, execute os checks aplicaveis:
+Antes de abrir ou atualizar um pull request, execute os checks aplicáveis:
 
 ```bash
 npm run secretlint
@@ -136,18 +136,18 @@ cd backend
 ./gradlew test
 ```
 
-Nem todo PR altera todas as partes do monorepo. Rode pelo menos os checks relacionados aos arquivos alterados e registre as evidencias no PR.
+Nem todo PR altera todas as partes do monorepo. Rode pelo menos os checks relacionados aos arquivos alterados e registre as evidências no PR.
 
-## Modelagem de Ameacas
+## Modelagem de Ameaças
 
-A modelagem STRIDE fica em [Modelagem de Ameacas](./Modelagem-de-Ameacas).
+A modelagem STRIDE fica em [Modelagem de Ameaças](./Modelagem-de-Ameaças).
 
 Atualize a modelagem quando houver:
 
 - novo endpoint autenticado;
-- mudanca em autenticacao, token ou sessao;
+- mudanca em autenticação, token ou sessão;
 - novo fluxo de arquivo, PDF, planilha ou e-mail;
-- alteracao em permissao, ownership ou papel de usuario;
+- alteracao em permissão, ownership ou papel de usuário;
 - mudanca relevante de infraestrutura, banco, backup ou rede.
 
 ## Fluxo Atual de Versionamento
@@ -157,18 +157,18 @@ Resumo do fluxo:
 | Origem | Destino | Uso | Release |
 | --- | --- | --- | --- |
 | `feat/*`, `fix/*`, `docs/*`, `infra/*`, `ci/*` | `main` | Trabalho normal | Marcar `patch`, `minor`, `major` ou `sem release` |
-| Dependabot | `main` | Atualizacao automatizada | `patch` automatico |
-| `hotfix/*` | `main` | Correcao urgente em producao | Marcar `patch` |
+| Dependabot | `main` | Atualização automatizada | `patch` automatico |
+| `hotfix/*` | `main` | Correcao urgente em produção | Marcar `patch` |
 
 Fluxo de trabalho esperado:
 
-1. Criar uma issue com contexto, objetivo, escopo e criterios de aceite.
+1. Criar uma issue com contexto, objetivo, escopo e critérios de aceite.
 2. Atualizar a `main` local com o estado remoto.
-3. Criar uma branch curta a partir de `main`, por exemplo `docs/guia-seguranca`.
+3. Criar uma branch curta a partir de `main`, por exemplo `docs/guia-segurança`.
 4. Implementar a mudanca e commitar usando Conventional Commits.
-5. Abrir PR para `main`, vinculando exatamente uma issue com `Closes #numero`, `Fixes #numero` ou `Resolves #numero`.
+5. Abrir PR para `main`, vinculando exatamente uma issue com `Closes #número`, `Fixes #número` ou `Resolves #número`.
 6. Marcar exatamente um tipo de release no PR.
-7. Aguardar checks, revisao e merge em `main`.
+7. Aguardar checks, revisão e merge em `main`.
 
 O merge em `main` fecha automaticamente a issue vinculada pelo GitHub.
 
@@ -182,10 +182,10 @@ Uma release normal acontece quando um PR humano entra em `main`:
    - `minor`: funcionalidade ou entrega compativel;
    - `major`: mudanca incompativel;
    - `sem release`: merge sem tag nem GitHub Release.
-3. Descrever a entrega na secao `## O que foi feito`.
-4. Fazer merge apos checks e revisao.
+3. Descrever a entrega na seção `## O que foi feito`.
+4. Fazer merge apos checks e revisão.
 
-Quando o PR entra em `main`, o workflow `Release` prepara a tag `vMAJOR.MINOR.PATCH`, publica a GitHub Release e aciona a publicacao das imagens produtivas no GHCR, quando o PR nao esta marcado como `sem release`.
+Quando o PR entra em `main`, o workflow `Release` prepara a tag `vMAJOR.MINOR.PATCH`, pública a GitHub Release e aciona a publicação das imagens produtivas no GHCR, quando o PR não está marcado como `sem release`.
 
 O versionamento atual e do monorepo inteiro. Nao existem releases separadas para backend e frontend.
 
@@ -200,21 +200,21 @@ Regras:
 - abrir PR para `main`;
 - marcar `patch`;
 
-## Checklist de Revisao Segura
+## Checklist de Revisão Segura
 
 Antes do merge, revise:
 
 - A mudanca acessa dados por `id`? Validou ownership?
 - A mudanca processa arquivo? Ha limites e tratamento de erro?
-- A mudanca exporta planilha? Ha protecao contra formula injection?
+- A mudanca exporta planilha? Ha proteção contra formula injection?
 - A mudanca envia e-mail? O destinatario e autorizado?
-- A mudanca adiciona variavel? Ela e publica ou segredo de runtime?
+- A mudanca adiciona variavel? Ela e pública ou segredo de runtime?
 - A mudanca altera Docker ou CI? Os scans continuam rodando?
-- A mudanca altera autenticacao, permissao ou dados sensiveis? A modelagem de ameacas foi revisada?
-- A documentacao da wiki precisa ser atualizada?
+- A mudanca altera autenticação, permissão ou dados sensiveis? A modelagem de ameaças foi revisada?
+- A documentação da wiki precisa ser atualizada?
 
-## Historico
+## Histórico
 
-| Versao | Data | Descricao |
+| Versão | Data | Descrição |
 | --- | --- | --- |
-| 1.0 | 2026-09-15 | Criacao do guia de desenvolvimento seguro com resumo do fluxo de versionamento e release. |
+| 1.0 | 2026-09-15 | Criação do guia de desenvolvimento seguro com resumo do fluxo de versionamento e release. |

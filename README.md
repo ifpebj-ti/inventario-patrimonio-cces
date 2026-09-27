@@ -1,21 +1,21 @@
 # Inventarium
 
-Inventarium e um monorepo do projeto academico de gerenciamento de inventario. Ele agrupa a API backend, a aplicacao web e a documentacao do produto.
+Inventarium e um monorepo do projeto academico de gerenciamento de inventário. Ele agrupa a API backend, a aplicação web e a documentação do produto.
 
 ## Estrutura
 
 ```text
 .
 ├── backend/       # API Java/Spring Boot, banco PostgreSQL e scripts de apoio
-├── frontend/      # Aplicacao web Next.js
-├── docs/          # Documentacao do repositorio e guias de contribuicao
+├── frontend/      # Aplicação web Next.js
+├── docs/          # Documentação do repositório e guias de contribuição
 ├── infra/         # Espaco reservado para infraestrutura e deploy
 ├── .github/       # GitHub Actions e Dependabot
 ├── .husky/        # Hooks locais do Git
 └── package.json   # Ferramentas compartilhadas do monorepo
 ```
 
-## Aplicacoes
+## Aplicações
 
 ### Backend
 
@@ -33,14 +33,14 @@ Stack principal:
 Partes importantes:
 
 - `src/main/java/clp/inventory/controller`: endpoints da API.
-- `docs/AUTHENTICATION.md`: fluxo de autenticacao com Google.
-- `docs/GOOGLE_AUTH_SETUP.md`: configuracao das variaveis do login com Google.
+- `docs/AUTHENTICATION.md`: fluxo de autenticação com Google.
+- `docs/GOOGLE_AUTH_SETUP.md`: configuração das variáveis do login com Google.
 - `src/main/java/clp/inventory/service`: regras de negocio.
 - `src/main/java/clp/inventory/repository`: acesso a dados.
 - `src/main/java/clp/inventory/model`: entidades do dominio.
-- `src/main/resources/application.properties`: configuracao da aplicacao.
+- `src/main/resources/application.properties`: configuração da aplicação.
 - `docker-compose.yml`: ambiente local com PostgreSQL, backend e frontend web.
-- `.env.example`: exemplo das variaveis de ambiente esperadas.
+- `.env.example`: exemplo das variáveis de ambiente esperadas.
 
 Para empacotar a API:
 
@@ -83,15 +83,15 @@ npm install
 npm run dev
 ```
 
-A aplicacao fica disponivel em:
+A aplicação fica disponível em:
 
 ```text
 http://localhost:3000
 ```
 
-## Configuracao local
+## Configuração local
 
-Instale as dependencias das aplicacoes que for usar e tambem as dependencias da raiz:
+Instale as dependências das aplicações que for usar e também as dependências da raiz:
 
 ```bash
 npm install
@@ -105,13 +105,13 @@ Para rodar com Docker Compose, copie o arquivo de exemplo da raiz e defina os va
 cp .env.example .env
 ```
 
-Depois, suba a aplicacao web completa:
+Depois, suba a aplicação web completa:
 
 ```bash
 docker compose up --build
 ```
 
-Servicos publicados:
+Serviços publicados:
 
 ```text
 Frontend web: http://localhost:3000
@@ -119,23 +119,23 @@ Backend API:  http://localhost:8080
 PostgreSQL:   localhost:5433
 ```
 
-O `docker-compose.yml` builda as imagens locais `inventarium-front:local` e `inventarium-back:local`, alem de subir o PostgreSQL. Em ambiente de VM, as variaveis `FRONTEND_IMAGE` e `BACKEND_IMAGE` podem apontar para imagens publicadas no GHCR.
+O `docker-compose.yml` builda as imagens locais `inventarium-front:local` e `inventarium-back:local`, alem de subir o PostgreSQL. Em ambiente de VM, as variáveis `FRONTEND_IMAGE` e `BACKEND_IMAGE` podem apontar para imagens publicadas no GHCR.
 
-O guia completo de execucao, configuracao e operacao esta em:
+O guia completo de execução, configuração e operação está em:
 
 ```text
-docs/execucao-configuracao-operacao.md
+docs/execução-configuração-operação.md
 ```
 
-Para rodar apenas o backend fora do Compose, use tambem o exemplo dentro de `backend` quando necessario.
+Para rodar apenas o backend fora do Compose, use também o exemplo dentro de `backend` quando necessário.
 
-Arquivos `.env` reais nao devem ser commitados.
+Arquivos `.env` reais não devem ser commitados.
 
-## Seguranca
+## Segurança
 
-Este repositorio evita expor secrets diretamente no codigo. Configuracoes sensiveis devem vir de variaveis de ambiente.
+Este repositório evita expor secrets diretamente no código. Configuracoes sensiveis devem vir de variáveis de ambiente.
 
-Exemplos de variaveis usadas pelo backend:
+Exemplos de variáveis usadas pelo backend:
 
 ```text
 SPRING_DATASOURCE_URL
@@ -148,7 +148,7 @@ GOOGLE_ALLOWED_DOMAINS
 
 Antes de cada commit, o Secretlint roda nos arquivos staged para reduzir o risco de commitar tokens, senhas, chaves privadas ou credenciais.
 
-Tambem e possivel rodar manualmente:
+Também e possível rodar manualmente:
 
 ```bash
 npm run secretlint
@@ -202,15 +202,15 @@ commit criado
 
 ## Dependabot
 
-O Dependabot esta configurado em `.github/dependabot.yml`.
+O Dependabot está configurado em `.github/dependabot.yml`.
 
 Ele verifica atualizacoes para:
 
-- `frontend`: dependencias npm.
-- `backend`: dependencias Gradle.
+- `frontend`: dependências npm.
+- `backend`: dependências Gradle.
 - `/`: GitHub Actions.
 
-Quando encontra uma atualizacao, o GitHub abre um Pull Request automatico. A pipeline entao roda sobre esse PR para ajudar a validar a mudanca antes do merge.
+Quando encontra uma atualização, o GitHub abre um Pull Request automatico. A pipeline entao roda sobre esse PR para ajudar a validar a mudanca antes do merge.
 
 ## CI
 
@@ -223,21 +223,21 @@ Ele valida:
 - secrets com Secretlint;
 - mensagens de commit em pull requests com Commitlint.
 
-## Documentacao
+## Documentação
 
-Mais detalhes de contribuicao estao em:
+Mais detalhes de contribuição estao em:
 
 ```text
 docs/contributing.md
 ```
 
-As decisoes arquiteturais relevantes sao registradas como ADRs em:
+As decisões arquiteturais relevantes são registradas como ADRs em:
 
 ```text
 docs/architecture/adr
 ```
 
-Tags e GitHub Releases seguem o formato `vMAJOR.MINOR.PATCH` e sao preparadas pelo workflow `Release`, com base no tipo marcado no pull request. As imagens de producao publicadas no GHCR usam a mesma tag da release.
+Tags e GitHub Releases seguem o formato `vMAJOR.MINOR.PATCH` e são preparadas pelo workflow `Release`, com base no tipo marcado no pull request. As imagens de produção publicadas no GHCR usam a mesma tag da release.
 
 ## Apresentação
 
