@@ -1,7 +1,9 @@
 package clp.inventory.service;
 
 import clp.inventory.dto.ProfileDto;
+import clp.inventory.model.Permission;
 import clp.inventory.model.Profile;
+import clp.inventory.repository.PermissionRepository;
 import clp.inventory.repository.ProfileRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -14,9 +16,11 @@ import java.util.NoSuchElementException;
 public class ProfileService {
 
     private final ProfileRepository profileRepository;
+    private final PermissionRepository permissionRepository;
 
-    public ProfileService(ProfileRepository profileRepository) {
+    public ProfileService(ProfileRepository profileRepository, PermissionRepository permissionRepository) {
         this.profileRepository = profileRepository;
+        this.permissionRepository = permissionRepository;
     }
 
     @Transactional
@@ -61,6 +65,24 @@ public class ProfileService {
 
     public List<Profile> listAllProfiles() {
         return profileRepository.findAll();
+    }
+
+    @Transactional
+    public Profile addPermission(long profileId, long permissionId) {
+        Profile profile = findProfileById(profileId);
+        Permission permission = permissionRepository.findById(permissionId)
+                .orElseThrow(() -> new NoSuchElementException("Permission not found with id: " + permissionId));
+        profile.addPermission(permission);
+        return profileRepository.save(profile);
+    }
+
+    @Transactional
+    public Profile removePermission(long profileId, long permissionId) {
+        Profile profile = findProfileById(profileId);
+        Permission permission = permissionRepository.findById(permissionId)
+                .orElseThrow(() -> new NoSuchElementException("Permission not found with id: " + permissionId));
+        profile.removePermission(permission);
+        return profileRepository.save(profile);
     }
 
     private void validate(ProfileDto dto) {

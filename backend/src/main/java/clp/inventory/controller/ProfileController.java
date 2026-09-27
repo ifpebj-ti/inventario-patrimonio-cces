@@ -75,4 +75,22 @@ public class ProfileController {
             throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
         }
     }
+
+    @PostMapping("/{id}/permissions/{permissionId}")
+    public ResponseEntity<ProfileDto> addPermission(@PathVariable long id, @PathVariable long permissionId) {
+        try {
+            return ResponseEntity.ok(ProfileDto.from(profileService.addPermission(id, permissionId)));
+        } catch (NoSuchElementException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/{id}/permissions/{permissionId}")
+    public ResponseEntity<ProfileDto> removePermission(@PathVariable long id, @PathVariable long permissionId) {
+        try {
+            return ResponseEntity.ok(ProfileDto.from(profileService.removePermission(id, permissionId)));
+        } catch (NoSuchElementException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        }
+    }
 }

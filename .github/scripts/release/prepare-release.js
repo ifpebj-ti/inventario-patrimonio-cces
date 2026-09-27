@@ -7,6 +7,12 @@ const {
   stripHtmlComments,
 } = require("../github/pr-body");
 
+const DEPENDABOT_PATCH_RELEASE = {
+  key: "patch",
+  label: "patch",
+  heading: "Dependencies",
+};
+
 const ROOT = process.cwd();
 
 function main() {
@@ -15,7 +21,10 @@ function main() {
   const prTitle = process.env.PR_TITLE || "Mudancas do PR";
   const headRef = process.env.HEAD_REF || "";
   const baseRef = process.env.BASE_REF || "";
-  const releaseOption = getReleaseOption(prBody);
+  const author = process.env.PR_AUTHOR || "";
+  const releaseOption =
+    getReleaseOption(prBody) ||
+    (author === "dependabot[bot]" ? DEPENDABOT_PATCH_RELEASE : null);
 
   if (!shouldPrepareRelease({ headRef, baseRef })) {
     writeOutput("skip", "true");
@@ -94,11 +103,8 @@ function incrementVersion(version, type) {
   return `${major}.${minor}.${patch}`;
 }
 
-function shouldPrepareRelease({ headRef, baseRef }) {
-  return (
-    baseRef === "main" &&
-    (headRef === "development" || String(headRef || "").startsWith("hotfix/"))
-  );
+function shouldPrepareRelease({ baseRef }) {
+  return baseRef === "main";
 }
 
 function getReleaseSummary(prBody, prTitle, prNumber) {

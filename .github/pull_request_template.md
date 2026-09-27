@@ -1,6 +1,6 @@
 ## Issue vinculada
 
-<!-- Obrigatorio para branches de trabalho -> development e hotfix/* -> main. Nao use em development -> main ou main -> development. -->
+<!-- Obrigatorio para todo PR humano destinado a main. Nao use para PRs do Dependabot. -->
 Closes #
 
 ## Descricao da issue
@@ -29,10 +29,9 @@ Esta secao sera preenchida automaticamente quando o PR referenciar uma issue com
 Marque exatamente uma opcao:
 
 <!--
-- PR de trabalho -> development: marque "sem release".
-- development -> main: marque patch, minor, major ou sem release.
-- hotfix/* -> main: marque "patch".
-- main -> development: marque "sem release".
+- Todo PR humano -> main: marque patch, minor, major ou sem release.
+- Para hotfix/*, use patch.
+- PRs do Dependabot sao dispensados deste template e recebem patch automaticamente no merge.
 -->
 
 - [ ] patch - fix/correcao compativel

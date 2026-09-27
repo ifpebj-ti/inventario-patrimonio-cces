@@ -3,7 +3,7 @@ updates:
   - package-ecosystem: "npm"
     directories:
       - "/frontend"
-    target-branch: "development"
+    target-branch: "main"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -18,7 +18,7 @@ updates:
 
   - package-ecosystem: "gradle"
     directory: "/backend"
-    target-branch: "development"
+    target-branch: "main"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -28,7 +28,7 @@ updates:
 
   - package-ecosystem: "github-actions"
     directory: "/"
-    target-branch: "development"
+    target-branch: "main"
     schedule:
       interval: "weekly"
       day: "monday"

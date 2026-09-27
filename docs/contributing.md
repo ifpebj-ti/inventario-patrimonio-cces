@@ -31,14 +31,14 @@ infra/nome-da-infraestrutura
 ci/nome-da-automacao
 ```
 
-Mudancas devem ser abertas por pull request e revisadas antes do merge na `development`.
+Mudancas devem ser abertas por pull request e revisadas antes do merge na `main`.
 
 Fluxo resumido:
 
-1. Branch de trabalho, Dependabot ou hotfix.
-2. PR para `development` durante o desenvolvimento normal.
-3. PR de promocao `development` -> `main` quando for gerar a entrega.
-4. PR `hotfix/*` -> `main` apenas para correcao urgente em producao.
+1. Criar uma branch de trabalho a partir de `main`, ou receber um PR do Dependabot.
+2. Abrir PR diretamente para `main`.
+3. Escolher o tipo de release no proprio PR humano.
+4. Usar `hotfix/*` apenas para correcao urgente e marcar `patch`.
 
 Veja o guia completo em [Branching Strategy](./branching-strategy.md).
 
@@ -58,23 +58,23 @@ v0.2.1
 - `MINOR`: novas funcionalidades ou entregas relevantes sem quebra esperada.
 - `PATCH`: correcoes pequenas e ajustes compativeis.
 
-As releases sao preparadas automaticamente pelo workflow `Release`, com base no tipo de release marcado no pull request de promocao para `main` ou em hotfix.
+As releases sao preparadas automaticamente pelo workflow `Release`, com base no tipo marcado no PR humano que entra em `main`. Merges do Dependabot recebem `patch` automaticamente.
 
 Fluxo esperado:
 
 1. Toda issue deve ser aberta pelo template `Tarefa`, registrando contexto, objetivo, escopo e criterios de aceite.
-2. PRs de trabalho para `development` devem referenciar exatamente uma issue usando `Closes #numero`, `Fixes #numero` ou `Resolves #numero`, mas devem marcar `sem release`.
+2. Todo PR humano para `main` deve referenciar exatamente uma issue usando `Closes #numero`, `Fixes #numero` ou `Resolves #numero` e marcar exatamente um tipo de release.
 3. Ao abrir ou editar o PR de trabalho, o workflow `Sync PR with Issue` copia a descricao da issue vinculada para o corpo do PR.
 4. O workflow `Validate PR Template` confere as regras esperadas para cada origem e destino.
-5. Ao fazer merge do PR de promocao `development` -> `main`, o workflow `Close Promoted Issues` fecha as issues vinculadas aos PRs ja mergeados em `development`.
-6. Ao fazer merge em `main`, o workflow `Release` usa o tipo marcado no PR de promocao ou no hotfix para criar a tag `vX.Y.Z`, publicar a GitHub Release e acionar a publicacao das imagens de producao no GHCR.
+5. Ao fazer merge em `main`, o GitHub fecha automaticamente a issue vinculada ao PR.
+6. O workflow `Release` usa o tipo marcado para criar a tag `vX.Y.Z`, publicar a GitHub Release e acionar a publicacao das imagens de producao no GHCR.
 
 Tipos de release no pull request:
 
 - `patch`: correcoes compativeis, incrementando `PATCH`.
 - `minor`: novas funcionalidades compativeis, incrementando `MINOR`.
 - `major`: mudancas incompativeis, incrementando `MAJOR`.
-- `sem release`: nao cria tag nem GitHub Release. Use em PRs de trabalho para `development`, sync `main` -> `development` e promocoes sem mudanca publicavel.
+- `sem release`: nao cria tag nem GitHub Release. Use em mudancas de documentacao, CI ou manutencao sem entrega publicavel.
 
 O versionamento da entrega fica nas tags Git e nas GitHub Releases. O workflow nao altera `package.json`, `package-lock.json` nem arquivos de changelog durante a release.
 
@@ -82,9 +82,9 @@ No fluxo atual, a release e do monorepo inteiro. Nao existem releases separadas 
 
 ## Dependabot
 
-O Dependabot abre PRs para `development` nos ecossistemas npm, Gradle e GitHub Actions. Esses PRs sao dispensados da issue vinculada, do sync com issue e da marcacao manual de release.
+O Dependabot abre PRs para `main` nos ecossistemas npm, Gradle e GitHub Actions. Esses PRs sao dispensados da issue vinculada, do sync com issue e da marcacao manual de release; ao serem mergeados, recebem uma release `patch` automaticamente.
 
-Limite conhecido: alertas de seguranca podem se comportar de forma diferente do agendamento comum do Dependabot, dependendo das configuracoes do GitHub para security updates. Caso o GitHub abra um PR de seguranca contra `main`, ajuste o alvo manualmente ou trate como hotfix quando fizer sentido.
+Limite conhecido: alertas de seguranca podem se comportar de forma diferente do agendamento comum do Dependabot, dependendo das configuracoes do GitHub para security updates. Revise qualquer PR de seguranca antes do merge.
 
 ## Hooks locais
 

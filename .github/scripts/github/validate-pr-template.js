@@ -22,7 +22,7 @@ function validatePullRequest({ body, headRef, baseRef, author }) {
     );
   }
 
-  if (flow === "dependabot-development") {
+  if (flow === "dependabot-main") {
     return {
       valid: true,
       flow,
@@ -32,16 +32,11 @@ function validatePullRequest({ body, headRef, baseRef, author }) {
     };
   }
 
-  if (["work-development", "hotfix-main"].includes(flow)) {
+  if (["work-main", "hotfix-main"].includes(flow)) {
     requireExactlyOneLinkedIssue(linkedIssues, errors);
   }
 
-  if (["work-development", "main-development"].includes(flow)) {
-    requireExactlyOneReleaseOption(selectedReleaseOptions, errors);
-    requireReleaseType(selectedReleaseOption, "none", errors);
-  }
-
-  if (flow === "development-main") {
+  if (flow === "work-main") {
     requireExactlyOneReleaseOption(selectedReleaseOptions, errors);
   }
 
@@ -60,24 +55,16 @@ function validatePullRequest({ body, headRef, baseRef, author }) {
 }
 
 function getPullRequestFlow({ headRef, baseRef, author }) {
-  if (author === "dependabot[bot]" && baseRef === "development") {
-    return "dependabot-development";
-  }
-
-  if (baseRef === "development" && headRef === "main") {
-    return "main-development";
-  }
-
-  if (baseRef === "development") {
-    return "work-development";
-  }
-
-  if (baseRef === "main" && headRef === "development") {
-    return "development-main";
+  if (author === "dependabot[bot]" && baseRef === "main") {
+    return "dependabot-main";
   }
 
   if (baseRef === "main" && headRef.startsWith("hotfix/")) {
     return "hotfix-main";
+  }
+
+  if (baseRef === "main") {
+    return "work-main";
   }
 
   return "unsupported";
@@ -133,8 +120,8 @@ function main() {
     process.exit(1);
   }
 
-  if (result.flow === "dependabot-development") {
-    console.log("PR do Dependabot para development dispensado da validacao.");
+  if (result.flow === "dependabot-main") {
+    console.log("PR do Dependabot para main dispensado da validacao.");
     return;
   }
 

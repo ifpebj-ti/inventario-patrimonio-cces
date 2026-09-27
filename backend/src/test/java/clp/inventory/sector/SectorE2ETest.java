@@ -1,5 +1,7 @@
 package clp.inventory.sector;
 
+import clp.inventory.model.User;
+import clp.inventory.repository.UserRepository;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import org.junit.jupiter.api.Test;
@@ -43,6 +45,9 @@ class SectorE2ETest {
 
     @Autowired
     TestRestTemplate restTemplate;
+
+    @Autowired
+    UserRepository userRepository;
 
     private String mintToken() {
         Algorithm algorithm = Algorithm.HMAC256(TEST_SECRET);
@@ -262,5 +267,26 @@ class SectorE2ETest {
         var response = restTemplate.getForEntity("/sectors", Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void delete_sectorWithAssignedUser_returns409() {
+        long organizationId = createOrganization("Organizacao Setor Com Usuario");
+        long sectorId = ((Number) create("Setor Com Usuario", null, organizationId, null).getBody().get("id")).longValue();
+
+        User user = new User();
+        user.setName("Usuario Vinculado");
+        user.setEmail("usuario-vinculado-setor@ifpe.edu.br");
+        user.setGoogleId("google-usuario-vinculado-setor");
+        userRepository.save(user);
+
+        restTemplate.exchange(
+                "/users/" + user.getId() + "/sector", HttpMethod.PATCH,
+                new HttpEntity<>(Map.of("sectorId", sectorId), authHeaders()), Map.class);
+
+        var response = restTemplate.exchange(
+                "/sectors/" + sectorId, HttpMethod.DELETE, new HttpEntity<>(authHeaders()), Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 }

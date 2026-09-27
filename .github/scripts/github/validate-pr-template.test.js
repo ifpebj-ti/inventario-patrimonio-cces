@@ -14,35 +14,23 @@ test("extracts unique linked issue numbers", () => {
   ]);
 });
 
-test("requires linked issue and sem release for work PRs to development", () => {
+test("accepts work PRs to main with one issue and one release type", () => {
   const result = validatePullRequest({
-    body: prBody({ issue: 66, release: "none" }),
+    body: prBody({ issue: 66, release: "minor" }),
     headRef: "feat/containerize-app",
-    baseRef: "development",
+    baseRef: "main",
     author: "pedro",
   });
 
   assert.equal(result.valid, true);
-  assert.equal(result.flow, "work-development");
+  assert.equal(result.flow, "work-main");
 });
 
-test("rejects work PRs to development with release option different from sem release", () => {
+test("rejects work PRs to main without a linked issue", () => {
   const result = validatePullRequest({
-    body: prBody({ issue: 66, release: "minor" }),
-    headRef: "feat/containerize-app",
-    baseRef: "development",
-    author: "pedro",
-  });
-
-  assert.equal(result.valid, false);
-  assert.match(result.errors.join("\n"), /sem release/);
-});
-
-test("rejects work PRs to development without linked issue", () => {
-  const result = validatePullRequest({
-    body: prBody({ release: "none" }),
-    headRef: "feat/containerize-app",
-    baseRef: "development",
+    body: prBody({ release: "patch" }),
+    headRef: "fix/containerize-app",
+    baseRef: "main",
     author: "pedro",
   });
 
@@ -50,34 +38,10 @@ test("rejects work PRs to development without linked issue", () => {
   assert.match(result.errors.join("\n"), /exatamente uma issue/);
 });
 
-test("accepts promotion PRs from development to main without linked issue", () => {
+test("rejects work PRs to main without exactly one release type", () => {
   const result = validatePullRequest({
-    body: prBody({ release: "minor" }),
-    headRef: "development",
-    baseRef: "main",
-    author: "pedro",
-  });
-
-  assert.equal(result.valid, true);
-  assert.equal(result.flow, "development-main");
-});
-
-test("accepts promotion PRs from development to main with sem release", () => {
-  const result = validatePullRequest({
-    body: prBody({ release: "none" }),
-    headRef: "development",
-    baseRef: "main",
-    author: "pedro",
-  });
-
-  assert.equal(result.valid, true);
-  assert.equal(result.selectedReleaseOption.key, "none");
-});
-
-test("rejects promotion PRs from development to main without release option", () => {
-  const result = validatePullRequest({
-    body: prBody({}),
-    headRef: "development",
+    body: prBody({ issue: 66 }),
+    headRef: "docs/branching-strategy",
     baseRef: "main",
     author: "pedro",
   });
@@ -86,77 +50,53 @@ test("rejects promotion PRs from development to main without release option", ()
   assert.match(result.errors.join("\n"), /Tipo de release/);
 });
 
-test("accepts hotfix PRs to main with linked issue and patch", () => {
-  const result = validatePullRequest({
+test("accepts hotfix PRs to main only with patch", () => {
+  const accepted = validatePullRequest({
     body: prBody({ issue: 90, release: "patch" }),
     headRef: "hotfix/login",
     baseRef: "main",
     author: "pedro",
   });
-
-  assert.equal(result.valid, true);
-  assert.equal(result.flow, "hotfix-main");
-});
-
-test("requires patch for hotfix PRs to main", () => {
-  const result = validatePullRequest({
-    body: prBody({ issue: 70, release: "minor" }),
+  const rejected = validatePullRequest({
+    body: prBody({ issue: 90, release: "minor" }),
     headRef: "hotfix/login",
     baseRef: "main",
     author: "pedro",
   });
 
-  assert.equal(result.valid, false);
-  assert.match(result.errors.join("\n"), /`patch`/);
+  assert.equal(accepted.valid, true);
+  assert.equal(accepted.flow, "hotfix-main");
+  assert.equal(rejected.valid, false);
+  assert.match(rejected.errors.join("\n"), /`patch`/);
 });
 
-test("accepts main to development sync only with sem release", () => {
-  const result = validatePullRequest({
-    body: prBody({ release: "none" }),
-    headRef: "main",
-    baseRef: "development",
-    author: "pedro",
-  });
-
-  assert.equal(result.valid, true);
-  assert.equal(result.flow, "main-development");
-});
-
-test("exempts dependabot PRs to development", () => {
+test("exempts Dependabot PRs to main", () => {
   const result = validatePullRequest({
     body: "",
     headRef: "dependabot/npm_and_yarn/frontend/eslint-10.8.1",
-    baseRef: "development",
+    baseRef: "main",
     author: "dependabot[bot]",
   });
 
   assert.equal(result.valid, true);
-  assert.equal(result.flow, "dependabot-development");
+  assert.equal(result.flow, "dependabot-main");
 });
 
-test("classifies unsupported flows", () => {
+test("classifies non-main targets as unsupported", () => {
   assert.equal(
     getPullRequestFlow({
-      headRef: "feat/direct-main",
-      baseRef: "main",
+      headRef: "feat/direct-legacy",
+      baseRef: "legacy",
       author: "pedro",
     }),
     "unsupported",
   );
 });
 
-test("syncs issue summaries only for work and hotfix flows", () => {
+test("syncs issue summaries for human PRs to main only", () => {
   assert.equal(
     shouldSyncIssueSummary({
       headRef: "feat/api",
-      baseRef: "development",
-      author: "pedro",
-    }),
-    true,
-  );
-  assert.equal(
-    shouldSyncIssueSummary({
-      headRef: "hotfix/api",
       baseRef: "main",
       author: "pedro",
     }),
@@ -164,8 +104,16 @@ test("syncs issue summaries only for work and hotfix flows", () => {
   );
   assert.equal(
     shouldSyncIssueSummary({
-      headRef: "development",
+      headRef: "dependabot/npm_and_yarn/frontend/eslint-10.8.1",
       baseRef: "main",
+      author: "dependabot[bot]",
+    }),
+    false,
+  );
+  assert.equal(
+    shouldSyncIssueSummary({
+      headRef: "feat/api",
+      baseRef: "legacy",
       author: "pedro",
     }),
     false,
