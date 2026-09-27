@@ -85,14 +85,14 @@ Boas praticas para persistencia:
 
 ## Dependencias e Supply Chain
 
-O projeto usa Dependabot para npm, Gradle e GitHub Actions com destino para `development`.
+O projeto usa Dependabot para npm, Gradle e GitHub Actions com destino para `main`.
 
 Boas praticas:
 
 - revisar PRs do Dependabot antes do merge;
 - observar changelogs quando houver major version;
 - rodar testes e checks relevantes;
-- corrigir vulnerabilidades criticas antes de promover release;
+- corrigir vulnerabilidades criticas antes de fazer merge;
 - evitar bibliotecas sem manutencao ou com risco conhecido;
 - manter imagens Docker rastreaveis por tag de versao.
 
@@ -156,37 +156,34 @@ Resumo do fluxo:
 
 | Origem | Destino | Uso | Release |
 | --- | --- | --- | --- |
-| `feat/*`, `fix/*`, `docs/*`, `infra/*`, `ci/*` | `development` | Trabalho normal | Marcar `sem release` |
-| Dependabot | `development` | Atualizacao automatizada | Dispensado |
-| `development` | `main` | Promocao de entrega | Marcar `patch`, `minor`, `major` ou `sem release` |
+| `feat/*`, `fix/*`, `docs/*`, `infra/*`, `ci/*` | `main` | Trabalho normal | Marcar `patch`, `minor`, `major` ou `sem release` |
+| Dependabot | `main` | Atualizacao automatizada | `patch` automatico |
 | `hotfix/*` | `main` | Correcao urgente em producao | Marcar `patch` |
-| `main` | `development` | Sync apos hotfix/release | Marcar `sem release` |
 
 Fluxo de trabalho esperado:
 
 1. Criar uma issue com contexto, objetivo, escopo e criterios de aceite.
-2. Atualizar a `development` local com o estado remoto.
-3. Criar uma branch curta a partir de `development`, por exemplo `docs/guia-seguranca`.
+2. Atualizar a `main` local com o estado remoto.
+3. Criar uma branch curta a partir de `main`, por exemplo `docs/guia-seguranca`.
 4. Implementar a mudanca e commitar usando Conventional Commits.
-5. Abrir PR para `development`, vinculando exatamente uma issue com `Closes #numero`, `Fixes #numero` ou `Resolves #numero`.
-6. Marcar `sem release` no PR de trabalho.
-7. Aguardar checks, revisao e merge em `development`.
+5. Abrir PR para `main`, vinculando exatamente uma issue com `Closes #numero`, `Fixes #numero` ou `Resolves #numero`.
+6. Marcar exatamente um tipo de release no PR.
+7. Aguardar checks, revisao e merge em `main`.
 
-O merge em `development` nao fecha a issue. A issue e fechada quando a `development` e promovida para `main` e o workflow `Close Promoted Issues` encontra os PRs promovidos.
+O merge em `main` fecha automaticamente a issue vinculada pelo GitHub.
 
 ## Como Chegar em uma Release
 
-Uma release normal acontece por promocao de `development` para `main`:
+Uma release normal acontece quando um PR humano entra em `main`:
 
-1. Abrir PR `development` -> `main`.
-2. Nao vincular uma unica issue nesse PR, porque ele promove um pacote de mudancas.
-3. Marcar exatamente um tipo de release:
+1. Abrir PR de uma branch de trabalho para `main`, com uma issue vinculada.
+2. Marcar exatamente um tipo de release:
    - `patch`: correcao compativel;
    - `minor`: funcionalidade ou entrega compativel;
    - `major`: mudanca incompativel;
-   - `sem release`: promocao sem tag nem GitHub Release.
-4. Descrever a entrega na secao `## O que foi feito`.
-5. Fazer merge apos checks e revisao.
+   - `sem release`: merge sem tag nem GitHub Release.
+3. Descrever a entrega na secao `## O que foi feito`.
+4. Fazer merge apos checks e revisao.
 
 Quando o PR entra em `main`, o workflow `Release` prepara a tag `vMAJOR.MINOR.PATCH`, publica a GitHub Release e aciona a publicacao das imagens produtivas no GHCR, quando o PR nao esta marcado como `sem release`.
 
@@ -202,7 +199,6 @@ Regras:
 - vincular exatamente uma issue;
 - abrir PR para `main`;
 - marcar `patch`;
-- apos merge, sincronizar `main` de volta para `development` com PR `main` -> `development` marcado como `sem release`.
 
 ## Checklist de Revisao Segura
 
