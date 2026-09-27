@@ -1,60 +1,60 @@
-# Mapa da Documentacao
+# Mapa da Documentação
 
-Este mapa serve para saber rapidamente onde cada artefato esta. Ele nao substitui o Project, nem tenta transformar a wiki em backlog.
+Este mapa serve para saber rapidamente onde cada artefato está. Ele não substitui o Project, nem tenta transformar a wiki em backlog.
 
-## Leitura Rapida
+## Leitura Rápida
 
-| Frente | Situacao |
+| Frente | Situação |
 | --- | --- |
-| Visao do projeto | Coberta em [Documento de Visao](./Documento-de-Visao). |
-| Concorrencia | Coberta em [Analise de Concorrencia](./Analise-de-Concorrencia). |
-| Requisitos e backlog | Ficam no GitHub Project. A wiki registra apenas a visao e o contexto do produto. |
+| Visão do projeto | Coberta em [Documento de Visão](./Documento-de-Visão). |
+| Concorrência | Coberta em [Análise de Concorrência](./Análise-de-Concorrência). |
+| Requisitos e backlog | [Requisitos do Sistema](./Requisitos-do-Sistema) consolida a visão atual; o GitHub Project continua como fonte operacional. |
 | Arquitetura | Coberta pelos diagramas C4, modelagem de dados e ADRs. |
-| Seguranca | Coberta pela modelagem de ameacas e pelo guia de desenvolvimento seguro. |
+| Segurança | Coberta pela modelagem de ameaças e pelo guia de desenvolvimento seguro. |
 | Infraestrutura | Coberta pelo guia operacional, conteinerizacao e pagina de CI/CD. |
 
 ## Engenharia de Software
 
 | Artefato | Onde consultar | Nota |
 | --- | --- | --- |
-| Documento de Visao | [Documento de Visao](./Documento-de-Visao) | Resume problema, objetivo, publico, escopo e limites do produto. |
-| Analise de Concorrencia | [Analise de Concorrencia](./Analise-de-Concorrencia) | Compara o Inventarium com alternativas institucionais e ferramentas de mercado. |
-| Backlog e requisitos | GitHub Project | O Project e a fonte viva de tarefas, requisitos operacionais, prioridades e andamento. Duplicar isso na wiki tende a desatualizar. |
+| Documento de Visão | [Documento de Visão](./Documento-de-Visão) | Resume problema, objetivo, publico, escopo e limites do produto. |
+| Análise de Concorrência | [Análise de Concorrência](./Análise-de-Concorrência) | Compara o Inventarium com alternativas institucionais e ferramentas de mercado. |
+| Requisitos do sistema | [Requisitos do Sistema](./Requisitos-do-Sistema) | Consolida requisitos funcionais e não funcionais, distinguindo o que está implementado do que é planejado. |
 | Arquitetura | [C4 - Contexto](./C4-Contexto), [C4 - Containers](./C4-Containers), [C4 - Componentes](./C4-Componentes) | Os diagramas mostram atores, containers e componentes principais. |
-| Modelagem de dados | [Documento de Modelagem de Dados](./Documento-de-Modelagem-de-Dados) | Registra entidades, relacionamentos, chaves e restricoes do schema atual. |
-| Proposta de evolucao da modelagem | [Proposta de Modelagem: Organizacoes, Setores e Permissoes](./Proposta-de-Modelagem-Organizacoes-Setores-e-Permissoes) | Registra o modelo alvo para organizacoes, setores, perfis, permissoes e historico de validacao. |
-| Decisoes tecnicas | [Architecture Decision Records](./Architecture-Decision-Records) | Guarda decisoes arquiteturais que precisam continuar rastreaveis. |
+| Modelagem de dados | [Documento de Modelagem de Dados](./Documento-de-Modelagem-de-Dados) | Registra entidades, relacionamentos, chaves e restrições do schema atual. |
+| Modelo de dados | [Documento de Modelagem de Dados](./Documento-de-Modelagem-de-Dados) | Registra o schema implementado e as evoluções pendentes para organizações, setores, perfis, permissões e histórico de validação. |
+| Decisões técnicas | [Architecture Decision Records](./Architecture-Decision-Records) | Guarda decisões arquiteturais que precisam continuar rastreaveis. |
 
-## Seguranca
+## Segurança
 
 | Artefato | Onde consultar | Nota |
 | --- | --- | --- |
-| Modelagem de ameacas | [Modelagem de Ameacas](./Modelagem-de-Ameacas) | Inclui o arquivo do OWASP Threat Dragon e a lista de riscos STRIDE. |
-| Boas praticas de desenvolvimento seguro | [Guia de Boas Praticas de Desenvolvimento Seguro](./Guia-de-Boas-Praticas-de-Desenvolvimento-Seguro) | Cobre autenticacao, autorizacao, secrets, API, frontend, banco, supply chain e release. |
-| Vulnerabilidades do Dependabot | Aba Security/Dependabot do GitHub | A evidencia vem do GitHub. Se houver vulnerabilidade critica aberta, esse item nao deve ser marcado como concluido. |
+| Modelagem de ameaças | [Modelagem de Ameaças](./Modelagem-de-Ameaças) | Inclui o arquivo do OWASP Threat Dragon e a lista de riscos STRIDE. |
+| Boas praticas de desenvolvimento seguro | [Guia de Boas Praticas de Desenvolvimento Seguro](./Guia-de-Boas-Praticas-de-Desenvolvimento-Seguro) | Cobre autenticação, autorização, secrets, API, frontend, banco, supply chain e release. |
+| Vulnerabilidades do Dependabot | Aba Security/Dependabot do GitHub | A evidencia vem do GitHub. Se houver vulnerabilidade crítica aberta, esse item não deve ser marcado como concluído. |
 
 ## Infraestrutura
 
 | Artefato | Onde consultar | Nota |
 | --- | --- | --- |
-| Aplicacao conteinerizada | `docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile` | Compose sobe PostgreSQL, backend e frontend. |
-| Execucao, configuracao e operacao | [Guia de Execucao, Configuracao e Operacao](./Guia-de-Execucao-Configuracao-e-Operacao) | Explica ambiente local, variaveis, GHCR, logs, validacao e troubleshooting. |
+| Aplicação conteinerizada | `docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile` | Compose sobe PostgreSQL, backend e frontend. |
+| Execução, configuração e operação | [Guia de Execução, Configuração e Operação](./Guia-de-Execução-Configuração-e-Operação) | Explica ambiente local, variáveis, GHCR, logs, validação e troubleshooting. |
 | Esteira de CI/CD | [Esteira de CI/CD](./Esteira-de-CI-CD) | Mostra o que existe hoje e o que ainda depende de evolucao para deploy, smoke tests e observabilidade. |
 
-## O Que Ainda Nao Esta Fechado
+## O Que Ainda Nao Está Fechado
 
-| Item | Situacao |
+| Item | Situação |
 | --- | --- |
-| C4 de implantacao | Ainda nao ha pagina propria. Hoje a infraestrutura aparece no guia operacional e na esteira de CI/CD. |
-| Deploy automatico em VM | As imagens sao publicadas no GHCR, mas o deploy ainda nao esta automatizado no repositorio. |
-| Observabilidade e backup | Ainda precisam de definicao operacional quando o ambiente de producao estiver fechado. |
-| Evidencia de zero vulnerabilidades criticas | Depende do estado real da aba Security/Dependabot do GitHub. |
-| Implementacao do modelo por organizacao e setor | Proposta documentada, ainda dependente de implementacao no backend, migracoes, endpoints e testes de autorizacao. |
+| C4 de implantacao | Ainda não ha pagina própria. Hoje a infraestrutura aparece no guia operacional e na esteira de CI/CD. |
+| Deploy automatico em VM | As imagens são publicadas no GHCR, mas o deploy ainda não está automatizado no repositório. |
+| Observabilidade e backup | Ainda precisam de definição operacional quando o ambiente de produção estiver fechado. |
+| Evidencia de zero vulnerabilidades críticas | Depende do estado real da aba Security/Dependabot do GitHub. |
+| Aderência completa ao modelo por organização e setor | A base de organizações, setores, perfis e permissões está implementada; faltam vínculo setorial do inventário, autorização por setor e histórico de validações. |
 
-## Historico
+## Histórico
 
-| Versao | Data | Descricao |
+| Versão | Data | Descrição |
 | --- | --- | --- |
-| 1.0 | 2026-09-15 | Criacao do mapa de artefatos da wiki com status por Engenharia, Seguranca e Infraestrutura. |
+| 1.0 | 2026-09-15 | Criação do mapa de artefatos da wiki com status por Engenharia, Segurança e Infraestrutura. |
 | 1.1 | 2026-09-15 | Ajuste do mapa para registrar a fonte dos requisitos no GitHub Project e incluir a esteira de CI/CD. |
-| 1.2 | 2026-09-16 | Inclusao da proposta de modelagem para organizacoes, setores, perfis, permissoes e historico de validacao. |
+| 1.2 | 2026-09-16 | Inclusao da proposta de modelagem para organizações, setores, perfis, permissões e histórico de validação. |
