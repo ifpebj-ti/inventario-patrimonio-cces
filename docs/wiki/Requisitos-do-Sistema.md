@@ -117,6 +117,21 @@ Esta página consolida os requisitos do Inventarium a partir das issues, da docu
 - O sistema deve registrar validações entre setores com item, usuário, setores envolvidos, data, tipo e estado.
 - O setor responsável deve poder confirmar ou rejeitar a pendência.
 
+### RF-09 — Auditoria de tombamentos e validações
+
+**Como** gestor ou auditor autorizado, **quero** consultar quem tombou, validou ou registrou uma pendência para cada patrimônio e em qual momento, **para** manter rastreabilidade e prestar contas sobre o levantamento patrimonial.
+
+**Situação:** Planejado.
+
+**Critérios de aceite:**
+
+- Cada tombamento, validação, validação parcial ou resolução de pendência deve gerar um evento de auditoria imutável.
+- O evento deve registrar o item afetado, o inventário de contexto, o usuário que executou a ação, data e hora, tipo do evento e estado resultante.
+- Quando aplicável, o evento deve registrar o setor de origem do usuário e o setor responsável pelo patrimônio.
+- A consulta de auditoria deve permitir filtrar ao menos por patrimônio, inventário, usuário, setor, período e tipo de evento.
+- O histórico não deve ser apagado ou sobrescrito quando o estado atual do item for alterado posteriormente.
+- A visualização do histórico deve respeitar as mesmas regras de autorização por setor e perfil dos demais recursos patrimoniais.
+
 ## Requisitos Não Funcionais
 
 | ID | Requisito | Critérios de aceite | Situação |
