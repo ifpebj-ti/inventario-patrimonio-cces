@@ -20,24 +20,16 @@ Usada para o autocomplete dos códigos Tailwind CSS.
 
 Usada para padronizar todo nosso código, vale destacar que não precisa adicionar a extensão do Prettier.
 
-## Boas práticas de versionamento (Gitflow)
+## Boas praticas de versionamento
 
 ### main
 
-Aplicação principal, só terá versões estáveis para build.
-
-### development
-
-Aplicação com todas as funcionalidades adicionadas e que servirão de base para adição de novas features.
+Branch unica de integracao e entrega. Todo pull request aprovado entra em `main`.
 
 ### Feature/[nome da feature]
 
-Branch criada a partir da development para criação de nova funcionalidade, após finalizada é feito merge com a development
-
-### Release/[nome da release]
-
-Branch criada para testes de funcionalidades que deverão ser mescladas para main ou development
+Branch criada a partir da `main` para uma nova funcionalidade. Depois de revisada, e mesclada de volta na `main` por pull request.
 
 ### Hotfix/[nome do hotfix]
 
-Branch criada para correção de bugs presentes na main.
+Branch criada a partir da `main` para correcao urgente. O pull request de retorno para `main` deve ser marcado como release `patch`.

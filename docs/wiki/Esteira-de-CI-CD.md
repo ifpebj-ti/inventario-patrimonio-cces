@@ -1,44 +1,34 @@
 # Esteira de CI/CD
 
-Esta pagina mostra a esteira atual do Inventarium e a direcao desejada para evolucao. Ela complementa o guia de desenvolvimento seguro e a estrategia de branches.
+Esta pagina descreve a esteira atual do Inventarium. O repositorio usa `main` como unica branch de integracao e entrega.
 
-## Estado Atual
-
-Hoje a esteira cobre validacao de pull requests, build e scan de imagens, publicacao de imagens no GHCR, criacao de releases e publicacao da wiki.
+## Fluxo Atual
 
 ```mermaid
 flowchart TD
     issue["Issue no GitHub"]
     branch["Branch de trabalho<br/>feat/*, fix/*, docs/*, infra/*, ci/*"]
-    prdev["PR para development"]
+    pr["PR para main"]
     quality["Quality<br/>Secretlint + Commitlint"]
     prtemplate["Validate PR Template<br/>issue vinculada + tipo de release"]
     syncissue["Sync PR with Issue<br/>copia descricao da issue"]
-    primages["Pull request container images<br/>build + Trivy sem push"]
-    mergeDev["Merge em development"]
-    prmain["PR development -> main"]
-    sourceCheck["Validate PR Source"]
-    mergeMain["Merge em main"]
+    images["Pull request container images<br/>build + Trivy sem push"]
+    merge["Merge em main"]
     release["Release<br/>tag + release notes"]
     prodImages["Build production images<br/>GHCR vX.Y.Z"]
     wiki["Publish Wiki<br/>sincroniza docs/wiki"]
-    closeIssues["Close Promoted Issues"]
 
-    issue --> branch --> prdev
-    prdev --> quality
-    prdev --> prtemplate
-    prdev --> syncissue
-    prdev --> primages
-    quality --> mergeDev
-    prtemplate --> mergeDev
-    primages --> mergeDev
-    mergeDev --> prmain
-    prmain --> sourceCheck
-    sourceCheck --> mergeMain
-    mergeMain --> release
-    mergeMain --> wiki
+    issue --> branch --> pr
+    pr --> quality
+    pr --> prtemplate
+    pr --> syncissue
+    pr --> images
+    quality --> merge
+    prtemplate --> merge
+    images --> merge
+    merge --> release
+    merge --> wiki
     release --> prodImages
-    release --> closeIssues
 ```
 
 ## O Que Ja Existe
@@ -46,49 +36,36 @@ flowchart TD
 | Parte | Situacao atual |
 | --- | --- |
 | Validacao de secrets | `Quality` roda Secretlint em pull requests. |
-| Validacao de commits | `Quality` roda Commitlint em PRs, exceto Dependabot e promocao `development` -> `main`. |
-| Validacao de template | `Validate PR Template` confere issue vinculada e tipo de release esperado. |
-| Sincronizacao PR/issue | `Sync PR with Issue` copia a descricao da issue para o PR quando aplicavel. |
-| Controle de origem para `main` | `Validate PR Source` aceita apenas `development` ou `hotfix/*`. |
+| Validacao de commits | `Quality` roda Commitlint em PRs humanos. |
+| Validacao de template | `Validate PR Template` confere issue vinculada e tipo de release. |
+| Sincronizacao PR/issue | `Sync PR with Issue` copia a descricao da issue para PRs humanos. |
 | Build e scan em PR | `Pull request container images` builda e escaneia imagens afetadas sem publicar. |
-| Release | Merge em `main` vindo de `development` ou `hotfix/*` cria tag e GitHub Release quando o PR nao esta como `sem release`. |
+| Release | Merge em `main` cria tag e GitHub Release quando o PR humano nao esta como `sem release`; Dependabot gera `patch` automaticamente. |
 | Imagens produtivas | Release publica imagens versionadas no GHCR usando somente a tag `vX.Y.Z`. |
 | Wiki | Push em `main` com mudanca em `docs/wiki` sincroniza a GitHub Wiki. |
-| Fechamento de issues | `Close Promoted Issues` fecha issues promovidas quando `development` entra em `main`. |
+| Fechamento de issues | O GitHub fecha a issue vinculada quando o PR entra em `main`. |
 
-## Fluxo de Integracao Atual
+## Fluxo de Pull Request e Release
 
 ```mermaid
 sequenceDiagram
     participant Dev as Desenvolvedor
-    participant PR as PR para development
-    participant CI as GitHub Actions
-    participant DevBranch as development
-
-    Dev->>PR: Abre PR com issue e sem release
-    PR->>CI: Roda quality, template e scans
-    CI-->>PR: Checks aprovados
-    PR->>DevBranch: Merge sem publicacao de imagem
-```
-
-## Fluxo de Release Atual
-
-```mermaid
-sequenceDiagram
-    participant DevBranch as development
-    participant PRMain as PR development -> main
+    participant PR as PR para main
     participant CI as GitHub Actions
     participant Main as main
     participant GHCR as GHCR
     participant Wiki as GitHub Wiki
 
-    DevBranch->>PRMain: Abre promocao
-    PRMain->>CI: Valida origem e tipo de release
-    PRMain->>Main: Merge
-    Main->>CI: Release e publicacao
+    Dev->>PR: Abre PR com issue e tipo de release
+    PR->>CI: Roda quality, template, sync e scans
+    CI-->>PR: Checks aprovados
+    PR->>Main: Merge
+    Main->>CI: Release quando aplicavel
     CI->>GHCR: Publica imagens vX.Y.Z
     CI->>Wiki: Sincroniza docs/wiki quando houver mudanca
 ```
+
+PRs do Dependabot sao dispensados da issue e do template; ao serem mergeados, o workflow de release os trata como `patch`.
 
 ## Direcao Desejada
 
@@ -96,18 +73,15 @@ A esteira ainda nao faz deploy automatico de ambiente, rollback operacional comp
 
 ```mermaid
 flowchart TD
-    pr["PR"]
+    pr["PR para main"]
     quality["Quality + testes"]
     scans["Scans de dependencia, secrets e imagens"]
-    devMerge["Merge em development"]
-    promote["PR development -> main"]
+    merge["Merge em main"]
     release["Release versionada"]
     deployProd["Deploy controlado na VM de producao<br/>futuro"]
     monitor["Logs, metricas, alertas e rollback<br/>futuro"]
 
-    pr --> quality --> scans --> devMerge
-    devMerge --> promote
-    promote --> release --> deployProd --> monitor
+    pr --> quality --> scans --> merge --> release --> deployProd --> monitor
 ```
 
 ## Pontos Ainda Manuais
@@ -126,3 +100,4 @@ flowchart TD
 | --- | --- | --- |
 | 1.0 | 2026-09-15 | Criacao da pagina da esteira de CI/CD com visao atual e direcao futura. |
 | 1.1 | 2026-09-19 | Simplificacao da esteira para publicar imagens somente em releases promovidas para main. |
+| 1.2 | 2026-09-27 | Adocao de `main` como unica branch de integracao e entrega. |

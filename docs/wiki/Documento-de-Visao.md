@@ -109,7 +109,7 @@ O projeto e considerado bem encaminhado quando:
 - as imagens de backend e frontend sao buildadas e escaneadas;
 - a autenticacao Google e as permissoes sao tratadas no backend;
 - riscos de seguranca conhecidos estao documentados e priorizados;
-- a release pode ser promovida de `development` para `main` com rastreabilidade.
+- cada release pode ser gerada a partir de um pull request rastreavel para `main`.
 
 ## Historico
 
