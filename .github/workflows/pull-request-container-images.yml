@@ -3,7 +3,7 @@ name: Pull request container images
 on:
   pull_request:
     branches:
-      - development
+      - main
 
 permissions:
   contents: read

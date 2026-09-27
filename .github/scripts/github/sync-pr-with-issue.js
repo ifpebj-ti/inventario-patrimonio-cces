@@ -55,22 +55,11 @@ async function main() {
 }
 
 function shouldSyncIssueSummary({ headRef, baseRef, author }) {
-  if (author === "dependabot[bot]" && baseRef === "development") {
+  if (author === "dependabot[bot]") {
     return false;
   }
 
-  if (headRef === "development" && baseRef === "main") {
-    return false;
-  }
-
-  if (headRef === "main" && baseRef === "development") {
-    return false;
-  }
-
-  return (
-    baseRef === "development" ||
-    (baseRef === "main" && String(headRef || "").startsWith("hotfix/"))
-  );
+  return baseRef === "main";
 }
 
 function replaceBetweenMarkers(body, content) {

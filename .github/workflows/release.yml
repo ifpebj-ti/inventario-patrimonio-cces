@@ -17,7 +17,7 @@ concurrency:
 jobs:
   release:
     name: Publish release from merged PR
-    if: github.event.pull_request.merged == true && (github.event.pull_request.head.ref == 'development' || startsWith(github.event.pull_request.head.ref, 'hotfix/'))
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -48,6 +48,7 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           RUNNER_TEMP: ${{ runner.temp }}
         run: node .github/scripts/release/prepare-release.js
 
