@@ -7,6 +7,7 @@ import clp.inventory.model.Observation;
 import clp.inventory.repository.InventoryRepository;
 import clp.inventory.repository.ItemRepository;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
@@ -45,10 +46,19 @@ public class ItemService {
                         HttpStatus.NOT_FOUND, "Item não encontrado com o ID: " + updatedItem.id()));
 
     // O DTO traz o valor em reais; a entidade persiste em centavos.
-    long priceParseLong =
-        updatedItem.price() != null && !updatedItem.price().isEmpty()
-            ? new BigDecimal(updatedItem.price()).multiply(BigDecimal.valueOf(100)).longValue()
-            : 0L;
+    // Trata moedas formatadas ("R$ 1.500,00"), decimais ou valores numéricos simples
+    long priceParseLong = existingItem.price();
+    if (updatedItem.price() != null && !updatedItem.price().trim().isEmpty()) {
+      try {
+        String cleanPrice = updatedItem.price().replaceAll("[^0-9,.]", "").replace(",", ".");
+        if (!cleanPrice.isEmpty()) {
+          priceParseLong =
+              new BigDecimal(cleanPrice).multiply(BigDecimal.valueOf(100)).longValue();
+        }
+      } catch (Exception e) {
+        priceParseLong = existingItem.price();
+      }
+    }
 
     existingItem.setCode(updatedItem.code());
     existingItem.setName("");
@@ -57,6 +67,13 @@ public class ItemService {
     existingItem.setLocale(updatedItem.locale());
     existingItem.setResponsible(updatedItem.responsible());
     existingItem.setValid(updatedItem.isValid());
+    if (updatedItem.isValid()) {
+      if (existingItem.validatedAt() == null) {
+        existingItem.setValidatedAt(LocalDateTime.now());
+      }
+    } else {
+      existingItem.setValidatedAt(null);
+    }
 
     return itemRepository.save(existingItem);
   }

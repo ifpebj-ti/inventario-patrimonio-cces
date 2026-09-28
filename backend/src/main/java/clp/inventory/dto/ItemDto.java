@@ -15,6 +15,7 @@ public record ItemDto(
     String price,
     String locale,
     boolean isValid,
+    String qrCode,
     List<ObservationDto> observations) {
 
   public static ItemDto from(Item item) {
@@ -42,6 +43,7 @@ public record ItemDto(
         formattedPrice,
         item.locale(),
         item.isValid(),
+        item.qrCode(),
         observationsDto);
   }
 }

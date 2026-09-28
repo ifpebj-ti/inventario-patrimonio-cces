@@ -16,15 +16,6 @@ export const generateQRCodeLabelsPdf = async (
   return response.data
 }
 
-export const generateQRCodeAllLabelsPdf = async (
-  inventoryId: number,
-): Promise<Blob> => {
-  const response = await api.post('/item/all-items-pdf', inventoryId, {
-    responseType: 'blob',
-  })
-  return response.data
-}
-
 export const generateItemsSheet = async (
   inventoryId: number,
 ): Promise<Blob> => {

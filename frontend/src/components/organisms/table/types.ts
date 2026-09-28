@@ -10,7 +10,6 @@ export interface TableProps {
   selectedRows?: number[]
   showExportButtons?: boolean
   onExportSelected?: () => void
-  onExportAll?: () => void
   onExportSheet?: () => void
   onSendEmailSheet?: () => void
   onRowSelect?: (selectedIds: number[]) => void
