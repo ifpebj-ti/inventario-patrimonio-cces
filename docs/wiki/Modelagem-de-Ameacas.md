@@ -1,20 +1,24 @@
 # Modelagem de Ameaças
 
-Está pagina documenta a modelagem de ameaças STRIDE do Inventarium e referencia o arquivo importavel no OWASP Threat Dragon.
+Está página documenta a modelagem de ameaças STRIDE do Inventarium e referencia os arquivos importáveis no OWASP Threat Dragon.
 
 O modelo atual cobre a aplicação Web, a API Spring Boot, o PostgreSQL, o login com Google e o envio de planilhas por e-mail. O aplicativo mobile foi tratado como fora do escopo deste modelo porque está descontinuado no momento. A infraestrutura de produção ainda deve receber um diagrama próprio quando WAF, VMs, backups, observabilidade e rede estiverem definidos.
 
-## Arquivo do Threat Dragon
+## Arquivos do Threat Dragon e versionamento
 
-Arquivo versionado:
+O artefato importável é versionado por data no nome do arquivo, no formato `inventarium-threat-model-stride-AAAA-MM-DD.json`. A data identifica a revisão do modelo e permite consultar facilmente a evolução na wiki; o histórico de commits do Git preserva também as alterações dentro de cada revisão.
 
-[inventarium-threat-model-stride.json](./assets/inventarium-threat-model-stride.json)
+Não se deve sobrescrever uma revisão já publicada. Ao revisar a superfície de ataque, crie uma cópia com a data da nova revisão, atualize este índice para apontar a mais recente e mantenha as versões anteriores como evidência histórica.
+
+| Revisão | Arquivo | Situação |
+| --- | --- | --- |
+| 2026-09-14 | [inventarium-threat-model-stride-2026-09-14.json](./assets/inventarium-threat-model-stride-2026-09-14.json) | Modelo inicial versionado; revisão atual. |
 
 Para abrir:
 
 1. Acesse o OWASP Threat Dragon.
 2. Escolha a opcao de abrir/importar modelo existente.
-3. Selecione o arquivo `docs/wiki/assets/inventarium-threat-model-stride.json`.
+3. Selecione o arquivo da revisão desejada em `docs/wiki/assets/`.
 4. Revise o diagrama `Inventarium - Application Data Flow`.
 5. Use a lista de ameaças do próprio Threat Dragon para atualizar status, severidade, mitigacoes e responsáveis.
 
@@ -114,4 +118,4 @@ Atualize o modelo quando houver:
 - mudanca de infraestrutura, rede, banco, backup ou observabilidade;
 - correcao de uma ameaca, alterando seu status para `Mitigated` ou `Closed`.
 
-Cada PR que altera superficie de ataque deve revisar está pagina e o JSON do Threat Dragon.
+Cada PR que altera a superfície de ataque deve revisar esta página e gerar uma nova versão datada do JSON do Threat Dragon, sem remover as revisões anteriores.
