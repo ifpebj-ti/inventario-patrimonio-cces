@@ -3,6 +3,9 @@ name: Quality
 on:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   secrets:
     name: Secret scan
