@@ -53,7 +53,7 @@ jobs:
       - name: Report baseline result
         if: steps.semgrep.outcome == 'failure'
         run: |
-          echo "Semgrep encontrou achados. O relatório JSON foi anexado a esta execução."
+          echo "Semgrep encontrou achados. O relatório SARIF foi anexado a esta execução."
           echo "O gate bloqueante será ativado depois da triagem da linha de base."
 
   container-images:

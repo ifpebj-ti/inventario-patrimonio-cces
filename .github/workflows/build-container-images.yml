@@ -40,11 +40,6 @@ on:
         description: Optional fallback for the frontend Google OAuth client ID.
         required: false
 
-permissions:
-  contents: read
-  packages: write
-  security-events: write
-
 jobs:
   container-images:
     name: Container images
