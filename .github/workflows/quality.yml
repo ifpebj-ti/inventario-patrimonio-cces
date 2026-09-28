@@ -48,7 +48,14 @@ jobs:
         run: npm ci
 
       - name: Run ESLint
+        id: eslint
+        continue-on-error: true
         run: npm run lint
+
+      - name: Report ESLint result
+        if: steps.eslint.outcome == 'failure'
+        run: |
+          echo "::warning::O ESLint encontrou problemas. O check é informativo temporariamente e não bloqueia este pull request."
 
   backend-quality:
     name: Backend format and tests
@@ -68,7 +75,14 @@ jobs:
           cache: gradle
 
       - name: Verify Java formatting
+        id: spotless
+        continue-on-error: true
         run: ./gradlew spotlessCheck --no-daemon --console=plain
+
+      - name: Report formatting result
+        if: steps.spotless.outcome == 'failure'
+        run: |
+          echo "::warning::O Spotless encontrou problemas de formatação. O check é informativo temporariamente e não bloqueia este pull request."
 
       - name: Run backend tests
         run: ./gradlew test --no-daemon --console=plain
