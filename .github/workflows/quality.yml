@@ -7,6 +7,53 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Determine validation scope
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.scope.outputs.frontend }}
+      backend: ${{ steps.scope.outputs.backend }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Detect frontend and backend changes
+        id: scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          changed_files="$(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}")"
+          frontend=false
+          backend=false
+
+          if echo "${changed_files}" | grep -Eq '^(frontend/|package(-lock)?\.json|\.github/workflows/quality\.yml)'; then
+            frontend=true
+          fi
+
+          if echo "${changed_files}" | grep -Eq '^(backend/|\.github/workflows/quality\.yml)'; then
+            backend=true
+          fi
+
+          {
+            echo "frontend=${frontend}"
+            echo "backend=${backend}"
+          } >> "${GITHUB_OUTPUT}"
+
+          {
+            echo "## Escopo das validações de qualidade"
+            echo ""
+            echo "| Área | Executar validação pesada |"
+            echo "| --- | --- |"
+            echo "| Frontend | ${frontend} |"
+            echo "| Backend | ${backend} |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
   secrets:
     name: Secret scan
     runs-on: ubuntu-latest
@@ -29,6 +76,8 @@ jobs:
 
   frontend-lint:
     name: Frontend lint
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -59,6 +108,8 @@ jobs:
 
   backend-quality:
     name: Backend format and tests
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
