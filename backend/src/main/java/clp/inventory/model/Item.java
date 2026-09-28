@@ -33,7 +33,7 @@ public class Item {
 
   private String responsible;
 
-  @Column(nullable = false, updatable = false, unique = true)
+  @Column(name = "is_valid", nullable = false)
   private boolean isValid = false;
 
   private LocalDateTime validatedAt;
@@ -101,6 +101,10 @@ public class Item {
 
   public List<Observation> observations() {
     return observations;
+  }
+
+  public LocalDateTime validatedAt() {
+    return validatedAt;
   }
 
   public String getNotes() {

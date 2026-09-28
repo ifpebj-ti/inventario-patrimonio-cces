@@ -1,7 +1,7 @@
 'use client'
 import { useParams, useRouter } from 'next/navigation'
 import { Table } from '@/components/organisms/table'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   addItemsBySheet,
   getInventoryItemsRequest,
@@ -250,60 +250,124 @@ export default function Inventory() {
     }
   }
 
-  // Callback acionado quando a câmera lê com sucesso um código de barras ou QR Code
-  const handleScanSuccess = async (decodedCode: string) => {
-    const cleanCode = decodedCode.trim().toLowerCase()
-
-    // 1. Busca o item correspondente na lista do inventário atual
-    const foundItem = itemData.find(
-      (item) =>
-        item.code?.trim().toLowerCase() === cleanCode ||
-        String(item.id).toLowerCase() === cleanCode,
-    )
-
-    if (foundItem) {
-      // 2. Muda o status do item instantaneamente para verificado (código verde)
-      const verifiedItem: Item = {
-        ...foundItem,
-        isValid: true,
-      }
-
-      // 3. Atualiza os contadores em tempo real e a lista (cor do código fica verde)
-      setItemData((currentItems) =>
-        currentItems.map((item) =>
-          item.id === foundItem.id ? verifiedItem : item,
-        ),
-      )
-
-      // 4. Persiste o status verificado no backend
-      try {
-        await updateItemRequest({
-          ...verifiedItem,
-          price: Number(verifiedItem.price) || 0,
-        })
-      } catch (err) {
-        console.error('Erro ao persistir status verificado do item:', err)
-      }
-
-      // 5. Abre a Drawer com os dados e trava o campo de carga (somente leitura)
-      setScannedItem(verifiedItem)
-      setIsDrawerOpen(true)
-      toast.success(`Patrimônio "${foundItem.code}" localizado e verificado!`)
-    } else {
-      toast.error(`O código "${decodedCode}" não pertence a este inventário.`, {
-        duration: 4000,
-      })
-    }
-  }
-
   // Atualiza imediatamente o item modificado na lista local
-  const handleItemUpdated = (updatedItem: Item) => {
+  const handleItemUpdated = useCallback((updatedItem: Item) => {
     setItemData((currentItems) =>
       currentItems.map((item) =>
-        item.id === updatedItem.id ? updatedItem : item,
+        item.id === updatedItem.id
+          ? { ...item, ...updatedItem, isValid: updatedItem.isValid ?? true }
+          : item,
       ),
     )
-  }
+  }, [])
+
+  const lastScannedRef = useRef<{ code: string; time: number }>({
+    code: '',
+    time: 0,
+  })
+
+  // Callback acionado quando a câmera lê com sucesso um código de barras ou QR Code
+  const handleScanSuccess = useCallback(
+    async (decodedCode: string) => {
+      const rawCode = decodedCode.replace(/[\r\n\t]/g, '').trim()
+      if (!rawCode) return
+
+      // Debounce de 1.5s para evitar avisos repetidos caso ocorram disparos simultâneos
+      const now = Date.now()
+      if (
+        lastScannedRef.current.code === rawCode &&
+        now - lastScannedRef.current.time < 1500
+      ) {
+        return
+      }
+      lastScannedRef.current = { code: rawCode, time: now }
+
+      const cleanCode = rawCode.toLowerCase()
+      const digitsOnly = cleanCode.replace(/\D/g, '')
+      const strippedZeros = cleanCode.replace(/^0+/, '')
+
+      // 1. Busca flexível do item correspondente na lista do inventário atual
+      const foundItem = itemData.find((item) => {
+        const itemCode = (item.code || '').trim().toLowerCase()
+        const itemId = String(item.id)
+        const itemDigits = itemCode.replace(/\D/g, '')
+        const itemStrippedZeros = itemCode.replace(/^0+/, '')
+        const itemQr = (item.qrCode || item.qr_code || '').trim().toLowerCase()
+
+        // 1.1 Casamento exato por código ou ID
+        if (itemCode === cleanCode || itemId === cleanCode) return true
+
+        // 1.2 Casamento por QR Code UUID
+        if (itemQr && itemQr === cleanCode) return true
+
+        // 1.3 Casamento sem zeros à esquerda (ex: etiqueta com "0052731" e sistema com "52731")
+        if (
+          strippedZeros &&
+          itemStrippedZeros &&
+          strippedZeros === itemStrippedZeros
+        ) {
+          return true
+        }
+
+        // 1.4 Casamento numérico direto (se ambos tiverem dígitos)
+        if (digitsOnly && itemDigits && digitsOnly === itemDigits) return true
+
+        // 1.5 Casamento caso o scanner retorne URL
+        if (
+          cleanCode.endsWith(`/${itemCode}`) ||
+          cleanCode.endsWith(`/${itemId}`)
+        ) {
+          return true
+        }
+
+        return false
+      })
+
+      if (foundItem) {
+        // 2. Muda o status do item instantaneamente para verificado (código verde)
+        const verifiedItem: Item = {
+          ...foundItem,
+          isValid: true,
+        }
+
+        // 3. Atualiza os contadores em tempo real e a lista imediatamente na UI
+        setItemData((currentItems) =>
+          currentItems.map((item) =>
+            item.id === foundItem.id ? { ...item, isValid: true } : item,
+          ),
+        )
+
+        // 4. Persiste o status verificado no backend imediatamente
+        try {
+          const saved = await updateItemRequest({
+            ...verifiedItem,
+            price: verifiedItem.price,
+          })
+          if (saved) {
+            handleItemUpdated(saved)
+          }
+        } catch (err) {
+          console.error('Erro ao persistir status verificado do item:', err)
+          toast.error('Erro ao salvar verificação no servidor.', {
+            id: 'scan-error-toast',
+          })
+        }
+
+        // 5. Abre a Drawer com os dados e trava o campo de carga (somente leitura)
+        setScannedItem(verifiedItem)
+        setIsDrawerOpen(true)
+        toast.success(`Patrimônio "${foundItem.code}" verificado!`, {
+          id: 'scan-success-toast',
+        })
+      } else {
+        toast.error(`O código "${rawCode}" não pertence a este inventário.`, {
+          id: 'scan-error-toast',
+          duration: 4000,
+        })
+      }
+    },
+    [itemData, handleItemUpdated],
+  )
 
   return (
     <div className="w-full max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 flex flex-col gap-6 min-h-screen">
@@ -334,6 +398,7 @@ export default function Inventory() {
         <Table
           header={[
             { key: 'code', headerText: 'Código' },
+            { key: 'status', headerText: 'Status' },
             { key: 'description', headerText: 'Descrição' },
             { key: 'responsible', headerText: 'Carga' },
             { key: 'price', headerText: 'Valor' },

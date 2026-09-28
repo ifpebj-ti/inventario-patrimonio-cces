@@ -13,7 +13,6 @@ import {
   Barcode,
   Camera,
   Save,
-  Lock,
 } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { updateItemRequest, updateItemNotesRequest } from '@/services/item'
@@ -80,11 +79,12 @@ export const ItemDetailDrawer: React.FC<ItemDetailDrawerProps> = ({
     try {
       setIsSaving(true)
 
-      // 1. Atualiza dados principais do item
-      const updatedItem = await updateItemRequest({
+      // 1. Atualiza dados principais do item preservando o status de validação
+      const payload: Item = {
         ...formData,
-        price: Number(formData.price) || 0,
-      })
+        isValid: formData.isValid,
+      }
+      const updatedItem = await updateItemRequest(payload)
 
       // 2. Atualiza observações se houver alterações
       const finalItem = await updateItemNotesRequest(
@@ -92,8 +92,14 @@ export const ItemDetailDrawer: React.FC<ItemDetailDrawerProps> = ({
         observations,
       )
 
-      onItemUpdated(finalItem)
-      toast.success(`Patrimônio ${finalItem.code} atualizado!`)
+      // Garante que o status isValid modificado pelo usuário seja mantido
+      const itemToEmit: Item = {
+        ...finalItem,
+        isValid: formData.isValid ?? finalItem.isValid,
+      }
+
+      onItemUpdated(itemToEmit)
+      toast.success(`Patrimônio ${itemToEmit.code} atualizado!`)
 
       if (shouldScanNext && onScanNext) {
         onScanNext()
@@ -233,12 +239,6 @@ export const ItemDetailDrawer: React.FC<ItemDetailDrawerProps> = ({
                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
                       Carga (Responsável)
                     </label>
-                    {isResponsibleLocked && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                        <Lock className="w-3 h-3 text-slate-400" />
-                        Bloqueado
-                      </span>
-                    )}
                   </div>
                   <div
                     className={`flex items-center gap-2 p-2.5 rounded-xl border ${

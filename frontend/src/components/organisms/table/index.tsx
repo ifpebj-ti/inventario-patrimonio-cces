@@ -23,7 +23,33 @@ import { RiPencilFill } from 'react-icons/ri'
 import { FaEnvelope, FaFileExcel, FaTrash } from 'react-icons/fa'
 import { IoIosArrowBack, IoIosArrowForward } from 'react-icons/io'
 import { MdChecklist, MdLibraryBooks } from 'react-icons/md'
+import { Eye, EyeOff } from 'lucide-react'
 import { InventoryResponse } from '@/services/inventory'
+
+// Botão de Ação com ícone de olho que alterna entre aberto e fechado no hover
+const ViewActionEyeButton = ({
+  onClick,
+  title,
+}: {
+  onClick: () => void
+  title: string
+}) => {
+  const [isHovered, setIsHovered] = useState(false)
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-500 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-colors cursor-pointer"
+      title={title}
+      aria-label={title}
+    >
+      {isHovered ? <EyeOff size={18} /> : <Eye size={18} />}
+    </button>
+  )
+}
 
 // Este é um componente de Tabela genérico e reutilizável.
 // Ele recebe dados e funções de callback como props para ser altamente configurável.
@@ -185,6 +211,34 @@ export const Table = ({
         }
       }
 
+      // Status de Validação do Item
+      if (item.key === 'status' || item.key === 'isValid') {
+        return {
+          accessorKey: item.key,
+          header: () => (
+            <div className="w-28 text-center font-semibold">
+              {item.headerText}
+            </div>
+          ),
+          cell: ({ row }: { row: Row<Item> }) => {
+            const isValid = Boolean(row.original.isValid)
+            return (
+              <div className="w-28 text-center">
+                <span
+                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                    isValid
+                      ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                      : 'bg-red-50 text-red-600 border border-red-200'
+                  }`}
+                >
+                  {isValid ? 'Verificado' : 'Pendente'}
+                </span>
+              </div>
+            )
+          },
+        }
+      }
+
       // Preço / Valor: w-24 whitespace-nowrap text-right
       if (item.key === 'price') {
         return {
@@ -196,13 +250,15 @@ export const Table = ({
           ),
           cell: ({ row }: { row: Row<Item> }) => {
             const val = row.original.price
-            const formatted =
-              typeof val === 'number'
-                ? val.toLocaleString('pt-BR', {
-                    style: 'currency',
-                    currency: 'BRL',
-                  })
-                : '-'
+            let formatted = '-'
+            if (typeof val === 'number') {
+              formatted = val.toLocaleString('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+              })
+            } else if (typeof val === 'string' && val.trim() !== '') {
+              formatted = val
+            }
             return (
               <div className="w-24 whitespace-nowrap text-right text-slate-700">
                 {formatted}
@@ -239,13 +295,13 @@ export const Table = ({
       }
     }),
 
-    // Adiciona a coluna de "Ações" condicionalmente, se as props 'onDeleteItem' ou 'onEditItem' forem fornecidas.
-    ...(onDeleteItem || onEditItem
+    // Adiciona a coluna de "Ações" condicionalmente, se as props 'onDeleteItem', 'onEditItem' ou 'onRowDoubleClick' forem fornecidas.
+    ...(onDeleteItem || onEditItem || onRowDoubleClick
       ? [
           {
             id: 'actions',
             header: () => (
-              <div className="w-16 shrink-0 text-center font-semibold mx-auto">
+              <div className="w-24 shrink-0 text-center font-semibold mx-auto">
                 Ações
               </div>
             ),
@@ -254,7 +310,14 @@ export const Table = ({
               const displayName = 'name' in item ? item.name : item.code
 
               return (
-                <div className="w-16 shrink-0 flex justify-center items-center gap-1 mx-auto whitespace-nowrap">
+                <div className="w-24 shrink-0 flex justify-center items-center gap-1 mx-auto whitespace-nowrap">
+                  {/* Botão de Visualizar/Editar (Olho), ao lado da lixeira */}
+                  {onRowDoubleClick && (
+                    <ViewActionEyeButton
+                      onClick={() => handleRowDoubleClick(item)}
+                      title={`Visualizar e editar ${displayName}`}
+                    />
+                  )}
                   {/* Botão de Editar, renderizado apenas se 'onEditItem' for passado. */}
                   {onEditItem && (
                     <button
@@ -423,7 +486,15 @@ export const Table = ({
                       >
                         {isEquipment ? (
                           <>
-                            <span className="font-bold text-base text-emerald-600 truncate">
+                            <span
+                              className={`font-bold text-base truncate ${
+                                'isValid' in item && item.isValid !== undefined
+                                  ? item.isValid
+                                    ? 'text-emerald-600'
+                                    : 'text-red-500'
+                                  : 'text-slate-800'
+                              }`}
+                            >
                               {item.code}
                             </span>
                             {'isValid' in item &&
@@ -431,8 +502,8 @@ export const Table = ({
                                 <span
                                   className={`text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
                                     item.isValid
-                                      ? 'bg-emerald-100 text-emerald-700'
-                                      : 'bg-amber-100 text-amber-700'
+                                      ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                      : 'bg-red-50 text-red-600 border border-red-200'
                                   }`}
                                 >
                                   {item.isValid ? 'Verificado' : 'Pendente'}
@@ -447,8 +518,14 @@ export const Table = ({
                       </div>
                     </div>
 
-                    {/* Botões de Ação do Card: Editar e Excluir com touch target >= 44x44px */}
+                    {/* Botões de Ação do Card: Visualizar (Olho), Editar e Excluir com touch target >= 44x44px */}
                     <div className="flex items-center gap-1 shrink-0">
+                      {onRowDoubleClick && (
+                        <ViewActionEyeButton
+                          onClick={() => handleRowDoubleClick(item)}
+                          title={`Visualizar e editar ${displayName}`}
+                        />
+                      )}
                       {onEditItem && 'name' in item && (
                         <button
                           type="button"

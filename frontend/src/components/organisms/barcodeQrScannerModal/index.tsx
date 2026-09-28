@@ -52,6 +52,7 @@ export const BarcodeQrScannerModal: React.FC<BarcodeQrScannerModalProps> = ({
   const [isInitializing, setIsInitializing] = useState(true)
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const isStoppingRef = useRef(false)
+  const isDetectedRef = useRef(false)
 
   const stopScanner = async () => {
     if (
@@ -74,11 +75,13 @@ export const BarcodeQrScannerModal: React.FC<BarcodeQrScannerModalProps> = ({
   useEffect(() => {
     if (!isOpen) {
       stopScanner()
+      isDetectedRef.current = false
       setHasDetected(false)
       setErrorMessage(null)
       return
     }
 
+    isDetectedRef.current = false
     setIsInitializing(true)
     setErrorMessage(null)
     setHasDetected(false)
@@ -124,8 +127,18 @@ export const BarcodeQrScannerModal: React.FC<BarcodeQrScannerModalProps> = ({
           aspectRatio: 1.0,
         },
         (decodedText) => {
-          if (hasDetected) return
+          if (isDetectedRef.current) return
+          isDetectedRef.current = true
           setHasDetected(true)
+
+          // Pausa imediatamente a câmera para não disparar mais leituras de frames subsequentes
+          try {
+            if (scannerRef.current && scannerRef.current.isScanning) {
+              scannerRef.current.pause(true)
+            }
+          } catch {
+            // Silencia falha se pause não for suportado no driver
+          }
 
           // 1. Feedback Sonoro
           playSuccessSound()
@@ -135,11 +148,11 @@ export const BarcodeQrScannerModal: React.FC<BarcodeQrScannerModalProps> = ({
             navigator.vibrate([40, 30, 40])
           }
 
-          // 3. Pequeno delay visual antes de notificar o componente pai
+          // 3. Notifica o componente pai e fecha sem repetição
           setTimeout(() => {
             onScanSuccess(decodedText.trim())
             onClose()
-          }, 350)
+          }, 250)
         },
         () => {
           // Frame sem leitura

@@ -4,8 +4,8 @@ import { BarChart3 } from 'lucide-react'
 
 // Componente Card 1: Estatísticas de Verificação do Inventário
 export const InventoryItemsStatus = ({ content = [] }: ItemsValid) => {
-  const verifiedCount = content.filter((item) => item.isValid).length
-  const unverifiedCount = content.filter((item) => !item.isValid).length
+  const verifiedCount = content.filter((item) => Boolean(item.isValid)).length
+  const unverifiedCount = content.length - verifiedCount
 
   return (
     <div className="bg-white rounded-2xl shadow-md p-6 border border-slate-200/80 w-full h-full min-h-[290px] flex flex-col justify-between">
