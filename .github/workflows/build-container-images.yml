@@ -90,11 +90,11 @@ jobs:
             echo "Changed files:"
             echo "${changed_files:-none}"
 
-            if echo "${changed_files}" | grep -Eq '^(frontend/|docker-compose\.yml|\.env\.example|\.github/workflows/(build-container-images|pull-request-container-images)\.yml)'; then
+            if echo "${changed_files}" | grep -Eq '^(frontend/|docker-compose\.yml|\.env\.example|\.github/workflows/(build-container-images|security-scans)\.yml)'; then
               build_frontend=true
             fi
 
-            if echo "${changed_files}" | grep -Eq '^(backend/|docker-compose\.yml|\.env\.example|\.github/workflows/(build-container-images|pull-request-container-images)\.yml)'; then
+            if echo "${changed_files}" | grep -Eq '^(backend/|docker-compose\.yml|\.env\.example|\.github/workflows/(build-container-images|security-scans)\.yml)'; then
               build_backend=true
             fi
           fi
