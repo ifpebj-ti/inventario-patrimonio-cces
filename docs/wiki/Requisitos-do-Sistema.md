@@ -141,7 +141,7 @@ Esta página consolida os requisitos do Inventarium a partir das issues, da docu
 | RNF-03 | Segurança de autenticação | Rotas protegidas devem exigir JWT válido; o backend deve validar o ID token Google. | Implementado |
 | RNF-04 | Segurança de autorização | O backend deve validar ownership; a evolução deve validar também setor e perfil. | Parcialmente implementado |
 | RNF-05 | Proteção de segredos | Credenciais não podem ser versionadas; ambientes devem usar variáveis protegidas. | Implementado |
-| RNF-06 | Qualidade contínua | PRs devem executar validação de commits, scan de segredos e checks de dependências/imagens aplicáveis. | Implementado |
+| RNF-06 | Qualidade contínua e segurança | PRs para `main` devem executar validação de commits, Secretlint, lint do frontend, formatação e testes existentes do backend, Semgrep e scans Trivy aplicáveis. Achados de Semgrep e Trivy devem ser publicados em SARIF na aba Security → Code scanning. | Implementado |
 | RNF-07 | Rastreabilidade | Cada entrega deve ser associável a issue, branch, PR, tag e release quando aplicável. | Implementado |
 | RNF-08 | Entrega reprodutível | Imagens de produção devem usar tag de release imutável e permitir rollback para versão anterior. | Implementado operacionalmente |
 | RNF-09 | Observabilidade e operação | Deploy, smoke test, backup, logs e alertas devem possuir procedimento documentado; automação completa é evolução futura. | Planejado |

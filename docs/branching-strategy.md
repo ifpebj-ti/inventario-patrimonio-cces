@@ -42,13 +42,15 @@ O workflow cria a tag `vMAJOR.MINOR.PATCH`, a GitHub Release e as imagens produt
 
 ## Checks
 
-- `Quality`: valida secrets e mensagens de commit em PRs humanos.
+- `Quality`: valida secrets, lint do frontend, formatação Java com Spotless, testes existentes do backend e mensagens de commit em PRs humanos.
 - `Validate PR Template`: valida issue vinculada e tipo de release.
 - `Sync PR with Issue`: copia a descrição da issue para PRs humanos.
-- `Pull request container images`: builda e escaneia imagens alteradas em PRs para `main`, sem publicar no GHCR.
+- `Security scans`: executa Semgrep e Trivy em PRs para `main`. O Trivy verifica secrets, dependências e imagens Docker alteradas; o Semgrep realiza análise estática de segurança.
 - `Release`: publica tag, GitHub Release e imagens produtivas quando aplicável.
 
-Proteja `main` exigindo os checks aplicáveis, revisão e conversa resolvida antes do merge. Nao configure mais regras ou checks obrigatórios para a antiga branch de integração.
+Os relatórios de Semgrep e Trivy são gerados em SARIF, enviados para Security → Code scanning e disponibilizados como artifacts temporários da execução. Na fase inicial, o Semgrep opera como baseline para triagem dos achados; depois da triagem, seu check deve tornar-se bloqueante.
+
+Proteja `main` exigindo os checks aplicáveis, revisão e conversa resolvida antes do merge. Não configure mais regras ou checks obrigatórios para a antiga branch de integração.
 
 ## Imagens Docker
 
@@ -57,7 +59,7 @@ As imagens são publicadas no GitHub Container Registry como pacotes separados:
 - `ghcr.io/<owner>/inventarium-front:vX.Y.Z`
 - `ghcr.io/<owner>/inventarium-back:vX.Y.Z`
 
-O workflow reutilizavel `Build container images` executa scan de secrets, dependências e imagens, faz o build e so pública se todos os scans passarem. Para deploy e rollback, use sempre tags imutaveis de release.
+O workflow reutilizável `Build container images` executa scans de secrets, dependências e imagens, faz o build e só publica no GHCR se todos os scans passarem. Em pull requests, `Security scans` chama esse workflow com publicação desabilitada: as imagens são construídas apenas no runner para validação. Para deploy e rollback, use sempre tags imutáveis de release.
 
 Configure `NEXT_PUBLIC_API_URL` e `NEXT_PUBLIC_GOOGLE_CLIENT_ID` ou `GOOGLE_OAUTH_CLIENT_ID` como variáveis de repositório. O workflow aceita os equivalentes em GitHub Secrets quando necessário.
 

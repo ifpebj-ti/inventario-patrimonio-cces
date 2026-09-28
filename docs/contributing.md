@@ -93,6 +93,34 @@ Depois de instalar as dependências da raiz com `npm install`, o Husky configura
 - `pre-commit`: roda `lint-staged` e Secretlint nos arquivos staged.
 - `commit-msg`: valida a mensagem do commit com Commitlint.
 
+## Validações locais e CI
+
+Antes de abrir ou atualizar um pull request, execute os checks aplicáveis à alteração:
+
+```bash
+npm run secretlint
+npm run lint:web
+npm run test:github
+```
+
+Para o backend, execute a formatação e os testes com Java 21. No Windows:
+
+```powershell
+cd backend
+.\gradlew.bat spotlessCheck
+.\gradlew.bat test
+```
+
+Em Linux ou macOS:
+
+```bash
+cd backend
+./gradlew spotlessCheck
+./gradlew test
+```
+
+No pull request para `main`, o workflow `Quality` repete essas validações. O workflow `Security scans` executa Semgrep e Trivy, publica relatórios SARIF em Security → Code scanning e bloqueia o merge quando o Trivy encontra vulnerabilidades configuradas como bloqueantes. O Semgrep permanece em baseline até a triagem inicial dos alertas.
+
 ## Segredos
 
 Nao commite arquivos `.env`, chaves privadas, certificados, keystores ou tokens reais. Use variáveis de ambiente locais e mantenha apenas arquivos `.env.example` versionados.

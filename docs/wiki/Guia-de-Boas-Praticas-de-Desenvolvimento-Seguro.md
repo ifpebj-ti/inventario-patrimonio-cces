@@ -105,7 +105,11 @@ Boas praticas:
 - evitar bibliotecas sem manutenção ou com risco conhecido;
 - manter imagens Docker rastreaveis por tag de versão.
 
-Os workflows de imagens usam Trivy para scan de secrets, dependências e imagens. Vulnerabilidades `HIGH` ou `CRITICAL` em dependências ou imagens devem falhar a pipeline conforme configuração atual.
+O workflow `Security scans` usa Semgrep para SAST e Trivy para scan de secrets, dependências e imagens. Os dois produzem relatórios SARIF enviados para Security → Code scanning; os arquivos também ficam como artifacts temporários da execução para consulta detalhada.
+
+Vulnerabilidades `HIGH` ou `CRITICAL` detectadas pelo Trivy, ou falhas de execução do scan, devem bloquear a pipeline. O Semgrep está inicialmente em baseline para permitir a triagem dos achados existentes; depois dessa triagem, ele também deve bloquear pull requests com achados confirmados.
+
+Não versione relatórios brutos de scan na `main`: eles são evidências de execução, podem ser volumosos e podem expor detalhes sensíveis. Use a aba Code Scanning e os artifacts da execução; uma branch de auditoria separada só deve ser criada se houver exigência formal de retenção versionada.
 
 ## Containers e Operação
 
@@ -129,6 +133,13 @@ Antes de abrir ou atualizar um pull request, execute os checks aplicáveis:
 npm run secretlint
 npm run lint:web
 npm run test:github
+```
+
+Para verificar a formatação Java antes do pull request:
+
+```bash
+cd backend
+./gradlew spotlessCheck
 ```
 
 Para backend, no Windows:

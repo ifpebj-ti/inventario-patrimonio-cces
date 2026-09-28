@@ -31,7 +31,8 @@ Este mapa serve para saber rapidamente onde cada artefato está. Ele não substi
 | --- | --- | --- |
 | Modelagem de ameaças | [Modelagem de Ameaças](./Modelagem-de-Ameaças) | Inclui o arquivo do OWASP Threat Dragon e a lista de riscos STRIDE. |
 | Boas praticas de desenvolvimento seguro | [Guia de Boas Praticas de Desenvolvimento Seguro](./Guia-de-Boas-Praticas-de-Desenvolvimento-Seguro) | Cobre autenticação, autorização, secrets, API, frontend, banco, supply chain e release. |
-| Vulnerabilidades do Dependabot | Aba Security/Dependabot do GitHub | A evidencia vem do GitHub. Se houver vulnerabilidade crítica aberta, esse item não deve ser marcado como concluído. |
+| Achados de análise estática | Aba Security/Code scanning do GitHub | Centraliza alertas de CodeQL, Semgrep e Trivy enviados em SARIF. A evidência detalhada temporária fica nos artifacts da execução. |
+| Vulnerabilidades do Dependabot | Aba Security/Dependabot do GitHub | A evidência vem do GitHub. Se houver vulnerabilidade crítica aberta, esse item não deve ser marcado como concluído. |
 
 ## Infraestrutura
 
