@@ -330,21 +330,15 @@ jobs:
                 continue
               fi
 
-              echo '```text'
+              echo "| Regra/CVE | Nível | Mensagem | Localização | Linha |"
+              echo "| --- | --- | --- | --- | --- |"
               jq -r '
+                def clean: tostring | gsub("[\\r\\n|]"; " ");
                 [.runs[]?.results[]?]
                 | .[:20]
                 | .[]
-                | [
-                    (.ruleId // "regra-desconhecida"),
-                    (.level // "desconhecido"),
-                    (.message.text // "Sem mensagem"),
-                    ([.locations[]?.physicalLocation.artifactLocation.uri // empty] | first // "sem-localizacao"),
-                    (([.locations[]?.physicalLocation.region.startLine // empty] | first // "") | tostring)
-                  ]
-                | @tsv
+                | "| \((.ruleId // "regra-desconhecida") | clean) | \((.level // "desconhecido") | clean) | \((.message.text // "Sem mensagem") | clean) | \(([.locations[]?.physicalLocation.artifactLocation.uri // empty] | first // "sem-localizacao") | clean) | \(([.locations[]?.physicalLocation.region.startLine // empty] | first // "") | clean) |"
               ' "${report}"
-              echo '```'
               echo ""
             done
 
