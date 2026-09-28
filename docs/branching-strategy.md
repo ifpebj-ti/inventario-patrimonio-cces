@@ -9,7 +9,7 @@ Este projeto adota desenvolvimento baseado em trunk: `main` e a única branch de
 - `hotfix/*`: correcao urgente; também parte de `main` e retorna por pull request para `main`.
 - Dependabot: abre pull requests diretamente para `main`.
 
-Nao existe branch de integração, `qa` ou ambiente de homologacao neste momento. Todo trabalho deve ser atualizado com `main` antes do merge.
+Não existe branch de integração, `qa` ou ambiente de homologação neste momento. Todo trabalho deve partir da `main` atualizada e ser sincronizado com ela antes do merge. Alterações, inclusive de documentação e CI, não devem ser enviadas diretamente para `main`: use uma branch curta e um pull request.
 
 ## Pull requests e issues
 
@@ -38,16 +38,18 @@ O workflow `Release` roda depois de todo PR mergeado em `main`.
 - `major`: mudanca incompativel.
 - `sem release`: merge sem tag e sem GitHub Release.
 
-O workflow cria a tag `vMAJOR.MINOR.PATCH`, a GitHub Release e as imagens produtivas no GHCR quando houver release. As notas usam a seção `## O que foi feito` do PR. O versionamento e único para todo o monorepo; frontend e backend recebem a mesma versão em imagens separadas.
+O workflow cria a tag `vMAJOR.MINOR.PATCH`, reconstrói as duas imagens a partir dessa tag, executa os scans de segurança novamente e publica a GitHub Release e as imagens produtivas no GHCR quando houver release. As notas usam a seção `## O que foi feito` do PR. O versionamento é único para todo o monorepo; frontend e backend recebem a mesma versão em imagens separadas.
+
+As imagens construídas durante a PR são descartáveis e servem somente para validação. Elas não são promovidas para produção, pois a imagem publicada deve corresponder exatamente ao commit que recebeu a tag de release em `main`.
 
 ## Checks
 
-- `Quality`: valida secrets, lint do frontend, formatação Java com Spotless, testes existentes do backend e mensagens de commit em PRs humanos.
+- `Quality`: valida secrets, lint do frontend, formatação Java com Spotless, testes existentes do backend e mensagens de commit em PRs humanos. Enquanto a dívida de lint é tratada, ESLint e Spotless são informativos; os testes, Secretlint e Commitlint permanecem bloqueantes.
 - `Validate PR Template`: valida issue vinculada e tipo de release.
 - `Security scans`: executa Semgrep e Trivy em PRs para `main`. O Trivy verifica secrets, dependências e imagens Docker alteradas; o Semgrep realiza análise estática de segurança.
 - `Release`: publica tag, GitHub Release e imagens produtivas quando aplicável.
 
-Os relatórios de Semgrep e Trivy são gerados em SARIF, enviados para Security → Code scanning e disponibilizados como artifacts temporários da execução. Na fase inicial, o Semgrep opera como baseline para triagem dos achados; depois da triagem, seu check deve tornar-se bloqueante.
+Os relatórios de Semgrep e Trivy são gerados em SARIF, enviados para Security → Code scanning e disponibilizados como artifacts temporários da execução. O Trivy mantém achados de todas as severidades no relatório, mas bloqueia apenas segredos, falhas operacionais e vulnerabilidades `HIGH` ou `CRITICAL`. Na fase inicial, o Semgrep opera como baseline para triagem dos achados; depois da triagem, seu check deve tornar-se bloqueante.
 
 Proteja `main` exigindo os checks aplicáveis, revisão e conversa resolvida antes do merge. Não configure mais regras ou checks obrigatórios para a antiga branch de integração.
 

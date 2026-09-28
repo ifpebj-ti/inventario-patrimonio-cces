@@ -118,7 +118,9 @@ cd backend
 ./gradlew test
 ```
 
-No pull request para `main`, o workflow `Quality` repete essas validações. O workflow `Security scans` executa Semgrep e Trivy, publica relatórios SARIF em Security → Code scanning e bloqueia o merge quando o Trivy encontra vulnerabilidades configuradas como bloqueantes. O Semgrep permanece em baseline até a triagem inicial dos alertas.
+No pull request para `main`, o workflow `Quality` repete essas validações. O workflow `Security scans` executa Semgrep e Trivy, publica relatórios SARIF em Security → Code scanning e bloqueia o merge quando o Trivy encontra segredos, falha operacional ou vulnerabilidades `HIGH`/`CRITICAL`. Achados `LOW` e `MEDIUM` continuam no relatório para triagem, mas não bloqueiam nesta política. O Semgrep permanece em baseline até a triagem inicial dos alertas.
+
+Para investigar um scan, abra **Actions → Security scans → execução do PR**. O resumo do job do Trivy traz uma tabela de achados; os arquivos brutos ficam nos artifacts `trivy-reports` e `semgrep-report` por 14 dias. Esses artifacts são evidências de execução e não devem ser commitados ao repositório.
 
 ## Segredos
 

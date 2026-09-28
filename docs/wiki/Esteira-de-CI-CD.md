@@ -38,9 +38,9 @@ flowchart TD
 | Qualidade da aplicação | `Quality` roda Secretlint, ESLint no frontend, Spotless e testes Gradle/Testcontainers no backend. Commitlint é executado em PRs humanos. |
 | Validação de template | `Validate PR Template` confere issue vinculada e tipo de release. |
 | Segurança em PR | `Security scans` executa Semgrep e Trivy. O Trivy verifica secrets, dependências e imagens; as imagens são construídas no runner, sem publicação no GHCR. |
-| Relatórios de segurança | Semgrep e Trivy geram SARIF para Security → Code scanning e artifacts temporários por 14 dias. Semgrep está em baseline até a triagem dos achados. |
+| Relatórios de segurança | Semgrep e Trivy geram SARIF para Security → Code scanning, uma tabela no resumo do job e artifacts temporários por 14 dias. Semgrep está em baseline até a triagem dos achados. |
 | Release | Merge em `main` cria tag e GitHub Release quando o PR humano não está como `sem release`; Dependabot gera `patch` automaticamente. |
-| Imagens produtivas | Release publica imagens versionadas no GHCR usando somente a tag `vX.Y.Z`, depois dos scans. |
+| Imagens produtivas | A release reconstrói as imagens a partir da tag `vX.Y.Z`, executa os scans novamente e só então publica no GHCR. A imagem transitória da PR nunca é promovida. |
 | Wiki | Push em `main` com mudança em `docs/wiki` sincroniza a GitHub Wiki. |
 | Fechamento de issues | O GitHub fecha a issue vinculada quando o PR entra em `main`. |
 
@@ -66,6 +66,38 @@ sequenceDiagram
 ```
 
 PRs do Dependabot são dispensados da issue e do template; ao serem mergeados, o workflow de release os trata como `patch`.
+
+## Controles Aplicados no Pull Request
+
+Os checks aparecem separadamente na interface do GitHub porque cada job representa uma responsabilidade. Isso facilita identificar se uma falha veio de teste, segredo, dependência, imagem ou regra de processo.
+
+| Check | Papel | Bloqueia o merge? |
+| --- | --- | --- |
+| `Validate PR Template` | Exige uma issue vinculada e um tipo de release para PRs humanos. | Sim |
+| `Quality / Secret scan` | Procura segredos versionados com Secretlint. | Sim |
+| `Quality / Commit messages` | Valida o padrão dos commits de PRs humanos. | Sim |
+| `Quality / Backend format and tests` | Executa Spotless como aviso temporário e os testes do backend como gate. | Sim, se os testes falharem |
+| `Quality / Frontend lint` | Executa ESLint; nesta fase é informativo para não bloquear mudanças por dívida de lint existente. | Não |
+| `Security scans / Semgrep SAST baseline` | Executa SAST e registra achados existentes para triagem. | Não, até a linha de base ser tratada |
+| `Security scans / Trivy container and dependency scans` | Faz scan de segredos, dependências e imagens construídas no runner. | Sim para segredos, falha operacional e vulnerabilidades `HIGH`/`CRITICAL` |
+
+## Relatórios de Segurança: SARIF, Code Scanning e Artifacts
+
+**SARIF** (*Static Analysis Results Interchange Format*) é um formato JSON padronizado para resultados de análise estática. Um arquivo SARIF contém a ferramenta que produziu o achado, a regra ou CVE, a severidade, a mensagem e a localização afetada. Semgrep e Trivy produzem esse formato para que os resultados possam ser consumidos de maneira uniforme.
+
+O Code Scanning foi habilitado no repositório para receber esses arquivos por meio da action `github/codeql-action/upload-sarif`. Isso centraliza a triagem de alertas na aba **Security → Code scanning**, junto aos achados do CodeQL. Habilitar Code Scanning não é necessário para gerar o arquivo SARIF nem para guardar um artifact; é necessário para que o GitHub converta o SARIF em alertas pesquisáveis, com estado, ferramenta, branch e histórico.
+
+Cada execução disponibiliza a mesma evidência em três camadas:
+
+| Onde consultar | Conteúdo | Retenção e uso |
+| --- | --- | --- |
+| Resumo do job `Trivy container and dependency scans` | Tabela com regra/CVE, severidade, mensagem e localização dos achados. | Diagnóstico rápido da execução. |
+| **Security → Code scanning** | Alertas normalizados enviados por Semgrep e Trivy, além dos alertas do CodeQL. | Triagem, filtros por ferramenta e acompanhamento do estado. Resultados exclusivos de uma PR podem aparecer como *in pull request* ou *in branch*. |
+| **Actions → Security scans → execução → Artifacts** | `trivy-reports` e `semgrep-report`, contendo os SARIFs brutos. | Download e investigação detalhada por 14 dias. Não são arquivos versionados no Git. |
+
+O Trivy mantém no SARIF todos os achados para auditoria, inclusive `LOW` e `MEDIUM`. O gate final lê as tags de severidade desse mesmo SARIF: apenas `HIGH` e `CRITICAL` impedem o merge. Assim, uma vulnerabilidade média ou baixa continua visível e rastreável, mas não interrompe a entrega; falhas de execução do scanner e segredos detectados continuam bloqueantes.
+
+Relatórios brutos não devem ser commitados a cada execução. Eles são dados transitórios, podem crescer rapidamente e podem revelar detalhes de dependências ou caminhos internos. A evidência operacional fica nos artifacts e no Code Scanning; uma retenção versionada separada só deve ser criada se houver exigência formal de auditoria.
 
 ## Direção Desejada
 
@@ -103,3 +135,4 @@ flowchart TD
 | 1.1 | 2026-09-19 | Simplificação da esteira para publicar imagens somente em releases promovidas para main. |
 | 1.2 | 2026-09-27 | Adoção de `main` como única branch de integração e entrega. |
 | 1.3 | 2026-09-28 | Inclusão de lint, formatação, testes de backend, Semgrep, Trivy, SARIF e Code Scanning na esteira de PR. |
+| 1.4 | 2026-09-28 | Documentação dos gates de PR, da política `HIGH`/`CRITICAL` do Trivy, da reconstrução na release e da consulta de SARIF, Code Scanning e artifacts. |
