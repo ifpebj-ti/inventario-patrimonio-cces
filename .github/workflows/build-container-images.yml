@@ -76,7 +76,10 @@ jobs:
             build_backend=true
           else
             if [ "${EVENT_NAME}" = "pull_request" ]; then
-              git fetch --no-tags --depth=1 origin "${BASE_REF}"
+              # The change comparison needs the complete history of the base
+              # branch. Fetching only its tip leaves no common ancestor when
+              # the PR branch is behind main.
+              git fetch --no-tags origin "${BASE_REF}:refs/remotes/origin/${BASE_REF}"
               changed_files="$(git diff --name-only "origin/${BASE_REF}"...HEAD)"
             elif [ -n "${BEFORE_SHA}" ] && ! [[ "${BEFORE_SHA}" =~ ^0+$ ]]; then
               if git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
