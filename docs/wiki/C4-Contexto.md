@@ -1,83 +1,50 @@
-# C4 - Contexto
+# C4 — Contexto do sistema
 
-Este documento registra o nivel 1 do modelo C4 para o Inventarium. O objetivo e mostrar o sistema no seu contexto, identificando quem usa a solucao, quais sistemas externos participam do fluxo e quais relacoes principais existem entre esses elementos.
+## Propósito
 
-> Nota: o aplicativo mobile foi removido do repositorio e deixou de fazer parte do escopo ativo. Este diagrama ainda contem referencias historicas ao mobile e deve ser revisado em uma atualizacao dedicada da documentacao arquitetural.
+O Inventarium é uma aplicação web para realizar a gestão e a conferência de patrimônios institucionais. Ela permite autenticar usuários institucionais, criar inventários, importar seus itens por planilha, consultar e atualizar os dados dos bens, registrar observações, validar planilhas e exportar ou encaminhar o resultado por e-mail.
 
-## Sistema Principal
-
-**Inventarium** e uma plataforma academica para apoio ao tombamento e gerenciamento de patrimonio institucional do IFPE. A solucao reune uma aplicacao web, um aplicativo mobile e uma API backend para centralizar autenticacao via Google, inventarios, itens patrimoniais, observacoes, importacao e exportacao de planilhas e geracao de etiquetas em PDF com QR Code.
-
-## Diagrama de Contexto
+O diagrama abaixo apresenta o sistema como uma única caixa e mostra as pessoas e os sistemas externos que interagem com ele. Ele não descreve telas, classes nem tecnologias internas; esses detalhes aparecem nos níveis de [containers](C4-Containers) e [componentes](C4-Componentes).
 
 ```mermaid
 flowchart LR
-    servidor["Servidor ou equipe de patrimonio<br/>Usuario externo"]
-    gestor["Gestor academico ou avaliador<br/>Usuario externo"]
-    dev["Equipe de desenvolvimento<br/>Usuario externo"]
+    adminOrg["Administrador da instituição\nPerfil de negócio planejado"]
+    adminSetor["Administrador do setor\nPerfil de negócio planejado"]
+    operador["Operador de tombamento\nUsuário autenticado"]
+    sistema["Inventarium\nGestão e conferência patrimonial"]
+    google["Google Identity Services\nAutenticação"]
+    smtp["Servidor SMTP do Gmail\nEnvio de planilhas"]
+    planilhas["Planilhas XLSX\nEntrada e saída de dados"]
+    github["GitHub\nCódigo, CI/CD e publicação da wiki"]
 
-    inventarium["Inventarium<br/>Sistema de gerenciamento de inventario patrimonial"]
-
-    google["Google Identity Services<br/>OAuth 2.0 / OpenID Connect"]
-    postgres["PostgreSQL<br/>Sistema externo de persistencia"]
-    planilhas["Arquivos Excel<br/>Sistema externo / artefato de dados"]
-    pdf["Leitores de PDF e QR Code<br/>Sistema externo / ferramenta de apoio"]
-    github["GitHub<br/>Sistema externo de versionamento e wiki"]
-
-    servidor -->|"Acessa via web ou mobile para criar inventarios, importar itens, consultar patrimonio, atualizar itens e gerar etiquetas"| inventarium
-    gestor -->|"Consulta informacoes, acompanha a evolucao do projeto e revisa documentacao"| inventarium
-    dev -->|"Mantem codigo, documentacao, automacoes e configuracoes"| inventarium
-
-    inventarium -->|"Autentica usuarios com conta Google, recebe ID token e valida assinatura/JWKS, issuer, audience, expiracao e e-mail verificado"| google
-    inventarium -->|"Persiste usuarios Google, inventarios, itens e observacoes"| postgres
-    inventarium -->|"Importa dados patrimoniais de planilhas .xls/.xlsx e exporta relatorios .xlsx"| planilhas
-    inventarium -->|"Gera PDFs de etiquetas com QR Codes para identificacao e consulta de itens"| pdf
-    dev -->|"Versiona mudancas, abre pull requests e publica a wiki"| github
-    github -->|"Disponibiliza documentacao versionada e revisada"| gestor
+    adminOrg -->|"administra estrutura organizacional"| sistema
+    adminSetor -->|"acompanha inventários e pendências"| sistema
+    operador -->|"importa, consulta, altera e confere itens"| sistema
+    sistema -->|"valida ID token"| google
+    sistema -->|"envia planilha exportada"| smtp
+    sistema <-->|"importa, valida e exporta"| planilhas
+    github -.->|"versiona e publica documentação"| sistema
 ```
 
-## Atores
+## Pessoas e responsabilidades
 
-| Ator | Descricao | Principais necessidades |
+| Pessoa | Objetivo no produto | Situação no código atual |
 | --- | --- | --- |
-| Servidor ou equipe de patrimonio | Usuario responsavel por cadastrar, consultar e acompanhar inventarios e itens patrimoniais. | Centralizar informacoes, importar planilhas, editar dados, registrar observacoes, gerar etiquetas e consultar itens em campo. |
-| Gestor academico ou avaliador | Pessoa interessada na visao do produto, no andamento do projeto e na qualidade da documentacao. | Entender o escopo, validar entregas, acompanhar decisoes e revisar artefatos do projeto. |
-| Equipe de desenvolvimento | Integrantes que implementam, mantem e documentam o Inventarium. | Evoluir backend, frontend, mobile, infraestrutura, automacoes e documentacao versionada. |
+| Administrador da instituição | Manter organizações, setores, perfis, permissões e a visão institucional dos patrimônios. | A API já possui operações para organizações, setores, perfis, permissões e atribuição de perfil/setor ao usuário. A interface administrativa e a restrição por perfil ainda não estão evidenciadas no frontend nem aplicadas pelo backend. |
+| Administrador do setor | Acompanhar os inventários do setor, distribuir atividades e tratar pendências. | É um papel previsto pelo modelo de negócio. O vínculo usuário–setor existe, porém o escopo do setor ainda não limita as consultas e alterações de inventários. |
+| Operador de tombamento | Executar o levantamento: importar itens, localizar um patrimônio, registrar observações e confirmar a conferência. | O fluxo de inventário, item, observações e validação já está disponível na aplicação web. A leitura de código de barras é requisito futuro; não há integração de câmera/leitor no repositório. |
 
-## Sistemas Externos
+## Sistemas externos e fronteiras
 
-| Sistema externo | Descricao | Relacao com o Inventarium |
+| Sistema externo | Integração | Finalidade |
 | --- | --- | --- |
-| Google Identity Services | Provedor externo usado para login com Google por OAuth 2.0 / OpenID Connect. | Autentica a conta Google do usuario, emite ID token assinado e publica chaves JWKS usadas pelo backend para validar o token. |
-| PostgreSQL | Banco de dados relacional usado pela aplicacao. | Armazena usuarios vinculados ao Google, inventarios, itens patrimoniais e observacoes. |
-| Arquivos Excel | Planilhas `.xls` e `.xlsx` usadas como entrada e saida de dados patrimoniais. | Sao importadas para cadastro em lote de itens e exportadas como relatorios de patrimonio. |
-| Leitores de PDF e QR Code | Ferramentas externas usadas pelos usuarios para abrir etiquetas e ler identificadores. | Consomem PDFs e QR Codes gerados pelo Inventarium para apoiar identificacao fisica dos bens. |
-| GitHub | Plataforma de versionamento, pull requests, workflows e wiki. | Guarda o codigo-fonte, documentacao versionada e fluxo de revisao/publicacao da wiki. |
+| Google Identity Services | O frontend obtém um ID token; a API o valida antes de criar ou localizar o usuário local e emitir o JWT próprio. | Login institucional sem senha local. |
+| Gmail SMTP | A API usa o envio de e-mail do Spring para encaminhar uma planilha XLSX como anexo. | Compartilhar o resultado de um inventário. |
+| Planilhas XLSX | Arquivos enviados pelo usuário e arquivos gerados pela API. Não é um serviço remoto. | Carga, validação, exportação e compartilhamento de dados patrimoniais. |
+| GitHub | Repositório, pull requests, validações de CI/CD, releases e sincronização da wiki. | Suportar a engenharia e a publicação da documentação; não participa do fluxo de uso do patrimônio em tempo de execução. |
 
-## Principais Interacoes
+## Estado atual e evolução planejada
 
-1. O servidor ou equipe de patrimonio acessa o Inventarium e se autentica com uma conta Google autorizada.
-2. O Google Identity Services autentica o usuario e devolve um ID token para a aplicacao cliente.
-3. O Inventarium valida o ID token do Google no backend, cria ou localiza o usuario pelo e-mail e emite um JWT proprio da aplicacao.
-4. O usuario cria inventarios, cadastra itens manualmente ou importa itens a partir de uma planilha Excel.
-5. O Inventarium valida os dados importados, registra itens e observacoes no PostgreSQL e disponibiliza consulta paginada dos itens do inventario.
-6. O usuario solicita etiquetas em PDF; o Inventarium gera o arquivo com QR Codes para apoiar a identificacao fisica dos bens.
-7. O usuario exporta uma planilha de patrimonio.
-8. A equipe de desenvolvimento mantem codigo e documentacao no GitHub, abrindo pull requests para revisao antes da publicacao da wiki.
+O modelo persistido já contém **organização**, **setor** (inclusive setor pai), **perfil**, **permissão** e a associação de perfil e setor a um usuário. No entanto, a cadeia de segurança atual autentica o JWT e protege as rotas apenas no nível “usuário autenticado”: o `SecurityFilter` cria a autenticação sem authorities, e os controladores administrativos registram explicitamente que a restrição por permissão será implementada depois. Portanto, os três perfis deste diagrama representam o comportamento de negócio desejado, não uma garantia de autorização já imposta pela aplicação.
 
-## Dependencias Externas de Autenticacao
-
-O login depende diretamente do Google Identity Services e de um Client ID OAuth configurado no Google Cloud Console. Em producao, a origem publica do frontend precisa estar cadastrada nas origens JavaScript autorizadas do Client ID e ser servida por HTTPS. O backend valida o ID token contra as chaves JWKS do Google e confere `iss`, `aud`, expiracao e `email_verified`.
-
-Depois da troca inicial, as rotas protegidas nao usam o token do Google. O backend emite um JWT proprio do Inventarium, assinado por `SECURITY_TOKEN_SECRET`, e os clientes passam a envia-lo como `Authorization: Bearer`.
-
-## Observacoes de Revisao
-
-Este documento deve ser revisado por outro integrante no pull request antes do merge na `main`. A revisao deve verificar se os atores, sistemas externos e relacoes descritas continuam coerentes com o escopo atual do Inventarium.
-
-## Historico
-
-| Versao | Data | Descricao |
-| --- | --- | --- |
-| 1.0 | 2026-09-02 | Criacao do diagrama de contexto C4 nivel 1 e das descricoes associadas. |
-| 1.1 | 2026-09-08 | Atualizacao da visao de contexto para destacar a autenticacao via Google Identity Services. |
+Da mesma forma, a auditoria de tombamentos — identificar quem realizou uma ação, em qual item e quando — está definida como requisito e ainda precisa de uma estrutura de eventos/histórico própria. Hoje há `createdAt` e `updatedAt` em algumas entidades e `validatedAt` no item, mas não há registro completo do autor e da ação de auditoria.

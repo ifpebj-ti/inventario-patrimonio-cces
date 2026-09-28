@@ -1,15 +1,15 @@
-# Guia de Execucao, Configuracao e Operacao
+# Guia de Execução, Configuração e Operação
 
-Este guia descreve como preparar, executar e operar o Inventarium em ambiente local. Ele tambem registra as diferencas esperadas para um deploy em VM, onde as imagens devem ser baixadas de um registry como o GHCR.
+Este guia descreve como preparar, executar e operar o Inventarium em ambiente local. Ele também registra as diferencas esperadas para um deploy em VM, onde as imagens devem ser baixadas de um registry como o GHCR.
 
-## Visao Geral
+## Visão Geral
 
-O ambiente local com Docker Compose sobe tres servicos:
+O ambiente local com Docker Compose sobe tres serviços:
 
 ```text
 postgres           Banco PostgreSQL
 inventarium-back   API Java/Spring Boot
-inventarium-front  Aplicacao web Next.js
+inventarium-front  Aplicação web Next.js
 ```
 
 ## Pre-requisitos
@@ -26,7 +26,7 @@ docker --version
 docker compose version
 ```
 
-## Configuracao
+## Configuração
 
 Copie o arquivo de exemplo da raiz:
 
@@ -40,28 +40,28 @@ No PowerShell:
 Copy-Item .env.example .env
 ```
 
-Preencha o `.env` antes de subir a aplicacao.
+Preencha o `.env` antes de subir a aplicação.
 
-## Variaveis de Ambiente
+## Variáveis de Ambiente
 
-| Variavel | Obrigatoria | Uso | Observacao |
+| Variavel | Obrigatoria | Uso | Observação |
 | --- | --- | --- | --- |
-| `SECURITY_TOKEN_SECRET` | Sim | Backend | Segredo usado para assinar os JWTs da aplicacao. Gere um valor forte. |
+| `SECURITY_TOKEN_SECRET` | Sim | Backend | Segredo usado para assinar os JWTs da aplicação. Gere um valor forte. |
 | `POSTGRES_PORT` | Nao | Compose | Porta publicada no host. Padrao: `5433`. |
 | `BACKEND_PORT` | Nao | Compose | Porta publicada da API. Padrao: `8080`. |
 | `FRONTEND_PORT` | Nao | Compose | Porta publicada da web. Padrao: `3000`. |
-| `POSTGRES_USER` | Nao | Postgres/backend | Usuario do banco. Padrao: `admin`. |
+| `POSTGRES_USER` | Nao | Postgres/backend | Usuário do banco. Padrao: `admin`. |
 | `POSTGRES_PASSWORD` | Nao | Postgres/backend | Senha do banco local. Padrao: `admin`. |
 | `POSTGRES_DB` | Nao | Postgres/backend | Nome do banco. Padrao: `inventory_management`. |
 | `BACKEND_IMAGE` | Nao | Compose | Nome/tag da imagem do backend. Local: `inventarium-back:local`. |
 | `FRONTEND_IMAGE` | Nao | Compose | Nome/tag da imagem do frontend. Local: `inventarium-front:local`. |
 | `GOOGLE_OAUTH_CLIENT_ID` | Sim | Backend/frontend | Client ID publico do Google OAuth. Precisa ser o mesmo nos dois lados. |
-| `NEXT_PUBLIC_API_URL` | Nao | Frontend | URL publica que o navegador usa para chamar a API. Local: `http://localhost:8080`. |
+| `NEXT_PUBLIC_API_URL` | Nao | Frontend | URL pública que o navegador usa para chamar a API. Local: `http://localhost:8080`. |
 | `GOOGLE_ALLOWED_DOMAINS` | Nao | Backend | Dominios permitidos no login Google. Padrao: `ifpe.edu.br`. |
 | `SPRING_MAIL_USERNAME` | Nao | Backend | Conta SMTP usada para envio de emails. |
 | `SPRING_MAIL_PASSWORD` | Nao | Backend | Senha de app do Gmail ou credencial SMTP equivalente. |
 
-Variaveis sensiveis nao devem ser commitadas. Em producao, mantenha `SECURITY_TOKEN_SECRET`, `POSTGRES_PASSWORD` e `SPRING_MAIL_PASSWORD` em mecanismo seguro de secrets ou no arquivo `.env` protegido da VM.
+Variáveis sensiveis não devem ser commitadas. Em produção, mantenha `SECURITY_TOKEN_SECRET`, `POSTGRES_PASSWORD` e `SPRING_MAIL_PASSWORD` em mecanismo seguro de secrets ou no arquivo `.env` protegido da VM.
 
 Exemplo para gerar `SECURITY_TOKEN_SECRET`:
 
@@ -71,20 +71,20 @@ openssl rand -hex 32
 
 ## Imagens Publicadas No GHCR
 
-A pipeline publica imagens no GitHub Container Registry, mas nao injeta secrets de runtime dentro das imagens. Esse comportamento e intencional:
+A pipeline pública imagens no GitHub Container Registry, mas não injeta secrets de runtime dentro das imagens. Esse comportamento e intencional:
 
-- frontend: `NEXT_PUBLIC_GOOGLE_CLIENT_ID` e `NEXT_PUBLIC_API_URL` sao argumentos de build, porque o Next.js inclui variaveis `NEXT_PUBLIC_*` no bundle do navegador. No GitHub Actions, esses valores podem vir de repository variables; o Google Client ID tambem pode vir de GitHub Secrets, embora nao seja um segredo real depois que chega ao browser. A pipeline falha se esses valores nao estiverem configurados;
-- backend: `SECURITY_TOKEN_SECRET`, credenciais do banco, credenciais de email e configuracoes Spring sao variaveis de runtime e devem ficar na stack, no Compose, no Portainer ou no mecanismo de secrets da VM;
-- uma troca de imagem nao deve exigir redigitar secrets quando a stack reutiliza as mesmas variaveis salvas.
+- frontend: `NEXT_PUBLIC_GOOGLE_CLIENT_ID` e `NEXT_PUBLIC_API_URL` são argumentos de build, porque o Next.js inclui variáveis `NEXT_PUBLIC_*` no bundle do navegador. No GitHub Actions, esses valores podem vir de repository variables; o Google Client ID também pode vir de GitHub Secrets, embora não seja um segredo real depois que chega ao browser. A pipeline falha se esses valores não estiverem configurados;
+- backend: `SECURITY_TOKEN_SECRET`, credenciais do banco, credenciais de e-mail e configuracoes Spring são variáveis de runtime e devem ficar na stack, no Compose, no Portainer ou no mecanismo de secrets da VM;
+- uma troca de imagem não deve exigir redigitar secrets quando a stack reutiliza as mesmas variáveis salvas.
 
-Para producao, configure a stack da VM ou o `.env` protegido apontando para as tags versionadas publicadas pelo workflow de release:
+Para produção, configure a stack da VM ou o `.env` protegido apontando para as tags versionadas publicadas pelo workflow de release:
 
 ```bash
 BACKEND_IMAGE=ghcr.io/<owner>/inventarium-back:v0.2.1
 FRONTEND_IMAGE=ghcr.io/<owner>/inventarium-front:v0.2.1
 
 SECURITY_TOKEN_SECRET=<valor-forte>
-POSTGRES_USER=<usuario>
+POSTGRES_USER=<usuário>
 POSTGRES_PASSWORD=<senha>
 POSTGRES_DB=inventory_management
 SPRING_MAIL_USERNAME=<conta-smtp>
@@ -94,13 +94,13 @@ NEXT_PUBLIC_API_URL=<url-publica-da-api>
 GOOGLE_ALLOWED_DOMAINS=ifpe.edu.br
 ```
 
-Para rollback, troque apenas `BACKEND_IMAGE` e `FRONTEND_IMAGE` para uma tag de versao anterior ja publicada, como `v0.2.0`. As demais variaveis podem permanecer iguais.
+Para rollback, troque apenas `BACKEND_IMAGE` e `FRONTEND_IMAGE` para uma tag de versão anterior ja publicada, como `v0.2.0`. As demais variáveis podem permanecer iguais.
 
-No Portainer, prefira manter essas variaveis como environment da stack, nao como valores digitados manualmente a cada recriacao de container. Se a pipeline passar a fazer deploy automatico na VM depois, ela deve atualizar somente a referencia da imagem versionada ou forcar pull/recreate da stack, preservando as variaveis de runtime ja configuradas.
+No Portainer, prefira manter essas variáveis como environment da stack, não como valores digitados manualmente a cada recriacao de container. Se a pipeline passar a fazer deploy automatico na VM depois, ela deve atualizar somente a referencia da imagem versionada ou forcar pull/recreate da stack, preservando as variáveis de runtime ja configuradas.
 
-## Execucao Local Com Docker Compose
+## Execução Local Com Docker Compose
 
-Na raiz do repositorio, execute:
+Na raiz do repositório, execute:
 
 ```bash
 docker compose up --build
@@ -122,7 +122,7 @@ O Compose ira:
 5. Buildar e subir o frontend web.
 ```
 
-Servicos publicados:
+Serviços publicados:
 
 ```text
 Frontend web: http://localhost:3000
@@ -130,9 +130,9 @@ Backend API:  http://localhost:8080
 PostgreSQL:   localhost:5433
 ```
 
-Se `POSTGRES_PORT` estiver definido como `5432`, o banco sera publicado em `localhost:5432`. Evite isso se ja existir outro Postgres rodando na maquina.
+Se `POSTGRES_PORT` estiver definido como `5432`, o banco sera publicado em `localhost:5432`. Evite isso se ja existir outro Postgres rodando na máquina.
 
-## Validacao
+## Validação
 
 Confira os containers:
 
@@ -182,7 +182,7 @@ http://localhost:3000
 
 Use o driver PostgreSQL e os dados do `.env`.
 
-Com os valores padrao:
+Com os valores padrão:
 
 ```text
 Host: 127.0.0.1
@@ -202,7 +202,7 @@ Dentro da rede Docker, o backend usa `postgres:5432`. Fora do Docker, ferramenta
 
 ## Logs
 
-Todos os servicos:
+Todos os serviços:
 
 ```bash
 docker compose logs -f
@@ -228,7 +228,7 @@ docker compose logs -f postgres
 
 ## Reinicio e Parada
 
-Recriar apenas o backend apos mudar variaveis de runtime:
+Recriar apenas o backend apos mudar variáveis de runtime:
 
 ```bash
 docker compose up -d --force-recreate inventarium-back
@@ -255,9 +255,9 @@ docker compose down -v
 
 Use `down -v` com cuidado, pois ele remove os dados persistidos no volume `postgres-data`.
 
-## Execucao Local Sem Docker
+## Execução Local Sem Docker
 
-Para rodar o backend fora do Docker, mantenha um Postgres acessivel e configure as variaveis de ambiente esperadas.
+Para rodar o backend fora do Docker, mantenha um Postgres acessivel e configure as variáveis de ambiente esperadas.
 
 No Windows:
 
@@ -318,7 +318,7 @@ Verifique se o `.env` existe na raiz e se a variavel tem valor:
 SECURITY_TOKEN_SECRET=valor-gerado-com-openssl
 ```
 
-### DBeaver nao conecta no Postgres
+### DBeaver não conecta no Postgres
 
 Confira a porta publicada:
 
@@ -334,7 +334,7 @@ POSTGRES_PORT=5433
 
 ### Backend fica unhealthy por SMTP
 
-O healthcheck do container usa `/actuator/health/liveness`, que nao depende do Gmail. Se os logs mostrarem erro `535-5.7.8 Username and Password not accepted`, o problema esta nas credenciais SMTP, nao necessariamente na saude da API.
+O healthcheck do container usa `/actuator/health/liveness`, que não depende do Gmail. Se os logs mostrarem erro `535-5.7.8 Username and Password not accepted`, o problema está nas credenciais SMTP, não necessariamente na saude da API.
 
 Gere uma nova senha de app no Google e atualize:
 
@@ -350,14 +350,14 @@ docker compose up -d --force-recreate inventarium-back
 
 ### Frontend sem botao de login Google
 
-Confira se `GOOGLE_OAUTH_CLIENT_ID` esta definido no `.env`. Como o Next.js embute `NEXT_PUBLIC_*` no build, apos mudar o client id e necessario rebuildar o frontend:
+Confira se `GOOGLE_OAUTH_CLIENT_ID` está definido no `.env`. Como o Next.js embute `NEXT_PUBLIC_*` no build, apos mudar o client id e necessário rebuildar o frontend:
 
 ```bash
 docker compose build inventarium-front
 docker compose up -d inventarium-front
 ```
 
-### Backend nao conecta no banco
+### Backend não conecta no banco
 
 Dentro do Compose, o backend deve usar:
 
@@ -365,9 +365,9 @@ Dentro do Compose, o backend deve usar:
 jdbc:postgresql://postgres:5432/inventory_management
 ```
 
-Nao use `localhost` para conexao entre containers. `localhost` dentro do backend aponta para o proprio container do backend.
+Nao use `localhost` para conexao entre containers. `localhost` dentro do backend aponta para o próprio container do backend.
 
-## Ambiente Local e Producao
+## Ambiente Local e Produção
 
 No ambiente local, o Compose pode buildar as imagens:
 
@@ -375,7 +375,7 @@ No ambiente local, o Compose pode buildar as imagens:
 docker compose up --build
 ```
 
-Em uma VM de producao, o esperado e que as imagens ja tenham sido publicadas em um registry, como o GHCR. Nesse caso, a VM deve apenas baixar e executar:
+Em uma VM de produção, o esperado e que as imagens ja tenham sido publicadas em um registry, como o GHCR. Nesse caso, a VM deve apenas baixar e executar:
 
 ```bash
 docker compose pull
@@ -390,10 +390,10 @@ FRONTEND_IMAGE=ghcr.io/ifpebj-ti/inventarium-front:v0.1.0
 NEXT_PUBLIC_API_URL=https://api.exemplo.edu.br
 ```
 
-Em producao:
+Em produção:
 
 - Use HTTPS.
 - Nao exponha o Postgres publicamente.
 - Restrinja portas de entrada na VM.
-- Guarde secrets fora do repositorio.
+- Guarde secrets fora do repositório.
 - Use imagens versionadas publicadas pela release.

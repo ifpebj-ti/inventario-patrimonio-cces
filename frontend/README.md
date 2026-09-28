@@ -24,7 +24,7 @@ Usada para padronizar todo nosso código, vale destacar que não precisa adicion
 
 ### main
 
-Branch unica de integracao e entrega. Todo pull request aprovado entra em `main`.
+Branch única de integração e entrega. Todo pull request aprovado entra em `main`.
 
 ### Feature/[nome da feature]
 
