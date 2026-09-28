@@ -64,10 +64,9 @@ Fluxo esperado:
 
 1. Toda issue deve ser aberta pelo template `Tarefa`, registrando contexto, objetivo, escopo e critérios de aceite.
 2. Todo PR humano para `main` deve referenciar exatamente uma issue usando `Closes #número`, `Fixes #número` ou `Resolves #número` e marcar exatamente um tipo de release.
-3. Ao abrir ou editar o PR de trabalho, o workflow `Sync PR with Issue` copia a descrição da issue vinculada para o corpo do PR.
-4. O workflow `Validate PR Template` confere as regras esperadas para cada origem e destino.
-5. Ao fazer merge em `main`, o GitHub fecha automaticamente a issue vinculada ao PR.
-6. O workflow `Release` usa o tipo marcado para criar a tag `vX.Y.Z`, publicar a GitHub Release e acionar a publicação das imagens de produção no GHCR.
+3. O workflow `Validate PR Template` confere as regras esperadas para cada origem e destino.
+4. Ao fazer merge em `main`, o GitHub fecha automaticamente a issue vinculada ao PR.
+5. O workflow `Release` usa o tipo marcado para criar a tag `vX.Y.Z`, publicar a GitHub Release e acionar a publicação das imagens de produção no GHCR.
 
 Tipos de release no pull request:
 

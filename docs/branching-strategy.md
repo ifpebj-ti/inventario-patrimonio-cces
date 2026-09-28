@@ -44,7 +44,6 @@ O workflow cria a tag `vMAJOR.MINOR.PATCH`, a GitHub Release e as imagens produt
 
 - `Quality`: valida secrets, lint do frontend, formatação Java com Spotless, testes existentes do backend e mensagens de commit em PRs humanos.
 - `Validate PR Template`: valida issue vinculada e tipo de release.
-- `Sync PR with Issue`: copia a descrição da issue para PRs humanos.
 - `Security scans`: executa Semgrep e Trivy em PRs para `main`. O Trivy verifica secrets, dependências e imagens Docker alteradas; o Semgrep realiza análise estática de segurança.
 - `Release`: publica tag, GitHub Release e imagens produtivas quando aplicável.
 

@@ -11,7 +11,6 @@ flowchart TD
     pr["PR para main"]
     quality["Quality<br/>Secretlint + ESLint + Spotless + testes + Commitlint"]
     prtemplate["Validate PR Template<br/>issue vinculada + tipo de release"]
-    syncissue["Sync PR with Issue<br/>copia descrição da issue"]
     security["Security scans<br/>Semgrep + Trivy + build sem push"]
     codeScanning["Security → Code scanning<br/>relatórios SARIF"]
     merge["Merge em main"]
@@ -22,7 +21,6 @@ flowchart TD
     issue --> branch --> pr
     pr --> quality
     pr --> prtemplate
-    pr --> syncissue
     pr --> security
     quality --> merge
     prtemplate --> merge
@@ -39,7 +37,6 @@ flowchart TD
 | --- | --- |
 | Qualidade da aplicação | `Quality` roda Secretlint, ESLint no frontend, Spotless e testes Gradle/Testcontainers no backend. Commitlint é executado em PRs humanos. |
 | Validação de template | `Validate PR Template` confere issue vinculada e tipo de release. |
-| Sincronização PR/issue | `Sync PR with Issue` copia a descrição da issue para PRs humanos. |
 | Segurança em PR | `Security scans` executa Semgrep e Trivy. O Trivy verifica secrets, dependências e imagens; as imagens são construídas no runner, sem publicação no GHCR. |
 | Relatórios de segurança | Semgrep e Trivy geram SARIF para Security → Code scanning e artifacts temporários por 14 dias. Semgrep está em baseline até a triagem dos achados. |
 | Release | Merge em `main` cria tag e GitHub Release quando o PR humano não está como `sem release`; Dependabot gera `patch` automaticamente. |
@@ -59,7 +56,7 @@ sequenceDiagram
     participant Wiki as GitHub Wiki
 
     Dev->>PR: Abre PR com issue e tipo de release
-    PR->>CI: Roda Quality, template, sincronização e Security scans
+    PR->>CI: Roda Quality, template e Security scans
     CI->>CI: Publica SARIF no Code Scanning
     CI-->>PR: Checks aprovados
     PR->>Main: Merge

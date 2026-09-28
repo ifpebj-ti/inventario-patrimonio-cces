@@ -5,7 +5,6 @@ const {
   getPullRequestFlow,
   validatePullRequest,
 } = require("./validate-pr-template");
-const { shouldSyncIssueSummary } = require("./sync-pr-with-issue");
 
 test("extracts unique linked issue numbers", () => {
   assert.deepEqual(getLinkedIssueNumbers("Closes #10\nFixes #10\nResolves #11"), [
@@ -90,33 +89,6 @@ test("classifies non-main targets as unsupported", () => {
       author: "pedro",
     }),
     "unsupported",
-  );
-});
-
-test("syncs issue summaries for human PRs to main only", () => {
-  assert.equal(
-    shouldSyncIssueSummary({
-      headRef: "feat/api",
-      baseRef: "main",
-      author: "pedro",
-    }),
-    true,
-  );
-  assert.equal(
-    shouldSyncIssueSummary({
-      headRef: "dependabot/npm_and_yarn/frontend/eslint-10.8.1",
-      baseRef: "main",
-      author: "dependabot[bot]",
-    }),
-    false,
-  );
-  assert.equal(
-    shouldSyncIssueSummary({
-      headRef: "feat/api",
-      baseRef: "legacy",
-      author: "pedro",
-    }),
-    false,
   );
 });
 
