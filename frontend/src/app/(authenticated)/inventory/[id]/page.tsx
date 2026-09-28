@@ -1,7 +1,7 @@
 'use client'
 import { useParams, useRouter } from 'next/navigation'
 import { Table } from '@/components/organisms/table'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   addItemsBySheet,
   getInventoryItemsRequest,
@@ -14,14 +14,17 @@ import { InventoryItemsStatus } from '@/components/molecules/inventoryItemsStatu
 import { Item } from '@/commons/models/item'
 import {
   generateItemsSheet,
-  generateQRCodeAllLabelsPdf,
   generateQRCodeLabelsPdf,
   SendEmailSheetRequest,
   sendSheetByEmail,
+  updateItemRequest,
 } from '@/services/item'
 import { toast } from 'react-hot-toast'
 import { SendEmailSheetModal } from '@/components/organisms/sendEmailSheetModal'
 import { ConfirmationModal } from '@/components/organisms/modalConfirmation'
+import { ScannerCard } from '@/components/molecules/scannerCard'
+import { BarcodeQrScannerModal } from '@/components/organisms/barcodeQrScannerModal'
+import { ItemDetailDrawer } from '@/components/organisms/itemDetailDrawer'
 
 export type errorSheet = {
   code: string
@@ -43,6 +46,11 @@ export default function Inventory() {
   const [validationErrors, setValidationErrors] = useState<errorSheet[] | null>(
     null,
   )
+
+  // Estados para controle do Scanner via Câmera e Drawer de Edição de Item
+  const [isScannerOpen, setIsScannerOpen] = useState(false)
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const [scannedItem, setScannedItem] = useState<Item | null>(null)
 
   const fetchItemsByInventory = useCallback(async () => {
     try {
@@ -195,25 +203,6 @@ export default function Inventory() {
     }
   }
 
-  const handleExportAll = async () => {
-    const inventoryId = Number(id)
-
-    try {
-      const pdfBlob = await generateQRCodeAllLabelsPdf(inventoryId)
-
-      const url = window.URL.createObjectURL(pdfBlob)
-      const link = document.createElement('a')
-      link.href = url
-      link.setAttribute('download', 'etiquetas.pdf')
-      document.body.appendChild(link)
-      link.click() // ⬅️ inicia o download
-      link.remove()
-      window.URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error('Erro ao gerar PDF:', error)
-    }
-  }
-
   const handleOpenDeleteItemModal = (item: Item | InventoryResponse) => {
     setItemToDelete(item as Item)
     setIsDeleteItemModalOpen(true)
@@ -241,17 +230,147 @@ export default function Inventory() {
     }
   }
 
+  // Atualiza imediatamente o item modificado na lista local
+  const handleItemUpdated = useCallback((updatedItem: Item) => {
+    setItemData((currentItems) =>
+      currentItems.map((item) =>
+        item.id === updatedItem.id
+          ? { ...item, ...updatedItem, isValid: updatedItem.isValid ?? true }
+          : item,
+      ),
+    )
+  }, [])
+
+  const lastScannedRef = useRef<{ code: string; time: number }>({
+    code: '',
+    time: 0,
+  })
+
+  // Callback acionado quando a câmera lê com sucesso um código de barras ou QR Code
+  const handleScanSuccess = useCallback(
+    async (decodedCode: string) => {
+      const rawCode = decodedCode.replace(/[\r\n\t]/g, '').trim()
+      if (!rawCode) return
+
+      // Debounce de 1.5s para evitar avisos repetidos caso ocorram disparos simultâneos
+      const now = Date.now()
+      if (
+        lastScannedRef.current.code === rawCode &&
+        now - lastScannedRef.current.time < 1500
+      ) {
+        return
+      }
+      lastScannedRef.current = { code: rawCode, time: now }
+
+      const cleanCode = rawCode.toLowerCase()
+      const digitsOnly = cleanCode.replace(/\D/g, '')
+      const strippedZeros = cleanCode.replace(/^0+/, '')
+
+      // 1. Busca flexível do item correspondente na lista do inventário atual
+      const foundItem = itemData.find((item) => {
+        const itemCode = (item.code || '').trim().toLowerCase()
+        const itemId = String(item.id)
+        const itemDigits = itemCode.replace(/\D/g, '')
+        const itemStrippedZeros = itemCode.replace(/^0+/, '')
+        const itemQr = (item.qrCode || item.qr_code || '').trim().toLowerCase()
+
+        // 1.1 Casamento exato por código ou ID
+        if (itemCode === cleanCode || itemId === cleanCode) return true
+
+        // 1.2 Casamento por QR Code UUID
+        if (itemQr && itemQr === cleanCode) return true
+
+        // 1.3 Casamento sem zeros à esquerda (ex: etiqueta com "0052731" e sistema com "52731")
+        if (
+          strippedZeros &&
+          itemStrippedZeros &&
+          strippedZeros === itemStrippedZeros
+        ) {
+          return true
+        }
+
+        // 1.4 Casamento numérico direto (se ambos tiverem dígitos)
+        if (digitsOnly && itemDigits && digitsOnly === itemDigits) return true
+
+        // 1.5 Casamento caso o scanner retorne URL
+        if (
+          cleanCode.endsWith(`/${itemCode}`) ||
+          cleanCode.endsWith(`/${itemId}`)
+        ) {
+          return true
+        }
+
+        return false
+      })
+
+      if (foundItem) {
+        // 2. Muda o status do item instantaneamente para verificado (código verde)
+        const verifiedItem: Item = {
+          ...foundItem,
+          isValid: true,
+        }
+
+        // 3. Atualiza os contadores em tempo real e a lista imediatamente na UI
+        setItemData((currentItems) =>
+          currentItems.map((item) =>
+            item.id === foundItem.id ? { ...item, isValid: true } : item,
+          ),
+        )
+
+        // 4. Persiste o status verificado no backend imediatamente
+        try {
+          const saved = await updateItemRequest({
+            ...verifiedItem,
+            price: verifiedItem.price,
+          })
+          if (saved) {
+            handleItemUpdated(saved)
+          }
+        } catch (err) {
+          console.error('Erro ao persistir status verificado do item:', err)
+          toast.error('Erro ao salvar verificação no servidor.', {
+            id: 'scan-error-toast',
+          })
+        }
+
+        // 5. Abre a Drawer com os dados e trava o campo de carga (somente leitura)
+        setScannedItem(verifiedItem)
+        setIsDrawerOpen(true)
+        toast.success(`Patrimônio "${foundItem.code}" verificado!`, {
+          id: 'scan-success-toast',
+        })
+      } else {
+        toast.error(`O código "${rawCode}" não pertence a este inventário.`, {
+          id: 'scan-error-toast',
+          duration: 4000,
+        })
+      }
+    },
+    [itemData, handleItemUpdated],
+  )
+
   return (
     <div className="w-full max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 flex flex-col gap-6 min-h-screen">
-      {/* Cards de Status e Upload de Planilha: empilhados no mobile/tablet e lado a lado no desktop */}
-      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-center gap-4 w-full">
-        <InventoryItemsStatus content={itemData} />
+      {/* Topo da Página: Três Cards com mesma altura e padrão visual (Design System do Inventarium) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 w-full items-stretch">
+        {/* Card 1: Estatísticas (Contadores dinâmicos + texto de orientação) */}
+        <div className="h-full">
+          <InventoryItemsStatus content={itemData} />
+        </div>
 
-        <FileUploadComponent
-          onFileSelect={handleFileUpload}
-          onValidateFile={handleSpreadsheetValidation}
-          validationErrors={validationErrors}
-        />
+        {/* Card 2: Escaneamento (Código de Barras e QR Code via Câmera) */}
+        <div className="h-full">
+          <ScannerCard onOpenScanner={() => setIsScannerOpen(true)} />
+        </div>
+
+        {/* Card 3: Importação de Planilha (Upload e Drag-and-drop) */}
+        <div className="h-full">
+          <FileUploadComponent
+            onFileSelect={handleFileUpload}
+            onValidateFile={handleSpreadsheetValidation}
+            validationErrors={validationErrors}
+          />
+        </div>
       </div>
 
       {/* Tabela Híbrida (Cards no mobile / Tabela no desktop) */}
@@ -259,6 +378,7 @@ export default function Inventory() {
         <Table
           header={[
             { key: 'code', headerText: 'Código' },
+            { key: 'status', headerText: 'Status' },
             { key: 'description', headerText: 'Descrição' },
             { key: 'responsible', headerText: 'Carga' },
             { key: 'price', headerText: 'Valor' },
@@ -271,7 +391,6 @@ export default function Inventory() {
           onRowDoubleClick={handleRowDoubleClick}
           showExportButtons={true}
           onExportSelected={handleExportSelected}
-          onExportAll={handleExportAll}
           onExportSheet={handleExportSheet}
           onSendEmailSheet={handleOpenEmailModal}
           onDeleteItem={handleOpenDeleteItemModal}
@@ -303,6 +422,26 @@ export default function Inventory() {
           confirmButtonText="Sim, deletar"
         />
       )}
+
+      {/* Modal do Scanner de Câmera Web */}
+      <BarcodeQrScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onScanSuccess={handleScanSuccess}
+      />
+
+      {/* Drawer Lateral de Auditoria e Edição do Item */}
+      <ItemDetailDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        item={scannedItem}
+        onItemUpdated={handleItemUpdated}
+        isResponsibleLocked={true}
+        onScanNext={() => {
+          setIsDrawerOpen(false)
+          setIsScannerOpen(true)
+        }}
+      />
     </div>
   )
 }
