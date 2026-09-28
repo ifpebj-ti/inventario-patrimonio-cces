@@ -71,6 +71,15 @@ Boas praticas para o cliente web:
 - exibir mensagens de erro claras para o usuário, mas sem detalhes internos da API;
 - manter tipos TypeScript alinhados aos contratos esperados do backend.
 
+## SAST no Ambiente de Desenvolvimento
+
+Use ferramentas de análise estática de segurança (SAST) integradas à IDE desde o início do desenvolvimento. Elas ajudam a identificar padrões inseguros antes do pull request, como segredos expostos, injeções, uso inseguro de APIs e falhas de validação.
+
+- habilite extensões ou plugins SAST compatíveis com Java/Spring e TypeScript/React;
+- mantenha as regras atualizadas e corrija alertas confirmados antes de abrir o PR;
+- trate alertas como evidência de revisão, mas não substitua testes, revisão humana, Secretlint, Trivy ou a validação de autorização no backend;
+- não envie código, segredos ou dados de produção para serviços externos sem aprovação da equipe.
+
 ## Banco de Dados
 
 Boas praticas para persistência:
