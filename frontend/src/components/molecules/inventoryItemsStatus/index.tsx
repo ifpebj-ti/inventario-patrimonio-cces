@@ -19,9 +19,9 @@ export const InventoryItemsStatus = ({ content = [] }: ItemsValid) => {
             <h2 className="font-['Linden_Hill',serif] text-xl sm:text-2xl font-bold text-slate-800">
               Estatísticas
             </h2>
-            <p className="text-[11px] text-slate-400">
+            {/* <p className="text-[11px] text-slate-400">
               Progresso da conferência
-            </p>
+            </p> */}
           </div>
         </div>
         <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">
@@ -56,9 +56,9 @@ export const InventoryItemsStatus = ({ content = [] }: ItemsValid) => {
 
       {/* Texto instrutivo atualizado conforme especificação */}
       <div className="text-center pt-3 border-t border-slate-100">
-        <p className="text-slate-500 text-xs sm:text-sm">
+        {/* <p className="text-slate-500 text-xs sm:text-sm">
           Utilize a câmera do seu dispositivo para escanear os itens
-        </p>
+        </p> */}
       </div>
     </div>
   )

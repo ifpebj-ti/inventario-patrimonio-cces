@@ -22,12 +22,12 @@ export const ScannerCard: React.FC<ScannerCardProps> = ({ onOpenScanner }) => {
             <h2 className="font-['Linden_Hill',serif] text-xl sm:text-2xl font-bold text-slate-800">
               Escaneamento
             </h2>
-            <p className="text-[11px] text-slate-400">Auditoria via câmera</p>
+            {/* <p className="text-[11px] text-slate-400">Auditoria via câmera</p> */}
           </div>
         </div>
-        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200/60">
+        {/* <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200/60">
           Câmera Web
-        </span>
+        </span> */}
       </div>
 
       {/* Área Central: Visual representativo com suporte tanto a Código de Barras quanto QR Code */}
@@ -48,15 +48,14 @@ export const ScannerCard: React.FC<ScannerCardProps> = ({ onOpenScanner }) => {
         </div>
 
         <p className="text-slate-500 text-xs max-w-xs leading-relaxed">
-          Aponte para a etiqueta patrimonial para validar o bem instantaneamente
-          e travar a carga.
+          Aponte para a etiqueta patrimonial para validar.
         </p>
       </div>
 
       {/* Botão de Ação Padronizado com o Design System */}
       <div className="flex justify-center pt-3 border-t border-slate-100">
         <Button
-          text="Escanear Código / Câmera"
+          text="Escanear Código"
           variant={3}
           type="button"
           onClick={onOpenScanner}

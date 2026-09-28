@@ -84,9 +84,9 @@ export const FileUploadComponent = ({
             <h2 className="font-['Linden_Hill',serif] text-xl sm:text-2xl font-bold text-slate-800">
               Importação
             </h2>
-            <p className="text-[11px] text-slate-400">
+            {/* <p className="text-[11px] text-slate-400">
               Planilhas .xlsx, .xls ou .csv
-            </p>
+            </p> */}
           </div>
         </div>
         <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
@@ -109,7 +109,7 @@ export const FileUploadComponent = ({
         >
           <TbFileUpload className="w-8 h-8 sm:w-10 sm:h-10 text-slate-400" />
           <p className="text-slate-500 text-xs max-w-xs leading-relaxed">
-            Arraste aqui a planilha ou clique para selecionar do computador
+            Arraste aqui a planilha ou clique para selecionar do computador.
           </p>
         </div>
       ) : (
