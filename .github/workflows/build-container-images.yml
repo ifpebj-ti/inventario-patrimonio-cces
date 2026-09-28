@@ -302,6 +302,59 @@ jobs:
           format: sarif
           output: trivy-backend-image.sarif
 
+      - name: Summarize Trivy findings
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          reports=(trivy-*.sarif)
+          found_report=false
+
+          {
+            echo "## Achados do Trivy"
+            echo ""
+
+            for report in "${reports[@]}"; do
+              if [ ! -f "${report}" ]; then
+                continue
+              fi
+
+              found_report=true
+              finding_count="$(jq '[.runs[]?.results[]?] | length' "${report}")"
+              echo "### ${report} — ${finding_count} achado(s)"
+
+              if [ "${finding_count}" -eq 0 ]; then
+                echo "Nenhum achado com a severidade configurada."
+                echo ""
+                continue
+              fi
+
+              echo '```text'
+              jq -r '
+                [.runs[]?.results[]?]
+                | .[:20]
+                | .[]
+                | [
+                    (.ruleId // "regra-desconhecida"),
+                    (.level // "desconhecido"),
+                    (.message.text // "Sem mensagem"),
+                    ([.locations[]?.physicalLocation.artifactLocation.uri // empty] | first // "sem-localizacao"),
+                    (([.locations[]?.physicalLocation.region.startLine // empty] | first // "") | tostring)
+                  ]
+                | @tsv
+              ' "${report}"
+              echo '```'
+              echo ""
+            done
+
+            if [ "${found_report}" = false ]; then
+              echo "Nenhum relatório SARIF foi produzido nesta execução."
+            else
+              echo "São exibidos no máximo 20 achados por relatório. Consulte o artifact **trivy-reports** ou a aba Security para o resultado completo."
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+
       - name: Upload Trivy report artifacts
         if: always()
         uses: actions/upload-artifact@v7
