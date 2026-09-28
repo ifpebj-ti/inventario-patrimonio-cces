@@ -5,7 +5,6 @@ import { useSidebar } from '@/contexts/SidebarContext'
 import { Breadcrumb } from '@/components/molecules/breadcrumb'
 
 // Componente para o cabeçalho principal da aplicação autenticada
-// Componente para o cabeçalho principal da aplicação autenticada
 export const Header = () => {
   const { toggleMobile } = useSidebar()
 
@@ -27,4 +26,3 @@ export const Header = () => {
     </header>
   )
 }
-

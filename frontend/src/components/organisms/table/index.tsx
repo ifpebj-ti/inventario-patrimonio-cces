@@ -154,7 +154,7 @@ export const Table = ({
               {item.headerText}
             </div>
           ),
-          cell: ({ row }: { row: Row<any> }) => (
+          cell: ({ row }: { row: Row<Item | InventoryResponse> }) => (
             <div
               className="min-w-[200px] max-w-xs truncate text-slate-700"
               title={row.original.description}
@@ -174,7 +174,7 @@ export const Table = ({
               {item.headerText}
             </div>
           ),
-          cell: ({ row }: { row: Row<any> }) => (
+          cell: ({ row }: { row: Row<Item> }) => (
             <div
               className="max-w-[160px] truncate text-slate-700"
               title={row.original.responsible}
@@ -194,7 +194,7 @@ export const Table = ({
               {item.headerText}
             </div>
           ),
-          cell: ({ row }: { row: Row<any> }) => {
+          cell: ({ row }: { row: Row<Item> }) => {
             const val = row.original.price
             const formatted =
               typeof val === 'number'
@@ -221,7 +221,7 @@ export const Table = ({
               {item.headerText}
             </div>
           ),
-          cell: ({ row }: { row: Row<any> }) => (
+          cell: ({ row }: { row: Row<Item> }) => (
             <div
               className="max-w-[140px] truncate text-slate-700"
               title={row.original.locale}
