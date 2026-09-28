@@ -22,7 +22,7 @@ import { Button } from '@/components/atoms/button'
 import { RiPencilFill } from 'react-icons/ri'
 import { FaEnvelope, FaFileExcel, FaTrash } from 'react-icons/fa'
 import { IoIosArrowBack, IoIosArrowForward } from 'react-icons/io'
-import { MdChecklist, MdLibraryBooks } from 'react-icons/md'
+import { MdChecklist } from 'react-icons/md'
 import { Eye, EyeOff } from 'lucide-react'
 import { InventoryResponse } from '@/services/inventory'
 
@@ -62,7 +62,6 @@ export const Table = ({
   onRowDoubleClick,
   showExportButtons = false,
   onExportSelected,
-  onExportAll,
   onExportSheet,
   onSendEmailSheet,
   onDeleteItem,
@@ -418,15 +417,6 @@ export const Table = ({
                   ? 'Exportar etiquetas dos itens selecionados'
                   : 'Selecione ao menos um item para exportar'
               }
-              width="w-auto"
-            />
-            <Button
-              type="button"
-              variant={6}
-              onClick={onExportAll}
-              icon={<MdLibraryBooks />}
-              tooltip="Exportar todas as etiquetas"
-              aria-label="Exportar todas as etiquetas"
               width="w-auto"
             />
             <Button

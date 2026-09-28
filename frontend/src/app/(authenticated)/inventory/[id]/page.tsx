@@ -14,7 +14,6 @@ import { InventoryItemsStatus } from '@/components/molecules/inventoryItemsStatu
 import { Item } from '@/commons/models/item'
 import {
   generateItemsSheet,
-  generateQRCodeAllLabelsPdf,
   generateQRCodeLabelsPdf,
   SendEmailSheetRequest,
   sendSheetByEmail,
@@ -190,25 +189,6 @@ export default function Inventory() {
 
     try {
       const pdfBlob = await generateQRCodeLabelsPdf(selectedItemsId)
-
-      const url = window.URL.createObjectURL(pdfBlob)
-      const link = document.createElement('a')
-      link.href = url
-      link.setAttribute('download', 'etiquetas.pdf')
-      document.body.appendChild(link)
-      link.click() // ⬅️ inicia o download
-      link.remove()
-      window.URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error('Erro ao gerar PDF:', error)
-    }
-  }
-
-  const handleExportAll = async () => {
-    const inventoryId = Number(id)
-
-    try {
-      const pdfBlob = await generateQRCodeAllLabelsPdf(inventoryId)
 
       const url = window.URL.createObjectURL(pdfBlob)
       const link = document.createElement('a')
@@ -411,7 +391,6 @@ export default function Inventory() {
           onRowDoubleClick={handleRowDoubleClick}
           showExportButtons={true}
           onExportSelected={handleExportSelected}
-          onExportAll={handleExportAll}
           onExportSheet={handleExportSheet}
           onSendEmailSheet={handleOpenEmailModal}
           onDeleteItem={handleOpenDeleteItemModal}

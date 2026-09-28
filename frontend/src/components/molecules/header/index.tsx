@@ -18,7 +18,6 @@ export const Header = () => {
         className="md:hidden mr-2 p-2 rounded-xl text-blue-400 hover:bg-blue-50 hover:text-blue-500 transition-all duration-200 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-blue-400 shrink-0"
       >
         <Menu className="w-5 h-5 shrink-0" />
-        <Menu className="w-5 h-5 shrink-0" />
       </button>
 
       {/* Trilha de navegação dinâmica por breadcrumbs e botão de retorno */}
