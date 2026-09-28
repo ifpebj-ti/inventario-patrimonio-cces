@@ -44,6 +44,22 @@ flowchart TD
 | Wiki | Push em `main` com mudança em `docs/wiki` sincroniza a GitHub Wiki. |
 | Fechamento de issues | O GitHub fecha a issue vinculada quando o PR entra em `main`. |
 
+## Execução Sensível ao Escopo da Mudança
+
+Nem toda PR precisa consumir o mesmo tempo de runner. A esteira identifica os arquivos alterados antes de iniciar validações custosas:
+
+| Tipo de alteração | Validações executadas além das regras de processo e segredos |
+| --- | --- |
+| Apenas documentação, template ou arquivos não executáveis | Não executa lint do frontend, testes do backend, Semgrep nem build/scan de imagens. |
+| `frontend/`, manifestos npm ou workflow `Quality` | Executa ESLint do frontend. |
+| `backend/` ou workflow `Quality` | Executa Spotless e testes do backend. |
+| `backend/src/`, `frontend/src/` ou `.github/` | Executa Semgrep. |
+| Frontend, backend, Docker Compose, `.env.example` ou workflow de imagens/segurança | Constrói as imagens afetadas e executa Trivy. |
+
+Independentemente do escopo, a PR continua executando a validação do template, Commitlint e Secretlint. Isso preserva rastreabilidade e evita que uma alteração documental exponha segredos. Jobs condicionais aparecem como *skipped* quando não se aplicam; o GitHub os considera concluídos com sucesso, inclusive quando são checks exigidos no ruleset.
+
+O CodeQL configurado pelo GitHub é independente desses workflows do repositório. Como ele está em configuração padrão da plataforma, seus jobs podem continuar aparecendo em PRs documentais; reduzir esse comportamento exigiria substituir a configuração padrão por um workflow CodeQL customizado, decisão que não faz parte desta etapa.
+
 ## Fluxo de Pull Request e Release
 
 ```mermaid
@@ -78,8 +94,8 @@ Os checks aparecem separadamente na interface do GitHub porque cada job represen
 | `Quality / Commit messages` | Valida o padrão dos commits de PRs humanos. | Sim |
 | `Quality / Backend format and tests` | Executa Spotless como aviso temporário e os testes do backend como gate. | Sim, se os testes falharem |
 | `Quality / Frontend lint` | Executa ESLint; nesta fase é informativo para não bloquear mudanças por dívida de lint existente. | Não |
-| `Security scans / Semgrep SAST baseline` | Executa SAST e registra achados existentes para triagem. | Não, até a linha de base ser tratada |
-| `Security scans / Trivy container and dependency scans` | Faz scan de segredos, dependências e imagens construídas no runner. | Sim para segredos, falha operacional e vulnerabilidades `HIGH`/`CRITICAL` |
+| `Security scans / Semgrep SAST baseline` | Executa SAST e registra achados existentes para triagem quando a mudança alcança código-fonte ou workflows. | Não, até a linha de base ser tratada |
+| `Security scans / Trivy container and dependency scans` | Faz scan de segredos, dependências e imagens construídas no runner quando a mudança afeta fontes de imagem. | Sim para segredos, falha operacional e vulnerabilidades `HIGH`/`CRITICAL` |
 
 ## Relatórios de Segurança: SARIF, Code Scanning e Artifacts
 
@@ -136,3 +152,4 @@ flowchart TD
 | 1.2 | 2026-09-27 | Adoção de `main` como única branch de integração e entrega. |
 | 1.3 | 2026-09-28 | Inclusão de lint, formatação, testes de backend, Semgrep, Trivy, SARIF e Code Scanning na esteira de PR. |
 | 1.4 | 2026-09-28 | Documentação dos gates de PR, da política `HIGH`/`CRITICAL` do Trivy, da reconstrução na release e da consulta de SARIF, Code Scanning e artifacts. |
+| 1.5 | 2026-09-28 | Execução de lint, testes e scans pesados condicionada aos arquivos alterados, preservando checks de processo e segredos em qualquer PR. |
