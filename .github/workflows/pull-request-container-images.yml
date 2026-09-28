@@ -1,4 +1,4 @@
-name: Pull request container images
+name: Security scans
 
 on:
   pull_request:
@@ -9,12 +9,47 @@ permissions:
   contents: read
 
 concurrency:
-  group: pull-request-container-images-${{ github.event.pull_request.number }}
+  group: security-scans-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
+  semgrep:
+    name: Semgrep SAST baseline
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Run Semgrep baseline
+        id: semgrep
+        continue-on-error: true
+        run: >-
+          semgrep scan
+          --config p/default
+          --metrics off
+          --json
+          --output semgrep-report.json
+          backend/src frontend/src .github
+
+      - name: Upload Semgrep report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: semgrep-report
+          path: semgrep-report.json
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Report baseline result
+        if: steps.semgrep.outcome == 'failure'
+        run: |
+          echo "Semgrep encontrou achados. O relatório JSON foi anexado a esta execução."
+          echo "O gate bloqueante será ativado depois da triagem da linha de base."
+
   container-images:
-    name: Container images
+    name: Trivy container and dependency scans
     uses: ./.github/workflows/build-container-images.yml
     with:
       checkout_ref: ${{ github.event.pull_request.head.sha }}
