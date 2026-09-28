@@ -20,7 +20,7 @@ Este mapa serve para saber rapidamente onde cada artefato está. Ele não substi
 | Documento de Visão | [Documento de Visão](./Documento-de-Visão) | Resume problema, objetivo, publico, escopo e limites do produto. |
 | Análise de Concorrência | [Análise de Concorrência](./Análise-de-Concorrência) | Compara o Inventarium com alternativas institucionais e ferramentas de mercado. |
 | Requisitos do sistema | [Requisitos do Sistema](./Requisitos-do-Sistema) | Consolida requisitos funcionais e não funcionais, distinguindo o que está implementado do que é planejado. |
-| Arquitetura | [C4 - Contexto](./C4-Contexto), [C4 - Containers](./C4-Containers), [C4 - Componentes](./C4-Componentes) | Os diagramas mostram atores, containers e componentes principais. |
+| Arquitetura | [C4 - Contexto](./C4-Contexto), [C4 - Containers](./C4-Containers), [C4 - Componentes](./C4-Componentes) e [Diagrama de Classes](./Diagrama-de-Classes) | Os diagramas mostram atores, containers, componentes e o modelo de classes persistido. |
 | Modelagem de dados | [Documento de Modelagem de Dados](./Documento-de-Modelagem-de-Dados) | Registra entidades, relacionamentos, chaves e restrições do schema atual. |
 | Modelo de dados | [Documento de Modelagem de Dados](./Documento-de-Modelagem-de-Dados) | Registra o schema implementado e as evoluções pendentes para organizações, setores, perfis, permissões e histórico de validação. |
 | Decisões técnicas | [Architecture Decision Records](./Architecture-Decision-Records) | Guarda decisões arquiteturais que precisam continuar rastreaveis. |

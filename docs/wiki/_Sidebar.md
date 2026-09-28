@@ -20,4 +20,5 @@
 - [C4 - Contexto](./C4-Contexto)
 - [C4 - Containers](./C4-Containers)
 - [C4 - Componentes](./C4-Componentes)
+- [Diagrama de Classes](./Diagrama-de-Classes)
 
