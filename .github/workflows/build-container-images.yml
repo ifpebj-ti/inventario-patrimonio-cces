@@ -40,10 +40,6 @@ on:
         description: Optional fallback for the frontend Google OAuth client ID.
         required: false
 
-permissions:
-  contents: read
-  packages: write
-
 jobs:
   container-images:
     name: Container images
@@ -58,6 +54,13 @@ jobs:
       - name: Detect image changes
         id: changes
         shell: bash
+        env:
+          FORCE_BUILD_ALL: ${{ inputs.force_build_all }}
+          VERSION_TAG: ${{ inputs.version_tag }}
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
 
@@ -65,21 +68,24 @@ jobs:
           build_backend=false
           changed_files=""
 
-          if [ "${{ inputs.force_build_all }}" = "true" ] || [ -n "${{ inputs.version_tag }}" ]; then
+          if [ "${FORCE_BUILD_ALL}" = "true" ] || [ -n "${VERSION_TAG}" ]; then
             build_frontend=true
             build_backend=true
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          elif [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
             build_frontend=true
             build_backend=true
           else
-            if [ "${{ github.event_name }}" = "pull_request" ]; then
-              git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
-              changed_files="$(git diff --name-only "origin/${{ github.base_ref }}"...HEAD)"
-            elif [ -n "${{ github.event.before }}" ] && ! [[ "${{ github.event.before }}" =~ ^0+$ ]]; then
-              if git cat-file -e "${{ github.event.before }}^{commit}" 2>/dev/null; then
-                changed_files="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")"
+            if [ "${EVENT_NAME}" = "pull_request" ]; then
+              # The change comparison needs the complete history of the base
+              # branch. Fetching only its tip leaves no common ancestor when
+              # the PR branch is behind main.
+              git fetch --no-tags origin "${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+              changed_files="$(git diff --name-only "origin/${BASE_REF}"...HEAD)"
+            elif [ -n "${BEFORE_SHA}" ] && ! [[ "${BEFORE_SHA}" =~ ^0+$ ]]; then
+              if git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
+                changed_files="$(git diff --name-only "${BEFORE_SHA}" "${CURRENT_SHA}")"
               else
-                echo "Previous commit ${{ github.event.before }} is unavailable. Building all images."
+                echo "Previous commit ${BEFORE_SHA} is unavailable. Building all images."
                 build_frontend=true
                 build_backend=true
               fi
@@ -90,11 +96,11 @@ jobs:
             echo "Changed files:"
             echo "${changed_files:-none}"
 
-            if echo "${changed_files}" | grep -Eq '^(frontend/|docker-compose\.yml|\.env\.example|\.github/workflows/(build-container-images|pull-request-container-images)\.yml)'; then
+            if echo "${changed_files}" | grep -Eq '^(frontend/|docker-compose\.yml|\.env\.example|\.github/workflows/(build-container-images|security-scans)\.yml)'; then
               build_frontend=true
             fi
 
-            if echo "${changed_files}" | grep -Eq '^(backend/|docker-compose\.yml|\.env\.example|\.github/workflows/(build-container-images|pull-request-container-images)\.yml)'; then
+            if echo "${changed_files}" | grep -Eq '^(backend/|docker-compose\.yml|\.env\.example|\.github/workflows/(build-container-images|security-scans)\.yml)'; then
               build_backend=true
             fi
           fi
@@ -119,16 +125,21 @@ jobs:
 
       - name: Run Trivy secret scan
         if: steps.changes.outputs.frontend == 'true' || steps.changes.outputs.backend == 'true'
+        id: trivy_secrets
+        continue-on-error: true
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
           scanners: secret
           exit-code: "1"
-          format: table
+          format: sarif
+          output: trivy-secrets.sarif
 
       - name: Run Trivy dependency scan for frontend
         if: steps.changes.outputs.frontend == 'true'
+        id: trivy_frontend_dependencies
+        continue-on-error: true
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
@@ -136,12 +147,17 @@ jobs:
           scanners: vuln
           vuln-type: library
           severity: HIGH,CRITICAL
-          exit-code: "1"
+          # The SARIF is kept complete for audit; the final gate applies the
+          # HIGH/CRITICAL threshold using the severity tags in this report.
+          exit-code: "0"
           ignore-unfixed: false
-          format: table
+          format: sarif
+          output: trivy-frontend-dependencies.sarif
 
       - name: Run Trivy dependency scan for backend
         if: steps.changes.outputs.backend == 'true'
+        id: trivy_backend_dependencies
+        continue-on-error: true
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
@@ -149,9 +165,12 @@ jobs:
           scanners: vuln
           vuln-type: library
           severity: HIGH,CRITICAL
-          exit-code: "1"
+          # The SARIF is kept complete for audit; the final gate applies the
+          # HIGH/CRITICAL threshold using the severity tags in this report.
+          exit-code: "0"
           ignore-unfixed: false
-          format: table
+          format: sarif
+          output: trivy-backend-dependencies.sarif
 
       - name: Set up Docker Buildx
         if: steps.changes.outputs.frontend == 'true' || steps.changes.outputs.backend == 'true'
@@ -161,6 +180,8 @@ jobs:
         if: steps.changes.outputs.frontend == 'true' || steps.changes.outputs.backend == 'true'
         id: meta
         shell: bash
+        env:
+          VERSION_TAG: ${{ inputs.version_tag }}
         run: |
           set -euo pipefail
 
@@ -175,8 +196,8 @@ jobs:
 
             : > "${tags_file}"
 
-            if [ -n "${{ inputs.version_tag }}" ]; then
-              printf "%s\n" "${image}:${{ inputs.version_tag }}" >> "${tags_file}"
+            if [ -n "${VERSION_TAG}" ]; then
+              printf "%s\n" "${image}:${VERSION_TAG}" >> "${tags_file}"
             else
               printf "%s\n" "${local_tag}" >> "${tags_file}"
             fi
@@ -241,6 +262,8 @@ jobs:
 
       - name: Scan frontend image
         if: steps.changes.outputs.frontend == 'true'
+        id: trivy_frontend_image
+        continue-on-error: true
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ steps.meta.outputs.frontend_primary_tag }}
@@ -248,9 +271,12 @@ jobs:
           scanners: vuln
           vuln-type: os,library
           severity: HIGH,CRITICAL
-          exit-code: "1"
+          # The SARIF is kept complete for audit; the final gate applies the
+          # HIGH/CRITICAL threshold using the severity tags in this report.
+          exit-code: "0"
           ignore-unfixed: false
-          format: table
+          format: sarif
+          output: trivy-frontend-image.sarif
 
       - name: Build backend image
         if: steps.changes.outputs.backend == 'true'
@@ -268,6 +294,8 @@ jobs:
 
       - name: Scan backend image
         if: steps.changes.outputs.backend == 'true'
+        id: trivy_backend_image
+        continue-on-error: true
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ steps.meta.outputs.backend_primary_tag }}
@@ -275,9 +303,192 @@ jobs:
           scanners: vuln
           vuln-type: os,library
           severity: HIGH,CRITICAL
-          exit-code: "1"
+          # The SARIF is kept complete for audit; the final gate applies the
+          # HIGH/CRITICAL threshold using the severity tags in this report.
+          exit-code: "0"
           ignore-unfixed: false
-          format: table
+          format: sarif
+          output: trivy-backend-image.sarif
+
+      - name: Summarize Trivy findings
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          reports=(trivy-*.sarif)
+          found_report=false
+
+          {
+            echo "## Achados do Trivy"
+            echo ""
+
+            for report in "${reports[@]}"; do
+              if [ ! -f "${report}" ]; then
+                continue
+              fi
+
+              found_report=true
+              finding_count="$(jq '[.runs[]?.results[]?] | length' "${report}")"
+              echo "### ${report} — ${finding_count} achado(s)"
+
+              if [ "${finding_count}" -eq 0 ]; then
+                echo "Nenhum achado encontrado."
+                echo ""
+                continue
+              fi
+
+              echo "| Regra/CVE | Nível | Mensagem | Localização | Linha |"
+              echo "| --- | --- | --- | --- | --- |"
+              jq -r '
+                def clean: tostring | gsub("[\\r\\n|]"; " ");
+                [.runs[]?.results[]?]
+                | .[:20]
+                | .[]
+                | "| \((.ruleId // "regra-desconhecida") | clean) | \((.level // "desconhecido") | clean) | \((.message.text // "Sem mensagem") | clean) | \(([.locations[]?.physicalLocation.artifactLocation.uri // empty] | first // "sem-localizacao") | clean) | \(([.locations[]?.physicalLocation.region.startLine // empty] | first // "") | clean) |"
+              ' "${report}"
+              echo ""
+            done
+
+            if [ "${found_report}" = false ]; then
+              echo "Nenhum relatório SARIF foi produzido nesta execução."
+            else
+              echo "São exibidos no máximo 20 achados por relatório. Consulte o artifact **trivy-reports** ou a aba Security para o resultado completo."
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload Trivy report artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: trivy-reports
+          path: trivy-*.sarif
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Upload Trivy secret report to Code Scanning
+        if: always() && hashFiles('trivy-secrets.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-secrets.sarif
+          category: trivy-secrets
+
+      - name: Upload Trivy frontend dependency report to Code Scanning
+        if: always() && hashFiles('trivy-frontend-dependencies.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-frontend-dependencies.sarif
+          category: trivy-frontend-dependencies
+
+      - name: Upload Trivy backend dependency report to Code Scanning
+        if: always() && hashFiles('trivy-backend-dependencies.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-backend-dependencies.sarif
+          category: trivy-backend-dependencies
+
+      - name: Upload Trivy frontend image report to Code Scanning
+        if: always() && hashFiles('trivy-frontend-image.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-frontend-image.sarif
+          category: trivy-frontend-image
+
+      - name: Upload Trivy backend image report to Code Scanning
+        if: always() && hashFiles('trivy-backend-image.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-backend-image.sarif
+          category: trivy-backend-image
+
+      - name: Summarize and enforce Trivy results
+        if: always()
+        shell: bash
+        env:
+          TRIVY_SECRETS_OUTCOME: ${{ steps.trivy_secrets.outcome }}
+          TRIVY_FRONTEND_DEPENDENCIES_OUTCOME: ${{ steps.trivy_frontend_dependencies.outcome }}
+          TRIVY_BACKEND_DEPENDENCIES_OUTCOME: ${{ steps.trivy_backend_dependencies.outcome }}
+          TRIVY_FRONTEND_IMAGE_OUTCOME: ${{ steps.trivy_frontend_image.outcome }}
+          TRIVY_BACKEND_IMAGE_OUTCOME: ${{ steps.trivy_backend_image.outcome }}
+        run: |
+          set -euo pipefail
+
+          scans=(
+            "Secrets|${TRIVY_SECRETS_OUTCOME:-skipped}"
+            "Dependências do frontend|${TRIVY_FRONTEND_DEPENDENCIES_OUTCOME:-skipped}"
+            "Dependências do backend|${TRIVY_BACKEND_DEPENDENCIES_OUTCOME:-skipped}"
+            "Imagem do frontend|${TRIVY_FRONTEND_IMAGE_OUTCOME:-skipped}"
+            "Imagem do backend|${TRIVY_BACKEND_IMAGE_OUTCOME:-skipped}"
+          )
+          failed_scans=()
+          blocking_vulnerabilities=()
+
+          {
+            echo "## Resultado do Trivy"
+            echo ""
+            echo "| Scan | Resultado |"
+            echo "| --- | --- |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          for scan in "${scans[@]}"; do
+            name="${scan%%|*}"
+            outcome="${scan#*|}"
+            echo "| ${name} | ${outcome} |" >> "${GITHUB_STEP_SUMMARY}"
+
+            if [ "${outcome}" = "failure" ]; then
+              failed_scans+=("${name}")
+            fi
+          done
+
+          while IFS=$'\t' read -r report rule severity location; do
+            if [ -n "${rule}" ]; then
+              blocking_vulnerabilities+=("${report}|${rule}|${severity}|${location}")
+            fi
+          done < <(
+            for report in trivy-*.sarif; do
+              if [ ! -f "${report}" ]; then
+                continue
+              fi
+
+              jq -r --arg report "${report}" '
+                .runs[]?
+                | (.tool.driver.rules // [] | map({key: .id, value: .}) | from_entries) as $rules
+                | .results[]?
+                | ($rules[.ruleId].properties.tags // []) as $tags
+                | select(($tags | index("HIGH")) or ($tags | index("CRITICAL")))
+                | [
+                    $report,
+                    (.ruleId // "regra-desconhecida"),
+                    ($tags | map(select(. == "HIGH" or . == "CRITICAL")) | join(", ")),
+                    ([.locations[]?.physicalLocation.artifactLocation.uri // empty] | first // "sem-localizacao")
+                  ]
+                | @tsv
+              ' "${report}"
+            done
+          )
+
+          if [ "${#blocking_vulnerabilities[@]}" -gt 0 ]; then
+            failed_scans+=("Vulnerabilidades HIGH/CRITICAL")
+
+            {
+              echo ""
+              echo "### Vulnerabilidades bloqueantes"
+              echo ""
+              echo "| Relatório | Regra/CVE | Severidade | Localização |"
+              echo "| --- | --- | --- | --- |"
+              for finding in "${blocking_vulnerabilities[@]}"; do
+                IFS='|' read -r report rule severity location <<< "${finding}"
+                echo "| ${report} | ${rule} | ${severity} | ${location} |"
+              done
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+          if [ "${#failed_scans[@]}" -gt 0 ]; then
+            formatted_failures="$(IFS=', '; echo "${failed_scans[*]}")"
+            echo "::error title=Trivy bloqueou a execução::Falha nos scans: ${formatted_failures}. Consulte os steps individuais e o artifact trivy-reports."
+            echo "Trivy bloqueou a execução nos scans: ${formatted_failures}."
+            exit 1
+          fi
 
       - name: Log in to GHCR
         if: inputs.publish_images && (steps.changes.outputs.frontend == 'true' || steps.changes.outputs.backend == 'true')
@@ -290,19 +501,23 @@ jobs:
       - name: Push frontend image
         if: inputs.publish_images && steps.changes.outputs.frontend == 'true'
         shell: bash
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.frontend_tags }}
         run: |
           while IFS= read -r tag; do
             if [ -n "${tag}" ]; then
               docker push "${tag}"
             fi
-          done <<< "${{ steps.meta.outputs.frontend_tags }}"
+          done <<< "${IMAGE_TAGS}"
 
       - name: Push backend image
         if: inputs.publish_images && steps.changes.outputs.backend == 'true'
         shell: bash
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.backend_tags }}
         run: |
           while IFS= read -r tag; do
             if [ -n "${tag}" ]; then
               docker push "${tag}"
             fi
-          done <<< "${{ steps.meta.outputs.backend_tags }}"
+          done <<< "${IMAGE_TAGS}"

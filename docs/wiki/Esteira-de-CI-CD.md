@@ -1,6 +1,6 @@
 # Esteira de CI/CD
 
-Está pagina descreve a esteira atual do Inventarium. O repositório usa `main` como única branch de integração e entrega.
+Esta página descreve a esteira atual do Inventarium. O repositório usa `main` como única branch de integração e entrega.
 
 ## Fluxo Atual
 
@@ -9,10 +9,10 @@ flowchart TD
     issue["Issue no GitHub"]
     branch["Branch de trabalho<br/>feat/*, fix/*, docs/*, infra/*, ci/*"]
     pr["PR para main"]
-    quality["Quality<br/>Secretlint + Commitlint"]
+    quality["Quality<br/>Secretlint + ESLint + Spotless + testes + Commitlint"]
     prtemplate["Validate PR Template<br/>issue vinculada + tipo de release"]
-    syncissue["Sync PR with Issue<br/>copia descrição da issue"]
-    images["Pull request container images<br/>build + Trivy sem push"]
+    security["Security scans<br/>Semgrep + Trivy + build sem push"]
+    codeScanning["Security → Code scanning<br/>relatórios SARIF"]
     merge["Merge em main"]
     release["Release<br/>tag + release notes"]
     prodImages["Build production images<br/>GHCR vX.Y.Z"]
@@ -21,11 +21,11 @@ flowchart TD
     issue --> branch --> pr
     pr --> quality
     pr --> prtemplate
-    pr --> syncissue
-    pr --> images
+    pr --> security
     quality --> merge
     prtemplate --> merge
-    images --> merge
+    security --> codeScanning
+    security --> merge
     merge --> release
     merge --> wiki
     release --> prodImages
@@ -35,14 +35,13 @@ flowchart TD
 
 | Parte | Situação atual |
 | --- | --- |
-| Validação de secrets | `Quality` roda Secretlint em pull requests. |
-| Validação de commits | `Quality` roda Commitlint em PRs humanos. |
+| Qualidade da aplicação | `Quality` roda Secretlint, ESLint no frontend, Spotless e testes Gradle/Testcontainers no backend. Commitlint é executado em PRs humanos. |
 | Validação de template | `Validate PR Template` confere issue vinculada e tipo de release. |
-| Sincronizacao PR/issue | `Sync PR with Issue` copia a descrição da issue para PRs humanos. |
-| Build e scan em PR | `Pull request container images` builda e escaneia imagens afetadas sem publicar. |
+| Segurança em PR | `Security scans` executa Semgrep e Trivy. O Trivy verifica secrets, dependências e imagens; as imagens são construídas no runner, sem publicação no GHCR. |
+| Relatórios de segurança | Semgrep e Trivy geram SARIF para Security → Code scanning e artifacts temporários por 14 dias. Semgrep está em baseline até a triagem dos achados. |
 | Release | Merge em `main` cria tag e GitHub Release quando o PR humano não está como `sem release`; Dependabot gera `patch` automaticamente. |
-| Imagens produtivas | Release pública imagens versionadas no GHCR usando somente a tag `vX.Y.Z`. |
-| Wiki | Push em `main` com mudanca em `docs/wiki` sincroniza a GitHub Wiki. |
+| Imagens produtivas | Release publica imagens versionadas no GHCR usando somente a tag `vX.Y.Z`, depois dos scans. |
+| Wiki | Push em `main` com mudança em `docs/wiki` sincroniza a GitHub Wiki. |
 | Fechamento de issues | O GitHub fecha a issue vinculada quando o PR entra em `main`. |
 
 ## Fluxo de Pull Request e Release
@@ -57,7 +56,8 @@ sequenceDiagram
     participant Wiki as GitHub Wiki
 
     Dev->>PR: Abre PR com issue e tipo de release
-    PR->>CI: Roda quality, template, sync e scans
+    PR->>CI: Roda Quality, template e Security scans
+    CI->>CI: Publica SARIF no Code Scanning
     CI-->>PR: Checks aprovados
     PR->>Main: Merge
     Main->>CI: Release quando aplicável
@@ -69,13 +69,13 @@ PRs do Dependabot são dispensados da issue e do template; ao serem mergeados, o
 
 ## Direção Desejada
 
-A esteira ainda não faz deploy automatico de ambiente, rollback operacional completo nem validação funcional ponta a ponta. O desenho abaixo mostra a direção desejada sem dizer que tudo isso ja existe.
+A esteira ainda não faz deploy automático de ambiente, rollback operacional completo nem testes automatizados de frontend. O desenho abaixo mostra a direção desejada sem dizer que tudo isso já existe.
 
 ```mermaid
 flowchart TD
     pr["PR para main"]
-    quality["Quality + testes"]
-    scans["Scans de dependencia, secrets e imagens"]
+    quality["Quality + testes de backend"]
+    scans["Semgrep + Trivy + Code Scanning"]
     merge["Merge em main"]
     release["Release versionada"]
     deployProd["Deploy controlado na VM de produção<br/>futuro"]
@@ -89,15 +89,17 @@ flowchart TD
 | Ponto | Como está hoje |
 | --- | --- |
 | Deploy em VM | As imagens são publicadas no GHCR, mas a atualização da stack ainda depende de operação externa ou manual. |
-| Evidencia de ambiente | Ainda não ha smoke test automatizado contra a URL de produção. |
-| Observabilidade | Logs, métricas, alertas e dashboards ainda não estao fechados como artefato de infraestrutura. |
+| Evidência de ambiente | Ainda não há smoke test automatizado contra a URL de produção. |
+| Testes de frontend | O frontend ainda não possui suíte automatizada; o ESLint é o check atual dessa aplicação. |
+| Observabilidade | Logs, métricas, alertas e dashboards ainda não estão fechados como artefato de infraestrutura. |
 | Rollback operacional | O rollback deve usar a troca para uma tag versionada anterior, mas o procedimento operacional ainda precisa ser consolidado. |
-| Dependabot sem criticos | A evidencia vem da aba Security/Dependabot do GitHub, não apenas dos arquivos versionados. |
+| Vulnerabilidades abertas | A evidência vem das abas Security/Dependabot e Security/Code scanning do GitHub, não apenas dos arquivos versionados. |
 
 ## Histórico
 
 | Versão | Data | Descrição |
 | --- | --- | --- |
-| 1.0 | 2026-09-15 | Criação da pagina da esteira de CI/CD com visão atual e direção futura. |
-| 1.1 | 2026-09-19 | Simplificacao da esteira para publicar imagens somente em releases promovidas para main. |
-| 1.2 | 2026-09-27 | Adocao de `main` como única branch de integração e entrega. |
+| 1.0 | 2026-09-15 | Criação da página da esteira de CI/CD com visão atual e direção futura. |
+| 1.1 | 2026-09-19 | Simplificação da esteira para publicar imagens somente em releases promovidas para main. |
+| 1.2 | 2026-09-27 | Adoção de `main` como única branch de integração e entrega. |
+| 1.3 | 2026-09-28 | Inclusão de lint, formatação, testes de backend, Semgrep, Trivy, SARIF e Code Scanning na esteira de PR. |

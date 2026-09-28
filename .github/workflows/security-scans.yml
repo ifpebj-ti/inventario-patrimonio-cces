@@ -1,0 +1,66 @@
+name: Security scans
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: security-scans-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  semgrep:
+    name: Semgrep SAST baseline
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Run Semgrep baseline
+        id: semgrep
+        continue-on-error: true
+        run: >-
+          semgrep scan
+          --config p/default
+          --metrics off
+          --sarif
+          --output semgrep-report.sarif
+          backend/src frontend/src .github
+
+      - name: Upload Semgrep SARIF to Code Scanning
+        if: always() && hashFiles('semgrep-report.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep-report.sarif
+          category: semgrep
+
+      - name: Upload Semgrep report artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: semgrep-report
+          path: semgrep-report.sarif
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Report baseline result
+        if: steps.semgrep.outcome == 'failure'
+        run: |
+          echo "Semgrep encontrou achados. O relatório SARIF foi anexado a esta execução."
+          echo "O gate bloqueante será ativado depois da triagem da linha de base."
+
+  container-images:
+    name: Trivy container and dependency scans
+    uses: ./.github/workflows/build-container-images.yml
+    with:
+      checkout_ref: ${{ github.event.pull_request.head.sha }}
+      publish_images: false
+      frontend_api_url: ${{ vars.NEXT_PUBLIC_API_URL }}
+      frontend_google_client_id: ${{ vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID || vars.GOOGLE_OAUTH_CLIENT_ID }}

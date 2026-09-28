@@ -64,10 +64,9 @@ Fluxo esperado:
 
 1. Toda issue deve ser aberta pelo template `Tarefa`, registrando contexto, objetivo, escopo e critérios de aceite.
 2. Todo PR humano para `main` deve referenciar exatamente uma issue usando `Closes #número`, `Fixes #número` ou `Resolves #número` e marcar exatamente um tipo de release.
-3. Ao abrir ou editar o PR de trabalho, o workflow `Sync PR with Issue` copia a descrição da issue vinculada para o corpo do PR.
-4. O workflow `Validate PR Template` confere as regras esperadas para cada origem e destino.
-5. Ao fazer merge em `main`, o GitHub fecha automaticamente a issue vinculada ao PR.
-6. O workflow `Release` usa o tipo marcado para criar a tag `vX.Y.Z`, publicar a GitHub Release e acionar a publicação das imagens de produção no GHCR.
+3. O workflow `Validate PR Template` confere as regras esperadas para cada origem e destino.
+4. Ao fazer merge em `main`, o GitHub fecha automaticamente a issue vinculada ao PR.
+5. O workflow `Release` usa o tipo marcado para criar a tag `vX.Y.Z`, publicar a GitHub Release e acionar a publicação das imagens de produção no GHCR.
 
 Tipos de release no pull request:
 
@@ -92,6 +91,34 @@ Depois de instalar as dependências da raiz com `npm install`, o Husky configura
 
 - `pre-commit`: roda `lint-staged` e Secretlint nos arquivos staged.
 - `commit-msg`: valida a mensagem do commit com Commitlint.
+
+## Validações locais e CI
+
+Antes de abrir ou atualizar um pull request, execute os checks aplicáveis à alteração:
+
+```bash
+npm run secretlint
+npm run lint:web
+npm run test:github
+```
+
+Para o backend, execute a formatação e os testes com Java 21. No Windows:
+
+```powershell
+cd backend
+.\gradlew.bat spotlessCheck
+.\gradlew.bat test
+```
+
+Em Linux ou macOS:
+
+```bash
+cd backend
+./gradlew spotlessCheck
+./gradlew test
+```
+
+No pull request para `main`, o workflow `Quality` repete essas validações. O workflow `Security scans` executa Semgrep e Trivy, publica relatórios SARIF em Security → Code scanning e bloqueia o merge quando o Trivy encontra vulnerabilidades configuradas como bloqueantes. O Semgrep permanece em baseline até a triagem inicial dos alertas.
 
 ## Segredos
 
