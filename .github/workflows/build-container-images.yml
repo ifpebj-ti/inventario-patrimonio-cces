@@ -147,7 +147,9 @@ jobs:
           scanners: vuln
           vuln-type: library
           severity: HIGH,CRITICAL
-          exit-code: "1"
+          # The SARIF is kept complete for audit; the final gate applies the
+          # HIGH/CRITICAL threshold using the severity tags in this report.
+          exit-code: "0"
           ignore-unfixed: false
           format: sarif
           output: trivy-frontend-dependencies.sarif
@@ -163,7 +165,9 @@ jobs:
           scanners: vuln
           vuln-type: library
           severity: HIGH,CRITICAL
-          exit-code: "1"
+          # The SARIF is kept complete for audit; the final gate applies the
+          # HIGH/CRITICAL threshold using the severity tags in this report.
+          exit-code: "0"
           ignore-unfixed: false
           format: sarif
           output: trivy-backend-dependencies.sarif
@@ -267,7 +271,9 @@ jobs:
           scanners: vuln
           vuln-type: os,library
           severity: HIGH,CRITICAL
-          exit-code: "1"
+          # The SARIF is kept complete for audit; the final gate applies the
+          # HIGH/CRITICAL threshold using the severity tags in this report.
+          exit-code: "0"
           ignore-unfixed: false
           format: sarif
           output: trivy-frontend-image.sarif
@@ -297,7 +303,9 @@ jobs:
           scanners: vuln
           vuln-type: os,library
           severity: HIGH,CRITICAL
-          exit-code: "1"
+          # The SARIF is kept complete for audit; the final gate applies the
+          # HIGH/CRITICAL threshold using the severity tags in this report.
+          exit-code: "0"
           ignore-unfixed: false
           format: sarif
           output: trivy-backend-image.sarif
@@ -325,7 +333,7 @@ jobs:
               echo "### ${report} — ${finding_count} achado(s)"
 
               if [ "${finding_count}" -eq 0 ]; then
-                echo "Nenhum achado com a severidade configurada."
+                echo "Nenhum achado encontrado."
                 echo ""
                 continue
               fi
@@ -413,6 +421,7 @@ jobs:
             "Imagem do backend|${TRIVY_BACKEND_IMAGE_OUTCOME:-skipped}"
           )
           failed_scans=()
+          blocking_vulnerabilities=()
 
           {
             echo "## Resultado do Trivy"
@@ -430,6 +439,49 @@ jobs:
               failed_scans+=("${name}")
             fi
           done
+
+          while IFS=$'\t' read -r report rule severity location; do
+            if [ -n "${rule}" ]; then
+              blocking_vulnerabilities+=("${report}|${rule}|${severity}|${location}")
+            fi
+          done < <(
+            for report in trivy-*.sarif; do
+              if [ ! -f "${report}" ]; then
+                continue
+              fi
+
+              jq -r --arg report "${report}" '
+                .runs[]?
+                | (.tool.driver.rules // [] | map({key: .id, value: .}) | from_entries) as $rules
+                | .results[]?
+                | ($rules[.ruleId].properties.tags // []) as $tags
+                | select(($tags | index("HIGH")) or ($tags | index("CRITICAL")))
+                | [
+                    $report,
+                    (.ruleId // "regra-desconhecida"),
+                    ($tags | map(select(. == "HIGH" or . == "CRITICAL")) | join(", ")),
+                    ([.locations[]?.physicalLocation.artifactLocation.uri // empty] | first // "sem-localizacao")
+                  ]
+                | @tsv
+              ' "${report}"
+            done
+          )
+
+          if [ "${#blocking_vulnerabilities[@]}" -gt 0 ]; then
+            failed_scans+=("Vulnerabilidades HIGH/CRITICAL")
+
+            {
+              echo ""
+              echo "### Vulnerabilidades bloqueantes"
+              echo ""
+              echo "| Relatório | Regra/CVE | Severidade | Localização |"
+              echo "| --- | --- | --- | --- |"
+              for finding in "${blocking_vulnerabilities[@]}"; do
+                IFS='|' read -r report rule severity location <<< "${finding}"
+                echo "| ${report} | ${rule} | ${severity} | ${location} |"
+              done
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi
 
           if [ "${#failed_scans[@]}" -gt 0 ]; then
             formatted_failures="$(IFS=', '; echo "${failed_scans[*]}")"
