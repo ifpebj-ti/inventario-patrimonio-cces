@@ -7,7 +7,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface PermissionRepository extends JpaRepository<Permission, Long> {
 
-    boolean existsByName(String name);
+  boolean existsByName(String name);
 
-    boolean existsByNameAndIdNot(String name, long id);
+  boolean existsByNameAndIdNot(String name, long id);
 }

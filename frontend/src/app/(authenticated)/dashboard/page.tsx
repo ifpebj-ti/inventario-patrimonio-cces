@@ -6,7 +6,6 @@ import {
   deleteInventoryRequest,
   InventoryResponse,
   updateInventoryRequest,
-  UpdateInventory,
 } from '@/services/inventory'
 import { Button } from '@/components/atoms/button'
 import { useRouter } from 'next/navigation'

@@ -1,6 +1,3 @@
 package clp.inventory.dto;
 
-public record GoogleAuthDto(
-        String credential
-) {
-}
+public record GoogleAuthDto(String credential) {}

@@ -8,8 +8,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
 @EnableAsync
 public class InventoryApplication {
 
-    public static void main(String[] args) {
-        SpringApplication.run(InventoryApplication.class, args);
-    }
-
+  public static void main(String[] args) {
+    SpringApplication.run(InventoryApplication.class, args);
+  }
 }

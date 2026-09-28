@@ -1,4 +1,3 @@
 package clp.inventory.dto;
 
-public record AssignSectorDto(Long sectorId) {
-}
+public record AssignSectorDto(Long sectorId) {}

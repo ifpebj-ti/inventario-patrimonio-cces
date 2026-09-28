@@ -8,14 +8,14 @@ import org.springframework.stereotype.Component;
 @Component
 public class AuthenticationUtils {
 
-    @Value("${security.token.secret}")
-    private String secretKey;
+  @Value("${security.token.secret}")
+  private String secretKey;
 
-    public AuthenticationUtils() {}
+  public AuthenticationUtils() {}
 
-    public String getUserIdFromToken(String token) {
-        token = token.replace("Bearer ", "");
-        Algorithm algorithm = Algorithm.HMAC256(secretKey);
-        return JWT.require(algorithm).withIssuer("inventory").build().verify(token).getSubject();
-    }
+  public String getUserIdFromToken(String token) {
+    token = token.replace("Bearer ", "");
+    Algorithm algorithm = Algorithm.HMAC256(secretKey);
+    return JWT.require(algorithm).withIssuer("inventory").build().verify(token).getSubject();
+  }
 }

@@ -1,4 +1,3 @@
 package clp.inventory.dto;
 
-public record AssignProfileDto(Long profileId) {
-}
+public record AssignProfileDto(Long profileId) {}

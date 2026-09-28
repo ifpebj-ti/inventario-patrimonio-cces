@@ -13,7 +13,7 @@
   },
   "lint-staged": {
     "frontend/**/*.{js,jsx,ts,tsx}": [
-      "cd frontend && eslint"
+      "npm --prefix frontend run lint --"
     ],
     "*": [
       "secretlint --secretlintrc .secretlintrc.json --maskSecrets"
