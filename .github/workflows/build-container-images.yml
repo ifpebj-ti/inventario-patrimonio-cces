@@ -343,16 +343,50 @@ jobs:
           sarif_file: trivy-backend-image.sarif
           category: trivy-backend-image
 
-      - name: Fail when Trivy detects security issues
-        if: >-
-          steps.trivy_secrets.outcome == 'failure' ||
-          steps.trivy_frontend_dependencies.outcome == 'failure' ||
-          steps.trivy_backend_dependencies.outcome == 'failure' ||
-          steps.trivy_frontend_image.outcome == 'failure' ||
-          steps.trivy_backend_image.outcome == 'failure'
+      - name: Summarize and enforce Trivy results
+        if: always()
+        shell: bash
+        env:
+          TRIVY_SECRETS_OUTCOME: ${{ steps.trivy_secrets.outcome }}
+          TRIVY_FRONTEND_DEPENDENCIES_OUTCOME: ${{ steps.trivy_frontend_dependencies.outcome }}
+          TRIVY_BACKEND_DEPENDENCIES_OUTCOME: ${{ steps.trivy_backend_dependencies.outcome }}
+          TRIVY_FRONTEND_IMAGE_OUTCOME: ${{ steps.trivy_frontend_image.outcome }}
+          TRIVY_BACKEND_IMAGE_OUTCOME: ${{ steps.trivy_backend_image.outcome }}
         run: |
-          echo "Trivy encontrou vulnerabilidades ou não concluiu um dos scans."
-          exit 1
+          set -euo pipefail
+
+          scans=(
+            "Secrets|${TRIVY_SECRETS_OUTCOME:-skipped}"
+            "Dependências do frontend|${TRIVY_FRONTEND_DEPENDENCIES_OUTCOME:-skipped}"
+            "Dependências do backend|${TRIVY_BACKEND_DEPENDENCIES_OUTCOME:-skipped}"
+            "Imagem do frontend|${TRIVY_FRONTEND_IMAGE_OUTCOME:-skipped}"
+            "Imagem do backend|${TRIVY_BACKEND_IMAGE_OUTCOME:-skipped}"
+          )
+          failed_scans=()
+
+          {
+            echo "## Resultado do Trivy"
+            echo ""
+            echo "| Scan | Resultado |"
+            echo "| --- | --- |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          for scan in "${scans[@]}"; do
+            name="${scan%%|*}"
+            outcome="${scan#*|}"
+            echo "| ${name} | ${outcome} |" >> "${GITHUB_STEP_SUMMARY}"
+
+            if [ "${outcome}" = "failure" ]; then
+              failed_scans+=("${name}")
+            fi
+          done
+
+          if [ "${#failed_scans[@]}" -gt 0 ]; then
+            formatted_failures="$(IFS=', '; echo "${failed_scans[*]}")"
+            echo "::error title=Trivy bloqueou a execução::Falha nos scans: ${formatted_failures}. Consulte os steps individuais e o artifact trivy-reports."
+            echo "Trivy bloqueou a execução nos scans: ${formatted_failures}."
+            exit 1
+          fi
 
       - name: Log in to GHCR
         if: inputs.publish_images && (steps.changes.outputs.frontend == 'true' || steps.changes.outputs.backend == 'true')
