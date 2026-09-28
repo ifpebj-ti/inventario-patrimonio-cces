@@ -58,6 +58,13 @@ jobs:
       - name: Detect image changes
         id: changes
         shell: bash
+        env:
+          FORCE_BUILD_ALL: ${{ inputs.force_build_all }}
+          VERSION_TAG: ${{ inputs.version_tag }}
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
 
@@ -65,21 +72,21 @@ jobs:
           build_backend=false
           changed_files=""
 
-          if [ "${{ inputs.force_build_all }}" = "true" ] || [ -n "${{ inputs.version_tag }}" ]; then
+          if [ "${FORCE_BUILD_ALL}" = "true" ] || [ -n "${VERSION_TAG}" ]; then
             build_frontend=true
             build_backend=true
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          elif [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
             build_frontend=true
             build_backend=true
           else
-            if [ "${{ github.event_name }}" = "pull_request" ]; then
-              git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
-              changed_files="$(git diff --name-only "origin/${{ github.base_ref }}"...HEAD)"
-            elif [ -n "${{ github.event.before }}" ] && ! [[ "${{ github.event.before }}" =~ ^0+$ ]]; then
-              if git cat-file -e "${{ github.event.before }}^{commit}" 2>/dev/null; then
-                changed_files="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")"
+            if [ "${EVENT_NAME}" = "pull_request" ]; then
+              git fetch --no-tags --depth=1 origin "${BASE_REF}"
+              changed_files="$(git diff --name-only "origin/${BASE_REF}"...HEAD)"
+            elif [ -n "${BEFORE_SHA}" ] && ! [[ "${BEFORE_SHA}" =~ ^0+$ ]]; then
+              if git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
+                changed_files="$(git diff --name-only "${BEFORE_SHA}" "${CURRENT_SHA}")"
               else
-                echo "Previous commit ${{ github.event.before }} is unavailable. Building all images."
+                echo "Previous commit ${BEFORE_SHA} is unavailable. Building all images."
                 build_frontend=true
                 build_backend=true
               fi
@@ -161,6 +168,8 @@ jobs:
         if: steps.changes.outputs.frontend == 'true' || steps.changes.outputs.backend == 'true'
         id: meta
         shell: bash
+        env:
+          VERSION_TAG: ${{ inputs.version_tag }}
         run: |
           set -euo pipefail
 
@@ -175,8 +184,8 @@ jobs:
 
             : > "${tags_file}"
 
-            if [ -n "${{ inputs.version_tag }}" ]; then
-              printf "%s\n" "${image}:${{ inputs.version_tag }}" >> "${tags_file}"
+            if [ -n "${VERSION_TAG}" ]; then
+              printf "%s\n" "${image}:${VERSION_TAG}" >> "${tags_file}"
             else
               printf "%s\n" "${local_tag}" >> "${tags_file}"
             fi
@@ -290,19 +299,23 @@ jobs:
       - name: Push frontend image
         if: inputs.publish_images && steps.changes.outputs.frontend == 'true'
         shell: bash
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.frontend_tags }}
         run: |
           while IFS= read -r tag; do
             if [ -n "${tag}" ]; then
               docker push "${tag}"
             fi
-          done <<< "${{ steps.meta.outputs.frontend_tags }}"
+          done <<< "${IMAGE_TAGS}"
 
       - name: Push backend image
         if: inputs.publish_images && steps.changes.outputs.backend == 'true'
         shell: bash
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.backend_tags }}
         run: |
           while IFS= read -r tag; do
             if [ -n "${tag}" ]; then
               docker push "${tag}"
             fi
-          done <<< "${{ steps.meta.outputs.backend_tags }}"
+          done <<< "${IMAGE_TAGS}"
