@@ -237,7 +237,7 @@ O workflow `Quality` valida:
 - testes existentes do backend com Gradle e Testcontainers;
 - mensagens de commit em pull requests humanos com Commitlint.
 
-O workflow `Security scans` executa Semgrep e Trivy antes do merge. O Semgrep e o Trivy geram relatórios SARIF enviados para a aba Security → Code scanning e mantêm artifacts temporários na execução. Durante o pull request, as imagens são apenas construídas e escaneadas; o push para o GHCR só ocorre no workflow `Release`, após o merge em `main` e a criação de uma tag de release.
+O workflow `Security scans` executa Semgrep e Trivy antes do merge. O Semgrep e o Trivy geram relatórios SARIF enviados para a aba Security → Code scanning e mantêm artifacts temporários na execução. Durante o pull request, as imagens são apenas construídas e escaneadas em `linux/amd64`; o push para o GHCR só ocorre no workflow `Release`, após o merge em `main`, o gate de segurança e a criação de uma tag de release. A publicação gera uma única tag multi-arquitetura para `linux/amd64` e `linux/arm64`.
 
 Consulte os detalhes, os checks exigidos e os pontos ainda manuais em [Esteira de CI/CD](docs/wiki/Esteira-de-CI-CD.md).
 
@@ -255,7 +255,7 @@ As decisões arquiteturais relevantes são registradas como ADRs em:
 docs/architecture/adr
 ```
 
-Tags e GitHub Releases seguem o formato `vMAJOR.MINOR.PATCH` e são preparadas pelo workflow `Release`, com base no tipo marcado no pull request. As imagens de produção publicadas no GHCR usam a mesma tag da release.
+Tags e GitHub Releases seguem o formato `vMAJOR.MINOR.PATCH` e são preparadas pelo workflow `Release`, com base no tipo marcado no pull request. O [CHANGELOG.md](CHANGELOG.md) é atualizado manualmente na própria PR antes do merge, para que sua entrada possa ser revisada junto da entrega. As imagens de produção publicadas no GHCR usam a mesma tag da release e atendem hosts `amd64` e `arm64`.
 
 ## Apresentação
 

@@ -14,8 +14,57 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Determine security scan scope
+    runs-on: ubuntu-latest
+    outputs:
+      semgrep: ${{ steps.scope.outputs.semgrep }}
+      images: ${{ steps.scope.outputs.images }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Detect security-relevant changes
+        id: scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          changed_files="$(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}")"
+          semgrep=false
+          images=false
+
+          if echo "${changed_files}" | grep -Eq '^(backend/src/|frontend/src/|\.github/)'; then
+            semgrep=true
+          fi
+
+          if echo "${changed_files}" | grep -Eq '^(frontend/|backend/|docker-compose\.yml|\.env\.example|\.github/workflows/(build-container-images|security-scans)\.yml)'; then
+            images=true
+          fi
+
+          {
+            echo "semgrep=${semgrep}"
+            echo "images=${images}"
+          } >> "${GITHUB_OUTPUT}"
+
+          {
+            echo "## Escopo dos scans de segurança"
+            echo ""
+            echo "| Scan | Executar |"
+            echo "| --- | --- |"
+            echo "| Semgrep | ${semgrep} |"
+            echo "| Trivy e imagens | ${images} |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
   semgrep:
     name: Semgrep SAST baseline
+    needs: changes
+    if: needs.changes.outputs.semgrep == 'true'
     runs-on: ubuntu-latest
     container:
       image: semgrep/semgrep
@@ -58,6 +107,8 @@ jobs:
 
   container-images:
     name: Trivy container and dependency scans
+    needs: changes
+    if: needs.changes.outputs.images == 'true'
     uses: ./.github/workflows/build-container-images.yml
     with:
       checkout_ref: ${{ github.event.pull_request.head.sha }}

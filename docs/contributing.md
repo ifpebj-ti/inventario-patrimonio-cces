@@ -75,7 +75,7 @@ Tipos de release no pull request:
 - `major`: mudanças incompativeis, incrementando `MAJOR`.
 - `sem release`: não cria tag nem GitHub Release. Use em mudanças de documentação, CI ou manutenção sem entrega publicavel.
 
-O versionamento da entrega fica nas tags Git e nas GitHub Releases. O workflow não altera `package.json`, `package-lock.json` nem arquivos de changelog durante a release.
+O versionamento da entrega fica nas tags Git, nas GitHub Releases e no `CHANGELOG.md`. O workflow não altera `package.json`, `package-lock.json` nem o changelog; a pessoa autora deve atualizar a entrada correspondente na própria PR antes do merge.
 
 No fluxo atual, a release e do monorepo inteiro. Nao existem releases separadas para backend e frontend.
 
@@ -118,7 +118,9 @@ cd backend
 ./gradlew test
 ```
 
-No pull request para `main`, o workflow `Quality` repete essas validações. O workflow `Security scans` executa Semgrep e Trivy, publica relatórios SARIF em Security → Code scanning e bloqueia o merge quando o Trivy encontra vulnerabilidades configuradas como bloqueantes. O Semgrep permanece em baseline até a triagem inicial dos alertas.
+No pull request para `main`, o workflow `Quality` repete essas validações. O workflow `Security scans` executa Semgrep e Trivy, publica relatórios SARIF em Security → Code scanning e bloqueia o merge quando o Trivy encontra segredos, falha operacional ou vulnerabilidades `HIGH`/`CRITICAL`. Achados `LOW` e `MEDIUM` continuam no relatório para triagem, mas não bloqueiam nesta política. O Semgrep permanece em baseline até a triagem inicial dos alertas.
+
+Para investigar um scan, abra **Actions → Security scans → execução do PR**. O resumo do job do Trivy traz uma tabela de achados; os arquivos brutos ficam nos artifacts `trivy-reports` e `semgrep-report` por 14 dias. Esses artifacts são evidências de execução e não devem ser commitados ao repositório.
 
 ## Segredos
 
