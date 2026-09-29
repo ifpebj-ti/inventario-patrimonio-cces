@@ -75,7 +75,7 @@ Tipos de release no pull request:
 - `major`: mudanças incompativeis, incrementando `MAJOR`.
 - `sem release`: não cria tag nem GitHub Release. Use em mudanças de documentação, CI ou manutenção sem entrega publicavel.
 
-O versionamento da entrega fica nas tags Git e nas GitHub Releases. O workflow não altera `package.json`, `package-lock.json` nem arquivos de changelog durante a release.
+O versionamento da entrega fica nas tags Git, nas GitHub Releases e no `CHANGELOG.md`. O workflow não altera `package.json`, `package-lock.json` nem o changelog; a pessoa autora deve atualizar a entrada correspondente na própria PR antes do merge.
 
 No fluxo atual, a release e do monorepo inteiro. Nao existem releases separadas para backend e frontend.
 

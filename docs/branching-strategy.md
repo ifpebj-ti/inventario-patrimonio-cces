@@ -38,7 +38,7 @@ O workflow `Release` roda depois de todo PR mergeado em `main`.
 - `major`: mudanca incompativel.
 - `sem release`: merge sem tag e sem GitHub Release.
 
-O workflow cria a tag `vMAJOR.MINOR.PATCH`, reconstrói as duas imagens a partir dessa tag, executa os scans de segurança novamente e publica a GitHub Release e as imagens produtivas no GHCR quando houver release. As notas usam a seção `## O que foi feito` do PR. O versionamento é único para todo o monorepo; frontend e backend recebem a mesma versão em imagens separadas.
+Antes do merge, a pessoa autora atualiza manualmente o `CHANGELOG.md` na branch da PR, de acordo com o tipo de release e a seção `## O que foi feito`. Depois do merge, o workflow cria a tag `vMAJOR.MINOR.PATCH`, reconstrói as duas imagens a partir dessa tag, executa os scans de segurança novamente e publica a GitHub Release e as imagens produtivas no GHCR. O versionamento é único para todo o monorepo; frontend e backend recebem a mesma versão em imagens separadas.
 
 As imagens construídas durante a PR são descartáveis e servem somente para validação. Elas não são promovidas para produção, pois a imagem publicada deve corresponder exatamente ao commit que recebeu a tag de release em `main`.
 
@@ -62,7 +62,7 @@ As imagens são publicadas no GitHub Container Registry como pacotes separados:
 - `ghcr.io/<owner>/inventarium-front:vX.Y.Z`
 - `ghcr.io/<owner>/inventarium-back:vX.Y.Z`
 
-O workflow reutilizável `Build container images` executa scans de secrets, dependências e imagens, faz o build e só publica no GHCR se todos os scans passarem. Em pull requests, `Security scans` chama esse workflow com publicação desabilitada: as imagens são construídas apenas no runner para validação. Para deploy e rollback, use sempre tags imutáveis de release.
+O workflow reutilizável `Build container images` executa scans de secrets, dependências e imagens, faz o build e só publica no GHCR se todos os scans passarem. Em pull requests, `Security scans` chama esse workflow com publicação desabilitada: uma imagem `linux/amd64` é construída apenas no runner para validação. Na release, depois do gate, o Buildx reconstrói e publica um manifesto único com `linux/amd64` e `linux/arm64`; o Docker seleciona automaticamente a variante compatível com a arquitetura do host. Para deploy e rollback, use sempre tags imutáveis de release.
 
 Configure `NEXT_PUBLIC_API_URL` e `NEXT_PUBLIC_GOOGLE_CLIENT_ID` ou `GOOGLE_OAUTH_CLIENT_ID` como variáveis de repositório. O workflow aceita os equivalentes em GitHub Secrets quando necessário.
 

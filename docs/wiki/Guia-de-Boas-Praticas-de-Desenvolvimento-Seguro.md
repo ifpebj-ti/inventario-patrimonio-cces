@@ -205,7 +205,7 @@ Uma release normal acontece quando um PR humano entra em `main`:
 3. Descrever a entrega na seção `## O que foi feito`.
 4. Fazer merge apos checks e revisão.
 
-Quando o PR entra em `main`, o workflow `Release` prepara a tag `vMAJOR.MINOR.PATCH`, pública a GitHub Release e aciona a publicação das imagens produtivas no GHCR, quando o PR não está marcado como `sem release`.
+Antes do merge, a pessoa autora atualiza o `CHANGELOG.md` na própria PR. Quando o PR entra em `main`, o workflow `Release` prepara a tag `vMAJOR.MINOR.PATCH`, publica a GitHub Release e aciona a publicação das imagens produtivas multi-arquitetura (`amd64` e `arm64`) no GHCR, quando o PR não está marcado como `sem release`.
 
 O versionamento atual e do monorepo inteiro. Nao existem releases separadas para backend e frontend.
 

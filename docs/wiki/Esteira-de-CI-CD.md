@@ -39,8 +39,9 @@ flowchart TD
 | Validação de template | `Validate PR Template` confere issue vinculada e tipo de release. |
 | Segurança em PR | `Security scans` executa Semgrep e Trivy. O Trivy verifica secrets, dependências e imagens; as imagens são construídas no runner, sem publicação no GHCR. |
 | Relatórios de segurança | Semgrep e Trivy geram SARIF para Security → Code scanning, uma tabela no resumo do job e artifacts temporários por 14 dias. Semgrep está em baseline até a triagem dos achados. |
+| Changelog | A pessoa autora atualiza o `CHANGELOG.md` manualmente na PR antes do merge; a entrada é revisada junto com a entrega. |
 | Release | Merge em `main` cria tag e GitHub Release quando o PR humano não está como `sem release`; Dependabot gera `patch` automaticamente. |
-| Imagens produtivas | A release reconstrói as imagens a partir da tag `vX.Y.Z`, executa os scans novamente e só então publica no GHCR. A imagem transitória da PR nunca é promovida. |
+| Imagens produtivas | A release reconstrói as imagens a partir da tag `vX.Y.Z`, executa os scans novamente e só então publica no GHCR um manifesto para `linux/amd64` e `linux/arm64`. A imagem transitória da PR nunca é promovida. |
 | Wiki | Push em `main` com mudança em `docs/wiki` sincroniza a GitHub Wiki. |
 | Fechamento de issues | O GitHub fecha a issue vinculada quando o PR entra em `main`. |
 
@@ -77,7 +78,7 @@ sequenceDiagram
     CI-->>PR: Checks aprovados
     PR->>Main: Merge
     Main->>CI: Release quando aplicável
-    CI->>GHCR: Publica imagens vX.Y.Z
+    CI->>GHCR: Publica manifestos vX.Y.Z (amd64 e arm64)
     CI->>Wiki: Sincroniza docs/wiki quando houver mudanca
 ```
 
@@ -114,6 +115,14 @@ Cada execução disponibiliza a mesma evidência em três camadas:
 O Trivy mantém no SARIF todos os achados para auditoria, inclusive `LOW` e `MEDIUM`. O gate final lê as tags de severidade desse mesmo SARIF: apenas `HIGH` e `CRITICAL` impedem o merge. Assim, uma vulnerabilidade média ou baixa continua visível e rastreável, mas não interrompe a entrega; falhas de execução do scanner e segredos detectados continuam bloqueantes.
 
 Relatórios brutos não devem ser commitados a cada execução. Eles são dados transitórios, podem crescer rapidamente e podem revelar detalhes de dependências ou caminhos internos. A evidência operacional fica nos artifacts e no Code Scanning; uma retenção versionada separada só deve ser criada se houver exigência formal de auditoria.
+
+## Changelog e Imagens Multi-Arquitetura
+
+O `CHANGELOG.md` é um registro versionado e revisável das entregas. Em PRs com `patch`, `minor` ou `major`, a pessoa autora deve incluir ou atualizar manualmente a seção da versão planejada, usando o tipo de release e o resumo de `## O que foi feito`. Caso o tipo mude, a entrada também deve ser ajustada na mesma PR antes do merge.
+
+Foi avaliada a atualização automática do changelog pela Action. Ela não foi adotada nesta fase porque o `GITHUB_TOKEN` pode criar o commit, mas não dispara novamente os checks obrigatórios no novo SHA; já o uso de PAT ou GitHub App depende de permissões indisponíveis na organização. Manter a alteração na PR preserva os gates de qualidade e segurança, não exige bypass na `main` e permite revisão humana do texto da release.
+
+O runner da PR constrói uma imagem descartável `linux/amd64`, suficiente para o Trivy validar o conteúdo antes do merge. Depois da aprovação e apenas na release, o Docker Buildx, com emulação QEMU, reconstrói as imagens e publica uma lista de manifestos com as variantes `linux/amd64` e `linux/arm64` sob a mesma tag `vX.Y.Z`. Portanto, um `docker compose pull` em uma VM x86_64 baixa a variante `amd64`, enquanto uma VM ARM64 baixa a variante `arm64`, sem alterar as variáveis `BACKEND_IMAGE` e `FRONTEND_IMAGE`.
 
 ## Direção Desejada
 
@@ -153,3 +162,4 @@ flowchart TD
 | 1.3 | 2026-09-28 | Inclusão de lint, formatação, testes de backend, Semgrep, Trivy, SARIF e Code Scanning na esteira de PR. |
 | 1.4 | 2026-09-28 | Documentação dos gates de PR, da política `HIGH`/`CRITICAL` do Trivy, da reconstrução na release e da consulta de SARIF, Code Scanning e artifacts. |
 | 1.5 | 2026-09-28 | Execução de lint, testes e scans pesados condicionada aos arquivos alterados, preservando checks de processo e segredos em qualquer PR. |
+| 1.6 | 2026-09-28 | Inclusão do changelog versionado e publicação de imagens GHCR multi-arquitetura (`amd64` e `arm64`). |

@@ -77,6 +77,8 @@ A pipeline pública imagens no GitHub Container Registry, mas não injeta secret
 - backend: `SECURITY_TOKEN_SECRET`, credenciais do banco, credenciais de e-mail e configuracoes Spring são variáveis de runtime e devem ficar na stack, no Compose, no Portainer ou no mecanismo de secrets da VM;
 - uma troca de imagem não deve exigir redigitar secrets quando a stack reutiliza as mesmas variáveis salvas.
 
+Cada tag de release do GHCR é uma imagem multi-arquitetura, com variantes `linux/amd64` e `linux/arm64`. Ao executar `docker compose pull`, o Docker escolhe a variante compatível com a CPU da VM automaticamente; a referência da imagem permanece a mesma.
+
 Para produção, configure a stack da VM ou o `.env` protegido apontando para as tags versionadas publicadas pelo workflow de release:
 
 ```bash
