@@ -9,13 +9,18 @@ import clp.inventory.service.ItemService;
 import clp.inventory.utils.AuthenticationUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
@@ -104,11 +109,26 @@ public class InventoryController {
   public ResponseEntity<?> addItemsToInventory(
       @RequestParam("inventoryId") long inventoryId, @RequestParam("file") MultipartFile file) {
     if (file.isEmpty()) {
-      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("The uploaded file is empty.");
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+          .body(Map.of("message", "O arquivo enviado está vazio."));
+    }
+
+    String filename = file.getOriginalFilename();
+    if (filename == null || !filename.toLowerCase().endsWith(".csv")) {
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+          .body(
+              Map.of(
+                  "message",
+                  "Formato de arquivo inválido. O sistema aceita exclusivamente arquivos CSV (.csv)."));
     }
 
     try {
-      List<Item> items = parseExcelFile(file);
+      List<Item> items = parseCsvFile(file);
+
+      if (items.isEmpty()) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(Map.of("message", "A planilha CSV não contém itens ou dados para importar."));
+      }
 
       List<ItemProcessingResult> results = new ArrayList<>();
 
@@ -126,25 +146,33 @@ public class InventoryController {
           results.stream().filter(r -> !r.success()).collect(Collectors.toList());
 
       Map<String, Object> response = new HashMap<>();
+      response.put("totalProcessed", items.size());
       response.put("totalProcessed\n", items.size());
+      response.put("successes", successes.size());
       response.put("successes\n", successes.size());
+      response.put("failures", errors.size());
       response.put("failures\n", errors.size());
+      response.put("successfulItems", successes);
       response.put("successfulItems\n", successes);
+      response.put("failedItems", errors);
       response.put("failedItems\n", errors);
 
       if (errors.isEmpty()) {
-        response.put("status", "All items were added successfully!");
+        response.put("status", "Todos os itens foram adicionados com sucesso!");
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
       } else if (successes.isEmpty()) {
-        response.put("status", "No items were added.");
+        response.put("status", "Nenhum item foi adicionado.");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
       } else {
-        response.put("status", "Some items were added, others failed.");
+        response.put("status", "Alguns itens foram adicionados, outros falharam.");
         return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT).body(response);
       }
+    } catch (IllegalArgumentException e) {
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+          .body(Map.of("message", e.getMessage()));
     } catch (Exception e) {
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("Error processing file: " + e.getMessage());
+          .body(Map.of("message", "Erro ao processar o arquivo CSV: " + e.getMessage()));
     }
   }
 
@@ -160,16 +188,42 @@ public class InventoryController {
     }
   }
 
+  @DeleteMapping("/clear-items")
+  public ResponseEntity<?> clearInventoryItems(@RequestParam long inventoryId) {
+    boolean cleared = inventoryService.clearInventoryItems(inventoryId);
+
+    if (cleared) {
+      return ResponseEntity.noContent().build();
+    } else {
+      return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+    }
+  }
+
   @PostMapping(
       value = "/validate-sheet",
       consumes = {"multipart/form-data"})
   public ResponseEntity<?> validateSheet(@RequestParam("file") MultipartFile file) {
     if (file.isEmpty()) {
-      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("The uploaded file is empty.");
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+          .body(Map.of("message", "O arquivo enviado está vazio."));
+    }
+
+    String filename = file.getOriginalFilename();
+    if (filename == null || !filename.toLowerCase().endsWith(".csv")) {
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+          .body(
+              Map.of(
+                  "message",
+                  "Formato de arquivo inválido. O sistema aceita exclusivamente arquivos CSV (.csv)."));
     }
 
     try {
-      List<Item> items = parseExcelFile(file);
+      List<Item> items = parseCsvFile(file);
+
+      if (items.isEmpty()) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(Map.of("message", "A planilha CSV não contém itens ou dados para validação."));
+      }
 
       ValidationResponse validationResult = validateItems(items);
 
@@ -178,10 +232,13 @@ public class InventoryController {
       }
 
       return ResponseEntity.status(HttpStatus.OK)
-          .body("The file is valid and ready for processing.");
+          .body(Map.of("message", "O arquivo é válido e está pronto para o processamento."));
+    } catch (IllegalArgumentException e) {
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+          .body(Map.of("message", e.getMessage(), "hasErrors", true));
     } catch (Exception e) {
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("Error processing file: " + e.getMessage());
+          .body(Map.of("message", "Erro ao processar o arquivo CSV: " + e.getMessage()));
     }
   }
 
@@ -243,6 +300,187 @@ public class InventoryController {
     }
 
     return new ValidationResponse(!errors.isEmpty(), errors);
+  }
+
+  private List<Item> parseCsvFile(MultipartFile file) throws IOException {
+    List<Item> items = new ArrayList<>();
+
+    try (BufferedReader reader =
+        new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
+
+      String firstLine = reader.readLine();
+      if (firstLine == null || firstLine.trim().isEmpty()) {
+        throw new IllegalArgumentException(
+            "O arquivo enviado está vazio. Baixe o modelo oficial de planilha.");
+      }
+
+      if (firstLine.startsWith("\uFEFF")) {
+        firstLine = firstLine.substring(1);
+      }
+
+      char delimiter = ';';
+      if (!firstLine.contains(";") && firstLine.contains(",")) {
+        delimiter = ',';
+      } else if (!firstLine.contains(";") && !firstLine.contains(",") && firstLine.contains("\t")) {
+        delimiter = '\t';
+      }
+
+      List<String> headers = parseCsvLine(firstLine, delimiter);
+      if (headers.isEmpty()) {
+        throw new IllegalArgumentException(
+            "O arquivo enviado não possui cabeçalho válido. Baixe o modelo oficial.");
+      }
+
+      int colCode = -1;
+      int colDesc = -1;
+      int colResp = -1;
+      int colPrice = -1;
+      int colLocale = -1;
+      int colObs = -1;
+
+      for (int i = 0; i < headers.size(); i++) {
+        String h = normalizeHeader(headers.get(i));
+        if (colCode == -1
+            && (h.equals("codigo")
+                || h.equals("cod")
+                || h.contains("codigo")
+                || h.contains("patrimonio")
+                || h.contains("etiqueta")
+                || h.contains("tombamento"))) {
+          colCode = i;
+        } else if (colDesc == -1
+            && (h.contains("desc")
+                || h.contains("espec")
+                || h.contains("item")
+                || h.contains("nome"))) {
+          colDesc = i;
+        } else if (colResp == -1
+            && (h.contains("resp") || h.contains("carga") || h.contains("detentor"))) {
+          colResp = i;
+        } else if (colPrice == -1
+            && (h.contains("val") || h.contains("prec") || h.contains("price") || h.contains("custo"))) {
+          colPrice = i;
+        } else if (colLocale == -1
+            && (h.contains("sala")
+                || h.contains("local")
+                || h.contains("setor")
+                || h.contains("ambiente"))) {
+          colLocale = i;
+        } else if (colObs == -1 && (h.contains("obs") || h.contains("nota"))) {
+          colObs = i;
+        }
+      }
+
+      // Validação estrita: A coluna de Código é OBRIGATÓRIA no cabeçalho
+      if (colCode == -1) {
+        throw new IllegalArgumentException(
+            "O arquivo enviado não possui as colunas obrigatórias esperadas (coluna 'Código' não encontrada). Baixe o modelo oficial.");
+      }
+
+      String line;
+      while ((line = reader.readLine()) != null) {
+        if (line.trim().isEmpty()) {
+          continue;
+        }
+        List<String> tokens = parseCsvLine(line, delimiter);
+        Item item =
+            createItemFromTokens(tokens, colCode, colDesc, colResp, colPrice, colLocale, colObs);
+        if (item != null) {
+          items.add(item);
+        }
+      }
+
+      if (items.isEmpty()) {
+        throw new IllegalArgumentException(
+            "A planilha não contém itens ou dados para importar após o cabeçalho.");
+      }
+    }
+
+    return items;
+  }
+
+  private Item createItemFromTokens(
+      List<String> tokens,
+      int colCode,
+      int colDesc,
+      int colResp,
+      int colPrice,
+      int colLocale,
+      int colObs) {
+    String code = getSafeToken(tokens, colCode);
+    String description = getSafeToken(tokens, colDesc);
+    String responsible = getSafeToken(tokens, colResp);
+    String priceStr = getSafeToken(tokens, colPrice);
+    String locale = getSafeToken(tokens, colLocale);
+    String observation = getSafeToken(tokens, colObs);
+
+    long priceCentavos = parsePriceToCentavos(priceStr);
+
+    Item item = new Item(code, "", description, priceCentavos, locale, responsible);
+    if (!observation.isEmpty()) {
+      item.addObservation(new Observation(observation));
+    }
+    return item;
+  }
+
+  private String getSafeToken(List<String> tokens, int index) {
+    if (index >= 0 && index < tokens.size()) {
+      return tokens.get(index).trim();
+    }
+    return "";
+  }
+
+  private long parsePriceToCentavos(String priceStr) {
+    if (priceStr == null || priceStr.trim().isEmpty()) {
+      return 0L;
+    }
+    try {
+      String clean = priceStr.replaceAll("[^0-9,.]", "").trim();
+      if (clean.isEmpty()) {
+        return 0L;
+      }
+      if (clean.contains(",") && clean.contains(".")) {
+        clean = clean.replace(".", "").replace(",", ".");
+      } else if (clean.contains(",")) {
+        clean = clean.replace(",", ".");
+      }
+      return new BigDecimal(clean).multiply(BigDecimal.valueOf(100)).longValue();
+    } catch (Exception e) {
+      return 0L;
+    }
+  }
+
+  private String normalizeHeader(String header) {
+    if (header == null) {
+      return "";
+    }
+    String normalized = Normalizer.normalize(header, Normalizer.Form.NFD);
+    return normalized.replaceAll("\\p{M}", "").toLowerCase(Locale.ROOT).trim();
+  }
+
+  private List<String> parseCsvLine(String line, char delimiter) {
+    List<String> result = new ArrayList<>();
+    StringBuilder current = new StringBuilder();
+    boolean inQuotes = false;
+
+    for (int i = 0; i < line.length(); i++) {
+      char c = line.charAt(i);
+      if (c == '"') {
+        if (inQuotes && i + 1 < line.length() && line.charAt(i + 1) == '"') {
+          current.append('"');
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (c == delimiter && !inQuotes) {
+        result.add(current.toString().trim());
+        current.setLength(0);
+      } else {
+        current.append(c);
+      }
+    }
+    result.add(current.toString().trim());
+    return result;
   }
 
   private List<Item> parseExcelFile(MultipartFile file) throws IOException, ParseException {

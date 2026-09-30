@@ -8,13 +8,13 @@ import {
   validateSpreadsheetData,
   InventoryResponse,
   deleteItemFromInventory,
+  clearInventoryItemsRequest,
 } from '@/services/inventory'
 import { FileUploadComponent } from '@/components/molecules/fileUploadComponet'
 import { InventoryItemsStatus } from '@/components/molecules/inventoryItemsStatus'
 import { Item } from '@/commons/models/item'
 import {
   generateItemsSheet,
-  generateQRCodeLabelsPdf,
   SendEmailSheetRequest,
   sendSheetByEmail,
   updateItemRequest,
@@ -25,6 +25,7 @@ import { ConfirmationModal } from '@/components/organisms/modalConfirmation'
 import { ScannerCard } from '@/components/molecules/scannerCard'
 import { BarcodeQrScannerModal } from '@/components/organisms/barcodeQrScannerModal'
 import { ItemDetailDrawer } from '@/components/organisms/itemDetailDrawer'
+import { truncateFileName } from '@/commons/utils/truncateFileName'
 
 export type errorSheet = {
   code: string
@@ -38,6 +39,7 @@ export default function Inventory() {
   const [itemData, setItemData] = useState<Item[]>([])
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false)
   const [isDeleteItemModalOpen, setIsDeleteItemModalOpen] = useState(false)
+  const [isClearAllModalOpen, setIsClearAllModalOpen] = useState(false)
   const [itemToDelete, setItemToDelete] = useState<Item | null>(null)
 
   // Estado para gerenciar linhas selecionadas
@@ -92,41 +94,114 @@ export default function Inventory() {
   }
 
   const handleSpreadsheetValidation = async (file: File) => {
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      const shortName = truncateFileName(file.name, 24)
+      toast.error(
+        `O arquivo "${shortName}" foi bloqueado. Envie apenas arquivos .csv.`,
+      )
+      return
+    }
+
     try {
       setIsUploading(true)
       setValidationErrors(null)
 
       const response = await validateSpreadsheetData(file)
 
-      if (response.errors && response.errors.length > 0) {
+      if (
+        (response?.hasErrors &&
+          response?.errors &&
+          response.errors.length > 0) ||
+        (response?.errors && response.errors.length > 0)
+      ) {
         setValidationErrors(response.errors)
+        toast.error(
+          'Erros encontrados na planilha! Clique em "Ver erros" para conferir os detalhes.',
+        )
+      } else if (response?.hasErrors && response?.message) {
+        toast.error(response.message)
+      } else if (
+        response?.message &&
+        (response.message.includes('não suportado') ||
+          response.message.includes('inválido') ||
+          response.message.includes('vazio') ||
+          response.message.includes('obrigatórias') ||
+          response.message.includes('esperadas') ||
+          response.message.includes('Erro'))
+      ) {
+        toast.error(response.message)
       } else {
-        console.log('Arquivo válido')
+        toast.success(
+          'Planilha CSV validada com sucesso! Clique em "Processar" para importar.',
+        )
       }
     } catch (error) {
-      console.error('Erro ao enviar arquivo:', error)
+      console.error('Erro ao validar planilha:', error)
+      toast.error(
+        'Erro de comunicação ao validar a planilha. Verifique o arquivo e tente novamente.',
+      )
     } finally {
-      setIsUploading(false) // encerra o loading
+      setIsUploading(false)
     }
   }
 
   const handleFileUpload = async (file: File) => {
-    try {
-      setIsUploading(true) // começa o loading
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      const shortName = truncateFileName(file.name, 24)
+      toast.error(
+        `O arquivo "${shortName}" foi bloqueado. Envie apenas arquivos .csv.`,
+      )
+      return
+    }
 
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('inventoryId', String(Number(id)))
+    const toastId = toast.loading('Processando e importando planilha...')
+    try {
+      setIsUploading(true)
 
       const response = await addItemsBySheet(file, Number(id))
 
-      console.log('Arquivo enviado com sucesso:', response)
+      const successes = response?.successes ?? response?.['successes\n'] ?? 0
+      const failures = response?.failures ?? response?.['failures\n'] ?? 0
+
+      if (failures === 0 && successes > 0) {
+        toast.success(
+          `Sucesso! ${successes} ${successes === 1 ? 'item importado' : 'itens importados'} com êxito.`,
+          { id: toastId },
+        )
+      } else if (successes > 0 && failures > 0) {
+        toast.success(
+          `Importação concluída: ${successes} itens adicionados, ${failures} falharam.`,
+          { id: toastId },
+        )
+      } else if (failures > 0 && successes === 0) {
+        toast.error(
+          response?.status ||
+            'Nenhum item pôde ser importado da planilha enviada.',
+          { id: toastId },
+        )
+      } else {
+        toast.success(response?.status || 'Planilha processada com sucesso!', {
+          id: toastId,
+        })
+      }
 
       await fetchItemsByInventory()
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Erro ao enviar arquivo:', error)
+      const err = error as {
+        response?: { data?: { message?: string } | string }
+      }
+      const errorMsg =
+        err?.response?.data &&
+        typeof err.response.data === 'object' &&
+        'message' in err.response.data
+          ? err.response.data.message
+          : typeof err?.response?.data === 'string'
+            ? err.response.data
+            : 'Erro ao processar a planilha. Verifique os dados e tente novamente.'
+      toast.error(errorMsg || 'Erro ao processar a planilha.', { id: toastId })
     } finally {
-      setIsUploading(false) // encerra o loading
+      setIsUploading(false)
     }
   }
 
@@ -172,35 +247,12 @@ export default function Inventory() {
     }
   }
 
-  const handleExportSelected = async () => {
-    if (!selectedRows.length) {
-      console.warn('Nenhuma linha selecionada.')
-      toast.error('Nenhum item selecionado.')
+  const handleOpenClearInventoryModal = () => {
+    if (!itemData.length) {
+      toast.error('O inventário já está vazio.')
       return
     }
-
-    const selectedItems = itemData.filter((item) =>
-      selectedRows.includes(item.id),
-    )
-
-    const selectedItemsId = selectedItems.map((item) => item.id)
-
-    console.log('Códigos selecionados:', selectedItemsId)
-
-    try {
-      const pdfBlob = await generateQRCodeLabelsPdf(selectedItemsId)
-
-      const url = window.URL.createObjectURL(pdfBlob)
-      const link = document.createElement('a')
-      link.href = url
-      link.setAttribute('download', 'etiquetas.pdf')
-      document.body.appendChild(link)
-      link.click() // ⬅️ inicia o download
-      link.remove()
-      window.URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error('Erro ao gerar PDF:', error)
-    }
+    setIsClearAllModalOpen(true)
   }
 
   const handleOpenDeleteItemModal = (item: Item | InventoryResponse) => {
@@ -227,6 +279,27 @@ export default function Inventory() {
       console.error(error)
     } finally {
       handleCloseDeleteItemModal()
+    }
+  }
+
+  const handleConfirmClearInventory = async () => {
+    const toastId = toast.loading('Removendo todos os itens do inventário...')
+    try {
+      setIsUploading(true)
+      await clearInventoryItemsRequest(Number(id))
+      setItemData([])
+      setSelectedRows([])
+      setIsClearAllModalOpen(false)
+      toast.success('Todos os itens foram removidos do inventário!', {
+        id: toastId,
+      })
+    } catch (error) {
+      console.error('Erro ao limpar itens do inventário:', error)
+      toast.error('Erro ao limpar itens do inventário. Tente novamente.', {
+        id: toastId,
+      })
+    } finally {
+      setIsUploading(false)
     }
   }
 
@@ -390,7 +463,7 @@ export default function Inventory() {
           onRowSelect={setSelectedRows}
           onRowDoubleClick={handleRowDoubleClick}
           showExportButtons={true}
-          onExportSelected={handleExportSelected}
+          onClearInventory={handleOpenClearInventoryModal}
           onExportSheet={handleExportSheet}
           onSendEmailSheet={handleOpenEmailModal}
           onDeleteItem={handleOpenDeleteItemModal}
@@ -420,6 +493,18 @@ export default function Inventory() {
           title="Confirmar Deleção"
           message={`Você tem certeza que deseja deletar o item "${itemToDelete?.code}"? Esta ação não pode ser desfeita.`}
           confirmButtonText="Sim, deletar"
+        />
+      )}
+
+      {isClearAllModalOpen && (
+        <ConfirmationModal
+          isOpen={isClearAllModalOpen}
+          onClose={() => setIsClearAllModalOpen(false)}
+          onConfirm={handleConfirmClearInventory}
+          title="Limpar Inventário"
+          message="Tem certeza que deseja remover todos os itens e limpar este inventário? Esta ação é irreversível e excluirá todos os bens cadastrados."
+          confirmButtonText="Sim, limpar inventário"
+          cancelButtonText="Cancelar"
         />
       )}
 

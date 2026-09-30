@@ -105,3 +105,13 @@ export const validateSpreadsheetData = async (data: File) => {
 
   return response.data
 }
+
+// Limpa todos os itens do inventário de uma vez só
+export const clearInventoryItemsRequest = async (inventoryId: number) => {
+  const response = await api.delete('/inventory/clear-items', {
+    params: {
+      inventoryId,
+    },
+  })
+  return response.data
+}
