@@ -1,0 +1,66 @@
+services:
+  postgres:
+    container_name: inventarium-postgres
+    image: postgres:15-alpine
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?defina POSTGRES_USER na stack de producao}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD na stack de producao}
+      POSTGRES_DB: ${POSTGRES_DB:?defina POSTGRES_DB na stack de producao}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - inventarium-net
+
+  inventarium-back:
+    container_name: inventarium-back
+    image: ${BACKEND_IMAGE:?defina BACKEND_IMAGE com uma tag de release}
+    pull_policy: always
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-none}
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:?defina SPRING_MAIL_USERNAME na stack de producao}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:?defina SPRING_MAIL_PASSWORD na stack de producao}
+      SECURITY_TOKEN_SECRET: ${SECURITY_TOKEN_SECRET:?defina SECURITY_TOKEN_SECRET na stack de producao}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:?defina GOOGLE_OAUTH_CLIENT_ID na stack de producao}
+      GOOGLE_ALLOWED_DOMAINS: ${GOOGLE_ALLOWED_DOMAINS:-ifpe.edu.br}
+    networks:
+      - inventarium-net
+
+  inventarium-front:
+    container_name: inventarium-front
+    image: ${FRONTEND_IMAGE:?defina FRONTEND_IMAGE com uma tag de release}
+    pull_policy: always
+    restart: unless-stopped
+    depends_on:
+      inventarium-back:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    networks:
+      - inventarium-net
+
+networks:
+  inventarium-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
