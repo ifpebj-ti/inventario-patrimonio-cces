@@ -59,7 +59,7 @@ Documentos disponiveis:
 2. [Documento de Visao](./Documento-de-Visao)
 3. [Analise de Concorrencia](./Analise-de-Concorrencia)
 4. [Documento de Modelagem de Dados](./Documento-de-Modelagem-de-Dados)
-5. [Proposta de Modelagem: Organizacoes, Setores e Permissoes](./Proposta-de-Modelagem-Organizacoes-Setores-e-Permissoes)
+5. [Proposta de Modelagem: Setores e Permissoes](./Proposta-de-Modelagem-Organizacoes-Setores-e-Permissoes)
 6. [Architecture Decision Records](./Architecture-Decision-Records)
 7. [Guia de Execucao, Configuracao e Operacao](./Guia-de-Execucao-Configuracao-e-Operacao)
 8. [Guia de Boas Praticas de Desenvolvimento Seguro](./Guia-de-Boas-Praticas-de-Desenvolvimento-Seguro)
