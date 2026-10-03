@@ -12,13 +12,16 @@ import org.springframework.transaction.annotation.Transactional;
 public class SectorService {
 
   private final SectorRepository sectorRepository;
+  private final AuthorizationService authorizationService;
 
-  public SectorService(SectorRepository sectorRepository) {
+  public SectorService(SectorRepository sectorRepository, AuthorizationService authorizationService) {
     this.sectorRepository = sectorRepository;
+    this.authorizationService = authorizationService;
   }
 
   @Transactional
-  public Sector createSector(SectorDto dto) {
+  public Sector createSector(SectorDto dto, long actingUserId) {
+    authorizationService.requirePermission(actingUserId, "ADMIN");
     validateFields(dto);
     if (sectorRepository.existsByName(dto.name())) {
       throw new IllegalArgumentException("Sector with name '" + dto.name() + "' already exists");
@@ -28,9 +31,10 @@ public class SectorService {
   }
 
   @Transactional
-  public Sector updateSector(long id, SectorDto dto) {
+  public Sector updateSector(long id, SectorDto dto, long actingUserId) {
+    authorizationService.requirePermission(actingUserId, "ADMIN");
     validateFields(dto);
-    Sector sector = findSectorById(id);
+    Sector sector = findSectorByIdInternal(id);
     if (sectorRepository.existsByNameAndIdNot(dto.name(), id)) {
       throw new IllegalArgumentException("Sector with name '" + dto.name() + "' already exists");
     }
@@ -40,27 +44,35 @@ public class SectorService {
   }
 
   @Transactional
-  public Sector activateSector(long id) {
-    Sector sector = findSectorById(id);
+  public Sector activateSector(long id, long actingUserId) {
+    authorizationService.requirePermission(actingUserId, "ADMIN");
+    Sector sector = findSectorByIdInternal(id);
     sector.setActive(true);
     return sectorRepository.save(sector);
   }
 
   @Transactional
-  public Sector deactivateSector(long id) {
-    Sector sector = findSectorById(id);
+  public Sector deactivateSector(long id, long actingUserId) {
+    authorizationService.requirePermission(actingUserId, "ADMIN");
+    Sector sector = findSectorByIdInternal(id);
     sector.setActive(false);
     return sectorRepository.save(sector);
   }
 
-  public Sector findSectorById(long id) {
+  public Sector findSectorById(long id, long actingUserId) {
+    authorizationService.requireAnyPermission(actingUserId, "ADMIN", "MANAGE_SECTOR");
+    return findSectorByIdInternal(id);
+  }
+
+  public List<Sector> listAllSectors(long actingUserId) {
+    authorizationService.requireAnyPermission(actingUserId, "ADMIN", "MANAGE_SECTOR");
+    return sectorRepository.findAll();
+  }
+
+  private Sector findSectorByIdInternal(long id) {
     return sectorRepository
         .findById(id)
         .orElseThrow(() -> new NoSuchElementException("Sector not found with id: " + id));
-  }
-
-  public List<Sector> listAllSectors() {
-    return sectorRepository.findAll();
   }
 
   private void validateFields(SectorDto dto) {
