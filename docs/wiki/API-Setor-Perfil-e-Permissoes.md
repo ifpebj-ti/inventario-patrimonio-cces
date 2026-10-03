@@ -104,8 +104,7 @@ no front — a API não tem um parâmetro para isso hoje.
 
 ### `GET /users?sectorId=&profileId=`
 
-Sem checagem de permissão hoje — qualquer usuário autenticado pode listar. Devolve um array de
-usuário no formato:
+**Permissão: `ADMIN`.** Devolve um array de usuário no formato:
 
 ```json
 {
@@ -124,6 +123,8 @@ JSON.
 
 **Os filtros não se combinam.** Se `sectorId` e `profileId` forem enviados juntos, só `sectorId` é
 aplicado e `profileId` é ignorado em silêncio (sem erro). Envie só um filtro por vez.
+
+Erro: `403` se quem está autenticado não tem `ADMIN`.
 
 ### `PATCH /users/{id}/sector` — alocar ou desvincular usuário de um setor
 
@@ -246,3 +247,4 @@ versão anterior do seed; se algo no front ou em anotações antigas citar `SECT
 | Versão | Data | Descrição |
 | --- | --- | --- |
 | 1.0 | 2026-10-03 | Criação do documento, cobrindo o estado da API após as issues #179 e #181. |
+| 1.1 | 2026-10-03 | `GET /users` passa a exigir `ADMIN` (issue #185). |
