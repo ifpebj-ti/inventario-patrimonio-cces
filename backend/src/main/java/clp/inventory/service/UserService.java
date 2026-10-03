@@ -146,7 +146,8 @@ public class UserService {
     return userRepository.save(user);
   }
 
-  public List<User> listUsers(Long sectorId, Long profileId) {
+  public List<User> listUsers(Long sectorId, Long profileId, long actingUserId) {
+    authorizationService.requirePermission(actingUserId, "ADMIN");
     if (sectorId != null) {
       return userRepository.findBySector_Id(sectorId);
     }

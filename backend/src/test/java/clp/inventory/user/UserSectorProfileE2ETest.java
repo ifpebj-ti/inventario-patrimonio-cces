@@ -127,15 +127,27 @@ class UserSectorProfileE2ETest {
 
   @Test
   void list_returnsAllUsers() {
+    long adminId = adminUserId();
     createUser("list1@ifpe.edu.br");
     createUser("list2@ifpe.edu.br");
 
     var response =
         restTemplate.exchange(
-            "/users", HttpMethod.GET, new HttpEntity<>(authHeaders()), List.class);
+            "/users", HttpMethod.GET, new HttpEntity<>(authHeadersFor(adminId)), List.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody().size()).isGreaterThanOrEqualTo(2);
+  }
+
+  @Test
+  void list_asNonAdmin_returns403() {
+    long consultaId = createUserWithProfile("consulta-listagem-usuarios@ifpe.edu.br", "CONSULTA");
+
+    var response =
+        restTemplate.exchange(
+            "/users", HttpMethod.GET, new HttpEntity<>(authHeadersFor(consultaId)), Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
   }
 
   @Test
@@ -155,7 +167,7 @@ class UserSectorProfileE2ETest {
         restTemplate.exchange(
             "/users?sectorId=" + sectorId,
             HttpMethod.GET,
-            new HttpEntity<>(authHeaders()),
+            new HttpEntity<>(authHeadersFor(adminId)),
             List.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -164,6 +176,7 @@ class UserSectorProfileE2ETest {
 
   @Test
   void list_filterByProfileId_returnsOnlyUsersWithThatProfile() {
+    long adminId = adminUserId();
     long profileId = createProfile("Perfil Filtro Usuario");
     long userId = createUser("filtro-perfil@ifpe.edu.br");
     createUser("sem-perfil@ifpe.edu.br");
@@ -178,7 +191,7 @@ class UserSectorProfileE2ETest {
         restTemplate.exchange(
             "/users?profileId=" + profileId,
             HttpMethod.GET,
-            new HttpEntity<>(authHeaders()),
+            new HttpEntity<>(authHeadersFor(adminId)),
             List.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);

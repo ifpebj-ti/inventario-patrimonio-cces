@@ -13,9 +13,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * PATCH /users/{id}/sector exige ADMIN ou (MANAGE_SECTOR + estar alocado no setor de destino) —
- * ver AuthorizationService. TODO: restringir /users/{id}/profile quando a checagem de permissão
- * para atribuição de perfil for definida (ver
+ * GET /users exige ADMIN. PATCH /users/{id}/sector exige ADMIN ou (MANAGE_SECTOR + estar alocado
+ * no setor de destino) — ver AuthorizationService. TODO: restringir /users/{id}/profile quando a
+ * checagem de permissão para atribuição de perfil for definida (ver
  * docs/wiki/Proposta-de-Modelagem-Organizacoes-Setores-e-Permissoes.md).
  */
 @RestController
@@ -31,8 +31,10 @@ public class UserController {
   @GetMapping("/users")
   public ResponseEntity<List<User>> list(
       @RequestParam(required = false) Long sectorId,
-      @RequestParam(required = false) Long profileId) {
-    return ResponseEntity.ok(userService.listUsers(sectorId, profileId));
+      @RequestParam(required = false) Long profileId,
+      HttpServletRequest request) {
+    long actingUserId = Long.parseLong(request.getAttribute("id_user").toString());
+    return ResponseEntity.ok(userService.listUsers(sectorId, profileId, actingUserId));
   }
 
   @PatchMapping("/users/{id}/sector")
