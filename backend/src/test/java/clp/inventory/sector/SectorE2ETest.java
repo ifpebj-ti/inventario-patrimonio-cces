@@ -2,8 +2,6 @@ package clp.inventory.sector;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import clp.inventory.model.User;
-import clp.inventory.repository.UserRepository;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import java.time.Duration;
@@ -25,7 +23,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * Sobe a aplicação inteira (Postgres real via Testcontainers, HTTP real via TestRestTemplate). O
- * JWT é assinado diretamente no teste, mesma abordagem do OrganizationE2ETest.
+ * JWT é assinado diretamente no teste, sem passar por /auth/google: os endpoints de Sector não
+ * consultam UserRepository, então só a validação de assinatura/issuer do SecurityFilter importa
+ * aqui.
  */
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -43,8 +43,6 @@ class SectorE2ETest {
 
   @Autowired TestRestTemplate restTemplate;
 
-  @Autowired UserRepository userRepository;
-
   private String mintToken() {
     Algorithm algorithm = Algorithm.HMAC256(TEST_SECRET);
     return JWT.create()
@@ -61,137 +59,61 @@ class SectorE2ETest {
     return headers;
   }
 
-  private long createOrganization(String name) {
-    var body = new HashMap<String, Object>();
-    body.put("name", name);
-    var response =
-        restTemplate.postForEntity(
-            "/organizations", new HttpEntity<>(body, authHeaders()), Map.class);
-    return ((Number) response.getBody().get("id")).longValue();
-  }
-
-  private Map<String, Object> sectorBody(
-      String name, String code, long organizationId, Long parentSectorId) {
+  private Map<String, Object> sectorBody(String name, String code) {
     var body = new HashMap<String, Object>();
     body.put("name", name);
     body.put("code", code);
-    body.put("organizationId", organizationId);
-    body.put("parentSectorId", parentSectorId);
     return body;
   }
 
-  private ResponseEntity<Map> create(
-      String name, String code, long organizationId, Long parentSectorId) {
+  private ResponseEntity<Map> create(String name, String code) {
     return restTemplate.postForEntity(
-        "/sectors",
-        new HttpEntity<>(sectorBody(name, code, organizationId, parentSectorId), authHeaders()),
-        Map.class);
+        "/sectors", new HttpEntity<>(sectorBody(name, code), authHeaders()), Map.class);
   }
 
   @Test
   void create_returnsCreatedSector() {
-    long organizationId = createOrganization("Organizacao Setor 1");
-
-    var response = create("TI", "TI", organizationId, null);
+    var response = create("Patrimonio", "PAT");
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-    assertThat(response.getBody().get("name")).isEqualTo("TI");
-    assertThat(response.getBody().get("organizationId")).isEqualTo((int) organizationId);
-    assertThat(response.getBody().get("parentSectorId")).isNull();
-  }
-
-  @Test
-  void create_withParentSector_returnsCreated() {
-    long organizationId = createOrganization("Organizacao Setor 2");
-    long parentId =
-        ((Number) create("Diretoria", null, organizationId, null).getBody().get("id")).longValue();
-
-    var response = create("Coordenacao de TI", null, organizationId, parentId);
-
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-    assertThat(response.getBody().get("parentSectorId")).isEqualTo((int) parentId);
-  }
-
-  @Test
-  void create_organizationNotFound_returns400() {
-    var response = create("Setor Orfao", null, 999999, null);
-
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-  }
-
-  @Test
-  void create_parentFromDifferentOrganization_returns400() {
-    long organizationA = createOrganization("Organizacao A Setor");
-    long organizationB = createOrganization("Organizacao B Setor");
-    long parentInA =
-        ((Number) create("Setor Raiz A", null, organizationA, null).getBody().get("id"))
-            .longValue();
-
-    var response = create("Setor Filho B", null, organizationB, parentInA);
-
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(response.getBody().get("name")).isEqualTo("Patrimonio");
+    assertThat(response.getBody().get("code")).isEqualTo("PAT");
+    assertThat(response.getBody().get("active")).isEqualTo(true);
+    assertThat(response.getBody().get("id")).isNotNull();
   }
 
   @Test
   void create_blankName_returns400() {
-    long organizationId = createOrganization("Organizacao Nome Vazio");
-
-    var response = create("", null, organizationId, null);
+    var response = create("", null);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
   }
 
   @Test
-  void create_duplicateNameAmongSiblings_returns400() {
-    long organizationId = createOrganization("Organizacao Duplicidade Setor");
-    create("Setor Duplicado", null, organizationId, null);
-
-    var second = create("Setor Duplicado", null, organizationId, null);
+  void create_duplicateName_returns400() {
+    create("Setor Duplicado", null);
+    var second = create("Setor Duplicado", null);
 
     assertThat(second.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
   }
 
   @Test
-  void create_sameNameDifferentParent_returnsCreated() {
-    long organizationId = createOrganization("Organizacao Nomes Repetidos");
-    long parentA =
-        ((Number) create("Diretoria A", null, organizationId, null).getBody().get("id"))
-            .longValue();
-    long parentB =
-        ((Number) create("Diretoria B", null, organizationId, null).getBody().get("id"))
-            .longValue();
-
-    var underA = create("Financeiro", null, organizationId, parentA);
-    var underB = create("Financeiro", null, organizationId, parentB);
-
-    assertThat(underA.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-    assertThat(underB.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-  }
-
-  @Test
-  void list_filterByOrganizationId_returnsOnlyThoseSectors() {
-    long organizationA = createOrganization("Organizacao Listagem A");
-    long organizationB = createOrganization("Organizacao Listagem B");
-    create("Setor A1", null, organizationA, null);
-    create("Setor B1", null, organizationB, null);
+  void list_returnsAllSectors() {
+    create("Setor Listagem 1", null);
+    create("Setor Listagem 2", null);
 
     var response =
         restTemplate.exchange(
-            "/sectors?organizationId=" + organizationA,
-            HttpMethod.GET,
-            new HttpEntity<>(authHeaders()),
-            List.class);
+            "/sectors", HttpMethod.GET, new HttpEntity<>(authHeaders()), List.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(response.getBody()).hasSize(1);
+    assertThat(response.getBody()).isNotEmpty();
   }
 
   @Test
   void getById_returnsSector() {
-    long organizationId = createOrganization("Organizacao Busca Setor");
-    long id =
-        ((Number) create("Setor Busca", null, organizationId, null).getBody().get("id"))
-            .longValue();
+    var created = create("Setor Busca", null);
+    long id = ((Number) created.getBody().get("id")).longValue();
 
     var response =
         restTemplate.exchange(
@@ -212,114 +134,104 @@ class SectorE2ETest {
 
   @Test
   void update_returnsUpdatedSector() {
-    long organizationId = createOrganization("Organizacao Update Setor");
-    long id =
-        ((Number) create("Setor Original", null, organizationId, null).getBody().get("id"))
-            .longValue();
+    var created = create("Setor Original", null);
+    long id = ((Number) created.getBody().get("id")).longValue();
 
     var response =
         restTemplate.exchange(
             "/sectors/" + id,
             HttpMethod.PUT,
-            new HttpEntity<>(
-                sectorBody("Setor Atualizado", "SA", organizationId, null), authHeaders()),
+            new HttpEntity<>(sectorBody("Setor Atualizado", "ATU"), authHeaders()),
             Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody().get("name")).isEqualTo("Setor Atualizado");
-    assertThat(response.getBody().get("code")).isEqualTo("SA");
+    assertThat(response.getBody().get("code")).isEqualTo("ATU");
   }
 
   @Test
-  void update_parentToOwnDescendant_returns400() {
-    long organizationId = createOrganization("Organizacao Ciclo Setor");
-    long rootId =
-        ((Number) create("Raiz", null, organizationId, null).getBody().get("id")).longValue();
-    long childId =
-        ((Number) create("Filho", null, organizationId, rootId).getBody().get("id")).longValue();
+  void update_duplicateName_returns400() {
+    create("Setor A", null);
+    var setorB = create("Setor B", null);
+    long idB = ((Number) setorB.getBody().get("id")).longValue();
 
     var response =
         restTemplate.exchange(
-            "/sectors/" + rootId,
+            "/sectors/" + idB,
             HttpMethod.PUT,
-            new HttpEntity<>(sectorBody("Raiz", null, organizationId, childId), authHeaders()),
+            new HttpEntity<>(sectorBody("Setor A", null), authHeaders()),
             Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
   }
 
   @Test
-  void delete_removesSector() {
-    long organizationId = createOrganization("Organizacao Delete Setor");
-    long id =
-        ((Number) create("Setor Para Remover", null, organizationId, null).getBody().get("id"))
-            .longValue();
-
-    var deleteResponse =
-        restTemplate.exchange(
-            "/sectors/" + id, HttpMethod.DELETE, new HttpEntity<>(authHeaders()), Void.class);
-    assertThat(deleteResponse.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-
-    var getResponse =
-        restTemplate.exchange(
-            "/sectors/" + id, HttpMethod.GET, new HttpEntity<>(authHeaders()), Map.class);
-    assertThat(getResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-  }
-
-  @Test
-  void delete_withChildren_returns409() {
-    long organizationId = createOrganization("Organizacao Delete Com Filhos");
-    long rootId =
-        ((Number) create("Raiz Com Filho", null, organizationId, null).getBody().get("id"))
-            .longValue();
-    create("Filho Bloqueador", null, organizationId, rootId);
+  void deactivate_returnsDeactivatedSector() {
+    var created = create("Setor Para Desativar", null);
+    long id = ((Number) created.getBody().get("id")).longValue();
 
     var response =
         restTemplate.exchange(
-            "/sectors/" + rootId, HttpMethod.DELETE, new HttpEntity<>(authHeaders()), Map.class);
+            "/sectors/" + id + "/deactivate",
+            HttpMethod.PATCH,
+            new HttpEntity<>(authHeaders()),
+            Map.class);
 
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(response.getBody().get("active")).isEqualTo(false);
   }
 
   @Test
-  void delete_notFound_returns404() {
+  void activate_returnsActivatedSector() {
+    var created = create("Setor Para Reativar", null);
+    long id = ((Number) created.getBody().get("id")).longValue();
+    restTemplate.exchange(
+        "/sectors/" + id + "/deactivate",
+        HttpMethod.PATCH,
+        new HttpEntity<>(authHeaders()),
+        Map.class);
+
     var response =
         restTemplate.exchange(
-            "/sectors/999999", HttpMethod.DELETE, new HttpEntity<>(authHeaders()), Map.class);
+            "/sectors/" + id + "/activate",
+            HttpMethod.PATCH,
+            new HttpEntity<>(authHeaders()),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(response.getBody().get("active")).isEqualTo(true);
+  }
+
+  @Test
+  void deactivate_notFound_returns404() {
+    var response =
+        restTemplate.exchange(
+            "/sectors/999999/deactivate",
+            HttpMethod.PATCH,
+            new HttpEntity<>(authHeaders()),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+  }
+
+  @Test
+  void activate_notFound_returns404() {
+    var response =
+        restTemplate.exchange(
+            "/sectors/999999/activate",
+            HttpMethod.PATCH,
+            new HttpEntity<>(authHeaders()),
+            Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
   }
 
   @Test
   void unauthenticated_returns403() {
+    // SecurityConfig ainda não tem um AuthenticationEntryPoint customizado (fica um TODO lá),
+    // então o Spring Security responde 403 para requisição sem token, não 401.
     var response = restTemplate.getForEntity("/sectors", Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-  }
-
-  @Test
-  void delete_sectorWithAssignedUser_returns409() {
-    long organizationId = createOrganization("Organizacao Setor Com Usuario");
-    long sectorId =
-        ((Number) create("Setor Com Usuario", null, organizationId, null).getBody().get("id"))
-            .longValue();
-
-    User user = new User();
-    user.setName("Usuario Vinculado");
-    user.setEmail("usuario-vinculado-setor@ifpe.edu.br");
-    user.setGoogleId("google-usuario-vinculado-setor");
-    userRepository.save(user);
-
-    restTemplate.exchange(
-        "/users/" + user.getId() + "/sector",
-        HttpMethod.PATCH,
-        new HttpEntity<>(Map.of("sectorId", sectorId), authHeaders()),
-        Map.class);
-
-    var response =
-        restTemplate.exchange(
-            "/sectors/" + sectorId, HttpMethod.DELETE, new HttpEntity<>(authHeaders()), Map.class);
-
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
   }
 }

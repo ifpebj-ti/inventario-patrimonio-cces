@@ -70,13 +70,13 @@ class SeedDataE2ETest {
   }
 
   @Test
-  void seed_createsThirteenPermissions() {
+  void seed_createsTwelvePermissions() {
     var response =
         restTemplate.exchange(
             "/permissions", HttpMethod.GET, new HttpEntity<>(authHeaders()), List.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(response.getBody()).hasSize(13);
+    assertThat(response.getBody()).hasSize(12);
   }
 
   @Test
@@ -94,7 +94,7 @@ class SeedDataE2ETest {
   void seed_adminOrganizationHasAllPermissions() {
     var admin = findProfileByName("ADMIN_ORGANIZATION");
 
-    assertThat((List<?>) admin.get("permissionIds")).hasSize(13);
+    assertThat((List<?>) admin.get("permissionIds")).hasSize(12);
   }
 
   @Test

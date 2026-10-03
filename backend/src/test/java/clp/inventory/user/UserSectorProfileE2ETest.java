@@ -69,19 +69,9 @@ class UserSectorProfileE2ETest {
     return userRepository.save(user).getId();
   }
 
-  private long createOrganization(String name) {
+  private long createSector(String name) {
     var body = new HashMap<String, Object>();
     body.put("name", name);
-    var response =
-        restTemplate.postForEntity(
-            "/organizations", new HttpEntity<>(body, authHeaders()), Map.class);
-    return ((Number) response.getBody().get("id")).longValue();
-  }
-
-  private long createSector(String name, long organizationId) {
-    var body = new HashMap<String, Object>();
-    body.put("name", name);
-    body.put("organizationId", organizationId);
     var response =
         restTemplate.postForEntity("/sectors", new HttpEntity<>(body, authHeaders()), Map.class);
     return ((Number) response.getBody().get("id")).longValue();
@@ -110,8 +100,7 @@ class UserSectorProfileE2ETest {
 
   @Test
   void list_filterBySectorId_returnsOnlyUsersInThatSector() {
-    long organizationId = createOrganization("Organizacao Filtro Usuario Setor");
-    long sectorId = createSector("Setor Filtro Usuario", organizationId);
+    long sectorId = createSector("Setor Filtro Usuario");
     long userId = createUser("filtro-setor@ifpe.edu.br");
     createUser("sem-setor@ifpe.edu.br");
 
@@ -157,8 +146,7 @@ class UserSectorProfileE2ETest {
 
   @Test
   void assignSector_returnsUserWithSectorId() {
-    long organizationId = createOrganization("Organizacao Atribuir Setor");
-    long sectorId = createSector("Setor Atribuir", organizationId);
+    long sectorId = createSector("Setor Atribuir");
     long userId = createUser("atribuir-setor@ifpe.edu.br");
 
     var response =
@@ -174,8 +162,7 @@ class UserSectorProfileE2ETest {
 
   @Test
   void assignSector_userNotFound_returns404() {
-    long organizationId = createOrganization("Organizacao Setor Usuario Inexistente");
-    long sectorId = createSector("Setor Usuario Inexistente", organizationId);
+    long sectorId = createSector("Setor Usuario Inexistente");
 
     var response =
         restTemplate.exchange(
@@ -203,8 +190,7 @@ class UserSectorProfileE2ETest {
 
   @Test
   void assignSector_nullSectorId_unassigns() {
-    long organizationId = createOrganization("Organizacao Desvincular Setor");
-    long sectorId = createSector("Setor Desvincular", organizationId);
+    long sectorId = createSector("Setor Desvincular");
     long userId = createUser("desvincular-setor@ifpe.edu.br");
 
     restTemplate.exchange(

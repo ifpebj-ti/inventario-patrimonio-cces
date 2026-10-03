@@ -11,8 +11,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * TODO: restringir estes endpoints à permissão SECTOR_MANAGE (só administrador/gestor) quando
- * Profile/Permission forem implementados (ver
+ * TODO: restringir estes endpoints às permissões ADMIN/MANAGE_SECTOR quando a checagem de
+ * autorização por perfil/permissão for implementada (ver
  * docs/wiki/Proposta-de-Modelagem-Organizacoes-Setores-e-Permissoes.md). Por enquanto, qualquer
  * usuário autenticado pode gerenciar setores, igual ao restante da API.
  */
@@ -38,9 +38,9 @@ public class SectorController {
   }
 
   @GetMapping
-  public ResponseEntity<List<SectorDto>> list(@RequestParam(required = false) Long organizationId) {
+  public ResponseEntity<List<SectorDto>> list() {
     List<SectorDto> dtos =
-        sectorService.listSectors(organizationId).stream().map(SectorDto::from).toList();
+        sectorService.listAllSectors().stream().map(SectorDto::from).toList();
     return ResponseEntity.ok(dtos);
   }
 
@@ -64,15 +64,21 @@ public class SectorController {
     }
   }
 
-  @DeleteMapping("/{id}")
-  public ResponseEntity<Void> delete(@PathVariable long id) {
+  @PatchMapping("/{id}/activate")
+  public ResponseEntity<SectorDto> activate(@PathVariable long id) {
     try {
-      sectorService.deleteSector(id);
-      return ResponseEntity.noContent().build();
+      return ResponseEntity.ok(SectorDto.from(sectorService.activateSector(id)));
     } catch (NoSuchElementException e) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
-    } catch (IllegalStateException e) {
-      throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
+    }
+  }
+
+  @PatchMapping("/{id}/deactivate")
+  public ResponseEntity<SectorDto> deactivate(@PathVariable long id) {
+    try {
+      return ResponseEntity.ok(SectorDto.from(sectorService.deactivateSector(id)));
+    } catch (NoSuchElementException e) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
     }
   }
 }
