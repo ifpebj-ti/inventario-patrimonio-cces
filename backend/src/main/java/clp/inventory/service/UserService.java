@@ -28,6 +28,7 @@ public class UserService {
   private final UserRepository userRepository;
   private final SectorRepository sectorRepository;
   private final ProfileRepository profileRepository;
+  private final AuthorizationService authorizationService;
 
   @Value("${security.token.secret}")
   private String secretKey;
@@ -35,10 +36,12 @@ public class UserService {
   public UserService(
       UserRepository userRepository,
       SectorRepository sectorRepository,
-      ProfileRepository profileRepository) {
+      ProfileRepository profileRepository,
+      AuthorizationService authorizationService) {
     this.userRepository = userRepository;
     this.sectorRepository = sectorRepository;
     this.profileRepository = profileRepository;
+    this.authorizationService = authorizationService;
   }
 
   /**
@@ -105,11 +108,12 @@ public class UserService {
   }
 
   @Transactional
-  public User assignSector(long userId, Long sectorId) {
+  public User assignSector(long userId, Long sectorId, long actingUserId) {
     User user =
         userRepository
             .findById(userId)
             .orElseThrow(() -> new NoSuchElementException("User not found with id: " + userId));
+    authorizationService.requireSectorAssignmentPermission(actingUserId, user, sectorId);
     if (sectorId == null) {
       user.setSector(null);
     } else {

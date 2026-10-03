@@ -2,7 +2,10 @@ package clp.inventory.user;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import clp.inventory.model.Sector;
 import clp.inventory.model.User;
+import clp.inventory.repository.ProfileRepository;
+import clp.inventory.repository.SectorRepository;
 import clp.inventory.repository.UserRepository;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
@@ -27,6 +30,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * Sobe a aplicação inteira (Postgres real via Testcontainers, HTTP real via TestRestTemplate). Como
  * User só nasce via /auth/google em produção, o usuário de teste é inserido direto via
  * UserRepository — mais simples que subir o servidor JWKS fake só para ter uma linha em im_user.
+ * Atribuir setor exige ADMIN (qualquer setor) ou MANAGE_SECTOR + estar alocado no setor de
+ * destino, então os testes de assignSector precisam de um usuário real com um perfil seedado.
  */
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -46,12 +51,20 @@ class UserSectorProfileE2ETest {
 
   @Autowired UserRepository userRepository;
 
+  @Autowired ProfileRepository profileRepository;
+
+  @Autowired SectorRepository sectorRepository;
+
   private HttpHeaders authHeaders() {
+    return authHeadersFor(1);
+  }
+
+  private HttpHeaders authHeadersFor(long userId) {
     Algorithm algorithm = Algorithm.HMAC256(TEST_SECRET);
     String token =
         JWT.create()
             .withIssuer("inventory")
-            .withSubject("1")
+            .withSubject(String.valueOf(userId))
             .withExpiresAt(Instant.now().plus(Duration.ofHours(1)))
             .sign(algorithm);
 
@@ -69,11 +82,38 @@ class UserSectorProfileE2ETest {
     return userRepository.save(user).getId();
   }
 
+  private long createUserWithProfile(String email, String profileName) {
+    var profile =
+        profileRepository.findAll().stream()
+            .filter(p -> profileName.equals(p.name()))
+            .findFirst()
+            .orElseThrow();
+    User user = new User();
+    user.setName("Test User");
+    user.setEmail(email);
+    user.setGoogleId("google-" + email);
+    user.setProfile(profile);
+    return userRepository.save(user).getId();
+  }
+
+  private void assignSectorDirectly(long userId, long sectorId) {
+    User user = userRepository.findById(userId).orElseThrow();
+    Sector sector = sectorRepository.findById(sectorId).orElseThrow();
+    user.setSector(sector);
+    userRepository.save(user);
+  }
+
+  private long adminUserId() {
+    return createUserWithProfile(
+        "admin-" + System.nanoTime() + "@ifpe.edu.br", "ADMIN_ORGANIZATION");
+  }
+
   private long createSector(String name) {
     var body = new HashMap<String, Object>();
     body.put("name", name);
     var response =
-        restTemplate.postForEntity("/sectors", new HttpEntity<>(body, authHeaders()), Map.class);
+        restTemplate.postForEntity(
+            "/sectors", new HttpEntity<>(body, authHeadersFor(adminUserId())), Map.class);
     return ((Number) response.getBody().get("id")).longValue();
   }
 
@@ -100,14 +140,15 @@ class UserSectorProfileE2ETest {
 
   @Test
   void list_filterBySectorId_returnsOnlyUsersInThatSector() {
-    long sectorId = createSector("Setor Filtro Usuario");
+    long sectorId = createSector("Setor Filtro Usuario Setor");
+    long adminId = adminUserId();
     long userId = createUser("filtro-setor@ifpe.edu.br");
     createUser("sem-setor@ifpe.edu.br");
 
     restTemplate.exchange(
         "/users/" + userId + "/sector",
         HttpMethod.PATCH,
-        new HttpEntity<>(Map.of("sectorId", sectorId), authHeaders()),
+        new HttpEntity<>(Map.of("sectorId", sectorId), authHeadersFor(adminId)),
         Map.class);
 
     var response =
@@ -145,15 +186,16 @@ class UserSectorProfileE2ETest {
   }
 
   @Test
-  void assignSector_returnsUserWithSectorId() {
+  void assignSector_asAdmin_returnsUserWithSectorId() {
     long sectorId = createSector("Setor Atribuir");
+    long adminId = adminUserId();
     long userId = createUser("atribuir-setor@ifpe.edu.br");
 
     var response =
         restTemplate.exchange(
             "/users/" + userId + "/sector",
             HttpMethod.PATCH,
-            new HttpEntity<>(Map.of("sectorId", sectorId), authHeaders()),
+            new HttpEntity<>(Map.of("sectorId", sectorId), authHeadersFor(adminId)),
             Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -161,14 +203,67 @@ class UserSectorProfileE2ETest {
   }
 
   @Test
+  void assignSector_asGestorOfTargetSector_succeeds() {
+    long sectorId = createSector("Setor Gestor Mesmo Setor");
+    long gestorId = createUserWithProfile("gestor-mesmo-setor@ifpe.edu.br", "GESTOR_SETOR");
+    assignSectorDirectly(gestorId, sectorId);
+    long userId = createUser("alocado-por-gestor@ifpe.edu.br");
+
+    var response =
+        restTemplate.exchange(
+            "/users/" + userId + "/sector",
+            HttpMethod.PATCH,
+            new HttpEntity<>(Map.of("sectorId", sectorId), authHeadersFor(gestorId)),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(response.getBody().get("sectorId")).isEqualTo((int) sectorId);
+  }
+
+  @Test
+  void assignSector_asGestorOfDifferentSector_returns403() {
+    long sectorId = createSector("Setor Alvo Gestor Diferente");
+    long outroSectorId = createSector("Outro Setor Gestor Diferente");
+    long gestorId = createUserWithProfile("gestor-outro-setor@ifpe.edu.br", "GESTOR_SETOR");
+    assignSectorDirectly(gestorId, outroSectorId);
+    long userId = createUser("nao-alocado@ifpe.edu.br");
+
+    var response =
+        restTemplate.exchange(
+            "/users/" + userId + "/sector",
+            HttpMethod.PATCH,
+            new HttpEntity<>(Map.of("sectorId", sectorId), authHeadersFor(gestorId)),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+  }
+
+  @Test
+  void assignSector_asUserWithoutPermission_returns403() {
+    long sectorId = createSector("Setor Sem Permissao Atribuir");
+    long consultaId = createUserWithProfile("consulta-atribuir@ifpe.edu.br", "CONSULTA");
+    long userId = createUser("alvo-sem-permissao@ifpe.edu.br");
+
+    var response =
+        restTemplate.exchange(
+            "/users/" + userId + "/sector",
+            HttpMethod.PATCH,
+            new HttpEntity<>(Map.of("sectorId", sectorId), authHeadersFor(consultaId)),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+  }
+
+  @Test
   void assignSector_userNotFound_returns404() {
     long sectorId = createSector("Setor Usuario Inexistente");
+    long adminId = adminUserId();
 
     var response =
         restTemplate.exchange(
             "/users/999999/sector",
             HttpMethod.PATCH,
-            new HttpEntity<>(Map.of("sectorId", sectorId), authHeaders()),
+            new HttpEntity<>(Map.of("sectorId", sectorId), authHeadersFor(adminId)),
             Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
@@ -176,27 +271,29 @@ class UserSectorProfileE2ETest {
 
   @Test
   void assignSector_sectorNotFound_returns400() {
+    long adminId = adminUserId();
     long userId = createUser("setor-inexistente@ifpe.edu.br");
 
     var response =
         restTemplate.exchange(
             "/users/" + userId + "/sector",
             HttpMethod.PATCH,
-            new HttpEntity<>(Map.of("sectorId", 999999), authHeaders()),
+            new HttpEntity<>(Map.of("sectorId", 999999), authHeadersFor(adminId)),
             Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
   }
 
   @Test
-  void assignSector_nullSectorId_unassigns() {
+  void assignSector_nullSectorId_asAdmin_unassigns() {
     long sectorId = createSector("Setor Desvincular");
+    long adminId = adminUserId();
     long userId = createUser("desvincular-setor@ifpe.edu.br");
 
     restTemplate.exchange(
         "/users/" + userId + "/sector",
         HttpMethod.PATCH,
-        new HttpEntity<>(Map.of("sectorId", sectorId), authHeaders()),
+        new HttpEntity<>(Map.of("sectorId", sectorId), authHeadersFor(adminId)),
         Map.class);
 
     var body = new HashMap<String, Object>();
@@ -205,11 +302,63 @@ class UserSectorProfileE2ETest {
         restTemplate.exchange(
             "/users/" + userId + "/sector",
             HttpMethod.PATCH,
-            new HttpEntity<>(body, authHeaders()),
+            new HttpEntity<>(body, authHeadersFor(adminId)),
             Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody().get("sectorId")).isNull();
+  }
+
+  @Test
+  void assignSector_nullSectorId_asGestorOfCurrentSector_unassigns() {
+    long sectorId = createSector("Setor Desvincular Gestor Mesmo");
+    long adminId = adminUserId();
+    long userId = createUser("desvincular-por-gestor@ifpe.edu.br");
+    restTemplate.exchange(
+        "/users/" + userId + "/sector",
+        HttpMethod.PATCH,
+        new HttpEntity<>(Map.of("sectorId", sectorId), authHeadersFor(adminId)),
+        Map.class);
+    long gestorId = createUserWithProfile("gestor-desvincular@ifpe.edu.br", "GESTOR_SETOR");
+    assignSectorDirectly(gestorId, sectorId);
+
+    var body = new HashMap<String, Object>();
+    body.put("sectorId", null);
+    var response =
+        restTemplate.exchange(
+            "/users/" + userId + "/sector",
+            HttpMethod.PATCH,
+            new HttpEntity<>(body, authHeadersFor(gestorId)),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(response.getBody().get("sectorId")).isNull();
+  }
+
+  @Test
+  void assignSector_nullSectorId_asGestorOfDifferentSector_returns403() {
+    long sectorId = createSector("Setor Desvincular Gestor Diferente");
+    long outroSectorId = createSector("Outro Setor Desvincular");
+    long adminId = adminUserId();
+    long userId = createUser("desvincular-outro-gestor@ifpe.edu.br");
+    restTemplate.exchange(
+        "/users/" + userId + "/sector",
+        HttpMethod.PATCH,
+        new HttpEntity<>(Map.of("sectorId", sectorId), authHeadersFor(adminId)),
+        Map.class);
+    long gestorId = createUserWithProfile("gestor-outro-desvincular@ifpe.edu.br", "GESTOR_SETOR");
+    assignSectorDirectly(gestorId, outroSectorId);
+
+    var body = new HashMap<String, Object>();
+    body.put("sectorId", null);
+    var response =
+        restTemplate.exchange(
+            "/users/" + userId + "/sector",
+            HttpMethod.PATCH,
+            new HttpEntity<>(body, authHeadersFor(gestorId)),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
   }
 
   @Test

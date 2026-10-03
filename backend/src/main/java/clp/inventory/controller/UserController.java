@@ -4,6 +4,7 @@ import clp.inventory.dto.AssignProfileDto;
 import clp.inventory.dto.AssignSectorDto;
 import clp.inventory.model.User;
 import clp.inventory.service.UserService;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.NoSuchElementException;
 import org.springframework.http.HttpStatus;
@@ -12,9 +13,10 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * TODO: restringir /users/{id}/sector e /users/{id}/profile às permissões USER_ASSIGN_SECTOR e
- * USER_ASSIGN_PROFILE (já existem, seedadas em #155) quando a checagem de permissão por perfil for
- * implementada.
+ * PATCH /users/{id}/sector exige ADMIN ou (MANAGE_SECTOR + estar alocado no setor de destino) —
+ * ver AuthorizationService. TODO: restringir /users/{id}/profile quando a checagem de permissão
+ * para atribuição de perfil for definida (ver
+ * docs/wiki/Proposta-de-Modelagem-Organizacoes-Setores-e-Permissoes.md).
  */
 @RestController
 @CrossOrigin(origins = "*")
@@ -35,9 +37,10 @@ public class UserController {
 
   @PatchMapping("/users/{id}/sector")
   public ResponseEntity<User> assignSector(
-      @PathVariable long id, @RequestBody AssignSectorDto dto) {
+      @PathVariable long id, @RequestBody AssignSectorDto dto, HttpServletRequest request) {
     try {
-      return ResponseEntity.ok(userService.assignSector(id, dto.sectorId()));
+      long actingUserId = Long.parseLong(request.getAttribute("id_user").toString());
+      return ResponseEntity.ok(userService.assignSector(id, dto.sectorId(), actingUserId));
     } catch (NoSuchElementException e) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
     } catch (IllegalArgumentException e) {

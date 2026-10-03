@@ -298,63 +298,18 @@
 
         <insert tableName="im_permission">
             <column name="id" valueComputed="nextval('im_permission_id')"/>
-            <column name="name" value="SECTOR_MANAGE"/>
-            <column name="description" value="Criar e editar setores."/>
+            <column name="name" value="ADMIN"/>
+            <column name="description" value="Administra setores, perfis, permissoes e usuarios."/>
         </insert>
         <insert tableName="im_permission">
             <column name="id" valueComputed="nextval('im_permission_id')"/>
-            <column name="name" value="USER_ASSIGN_SECTOR"/>
-            <column name="description" value="Vincular usuario a setor."/>
+            <column name="name" value="MANAGE_SECTOR"/>
+            <column name="description" value="Gerencia inventarios e usuarios do proprio setor."/>
         </insert>
         <insert tableName="im_permission">
             <column name="id" valueComputed="nextval('im_permission_id')"/>
-            <column name="name" value="USER_ASSIGN_PROFILE"/>
-            <column name="description" value="Vincular usuario a perfil."/>
-        </insert>
-        <insert tableName="im_permission">
-            <column name="id" valueComputed="nextval('im_permission_id')"/>
-            <column name="name" value="INVENTORY_CREATE"/>
-            <column name="description" value="Criar inventarios."/>
-        </insert>
-        <insert tableName="im_permission">
-            <column name="id" valueComputed="nextval('im_permission_id')"/>
-            <column name="name" value="INVENTORY_UPDATE"/>
-            <column name="description" value="Editar inventarios do setor."/>
-        </insert>
-        <insert tableName="im_permission">
-            <column name="id" valueComputed="nextval('im_permission_id')"/>
-            <column name="name" value="INVENTORY_DELETE"/>
-            <column name="description" value="Remover inventarios do setor."/>
-        </insert>
-        <insert tableName="im_permission">
-            <column name="id" valueComputed="nextval('im_permission_id')"/>
-            <column name="name" value="ITEM_IMPORT"/>
-            <column name="description" value="Importar itens por planilha."/>
-        </insert>
-        <insert tableName="im_permission">
-            <column name="id" valueComputed="nextval('im_permission_id')"/>
-            <column name="name" value="ITEM_UPDATE"/>
-            <column name="description" value="Editar dados de itens."/>
-        </insert>
-        <insert tableName="im_permission">
-            <column name="id" valueComputed="nextval('im_permission_id')"/>
-            <column name="name" value="ITEM_VALIDATE"/>
-            <column name="description" value="Validar itens do proprio setor."/>
-        </insert>
-        <insert tableName="im_permission">
-            <column name="id" valueComputed="nextval('im_permission_id')"/>
-            <column name="name" value="ITEM_VALIDATE_EXTERNAL_SECTOR"/>
-            <column name="description" value="Registrar validacao parcial de itens de outro setor."/>
-        </insert>
-        <insert tableName="im_permission">
-            <column name="id" valueComputed="nextval('im_permission_id')"/>
-            <column name="name" value="VALIDATION_RESOLVE_PENDING"/>
-            <column name="description" value="Confirmar ou rejeitar pendencias recebidas pelo setor."/>
-        </insert>
-        <insert tableName="im_permission">
-            <column name="id" valueComputed="nextval('im_permission_id')"/>
-            <column name="name" value="REPORT_EXPORT"/>
-            <column name="description" value="Exportar planilhas, PDFs e relatorios."/>
+            <column name="name" value="MANAGE_ITEM"/>
+            <column name="description" value="Gerencia itens do proprio setor."/>
         </insert>
 
     </changeSet>
@@ -404,24 +359,18 @@
             <sqlCheck expectedResult="0">SELECT COUNT(*) FROM im_profile_permission</sqlCheck>
         </preConditions>
 
-        <!-- ADMIN_ORGANIZATION: todas as permissoes -->
         <sql>
             INSERT INTO im_profile_permission (id_profile, id_permission)
             SELECT p.id, perm.id FROM im_profile p, im_permission perm
-            WHERE p.name = 'ADMIN_ORGANIZATION';
+            WHERE p.name = 'ADMIN_ORGANIZATION' AND perm.name = 'ADMIN';
 
             INSERT INTO im_profile_permission (id_profile, id_permission)
             SELECT p.id, perm.id FROM im_profile p, im_permission perm
-            WHERE p.name = 'GESTOR_SETOR' AND perm.name IN (
-                'USER_ASSIGN_SECTOR', 'INVENTORY_CREATE', 'INVENTORY_UPDATE', 'INVENTORY_DELETE',
-                'ITEM_IMPORT', 'ITEM_UPDATE', 'ITEM_VALIDATE', 'VALIDATION_RESOLVE_PENDING', 'REPORT_EXPORT'
-            );
+            WHERE p.name = 'GESTOR_SETOR' AND perm.name = 'MANAGE_SECTOR';
 
             INSERT INTO im_profile_permission (id_profile, id_permission)
             SELECT p.id, perm.id FROM im_profile p, im_permission perm
-            WHERE p.name = 'OPERADOR_CAMPO' AND perm.name IN (
-                'ITEM_UPDATE', 'ITEM_VALIDATE', 'ITEM_VALIDATE_EXTERNAL_SECTOR'
-            );
+            WHERE p.name = 'OPERADOR_CAMPO' AND perm.name = 'MANAGE_ITEM';
 
             <!-- CONSULTA nao recebe nenhuma permissao: o documento nao define uma permissao de somente leitura. -->
         </sql>

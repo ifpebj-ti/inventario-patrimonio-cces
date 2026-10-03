@@ -70,13 +70,16 @@ class SeedDataE2ETest {
   }
 
   @Test
-  void seed_createsTwelvePermissions() {
+  void seed_createsThreePermissions() {
     var response =
         restTemplate.exchange(
             "/permissions", HttpMethod.GET, new HttpEntity<>(authHeaders()), List.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(response.getBody()).hasSize(12);
+    assertThat(response.getBody()).hasSize(3);
+    assertThat(response.getBody())
+        .extracting(p -> ((Map<?, ?>) p).get("name"))
+        .containsExactlyInAnyOrder("ADMIN", "MANAGE_SECTOR", "MANAGE_ITEM");
   }
 
   @Test
@@ -91,24 +94,24 @@ class SeedDataE2ETest {
   }
 
   @Test
-  void seed_adminOrganizationHasAllPermissions() {
+  void seed_adminOrganizationHasAdminPermission() {
     var admin = findProfileByName("ADMIN_ORGANIZATION");
 
-    assertThat((List<?>) admin.get("permissionIds")).hasSize(12);
+    assertThat((List<?>) admin.get("permissionIds")).hasSize(1);
   }
 
   @Test
-  void seed_gestorSetorHasNinePermissions() {
+  void seed_gestorSetorHasManageSectorPermission() {
     var gestorSetor = findProfileByName("GESTOR_SETOR");
 
-    assertThat((List<?>) gestorSetor.get("permissionIds")).hasSize(9);
+    assertThat((List<?>) gestorSetor.get("permissionIds")).hasSize(1);
   }
 
   @Test
-  void seed_operadorCampoHasThreePermissions() {
+  void seed_operadorCampoHasManageItemPermission() {
     var operadorCampo = findProfileByName("OPERADOR_CAMPO");
 
-    assertThat((List<?>) operadorCampo.get("permissionIds")).hasSize(3);
+    assertThat((List<?>) operadorCampo.get("permissionIds")).hasSize(1);
   }
 
   @Test
