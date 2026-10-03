@@ -2,10 +2,8 @@ package clp.inventory.service;
 
 import clp.inventory.dto.GoogleUserInfo;
 import clp.inventory.model.Profile;
-import clp.inventory.model.Sector;
 import clp.inventory.model.User;
 import clp.inventory.repository.ProfileRepository;
-import clp.inventory.repository.SectorRepository;
 import clp.inventory.repository.UserRepository;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
@@ -26,7 +24,6 @@ public class UserService {
   private List<String> allowedDomains = List.of();
 
   private final UserRepository userRepository;
-  private final SectorRepository sectorRepository;
   private final ProfileRepository profileRepository;
   private final AuthorizationService authorizationService;
 
@@ -35,11 +32,9 @@ public class UserService {
 
   public UserService(
       UserRepository userRepository,
-      SectorRepository sectorRepository,
       ProfileRepository profileRepository,
       AuthorizationService authorizationService) {
     this.userRepository = userRepository;
-    this.sectorRepository = sectorRepository;
     this.profileRepository = profileRepository;
     this.authorizationService = authorizationService;
   }
@@ -108,26 +103,6 @@ public class UserService {
   }
 
   @Transactional
-  public User assignSector(long userId, Long sectorId, long actingUserId) {
-    User user =
-        userRepository
-            .findById(userId)
-            .orElseThrow(() -> new NoSuchElementException("User not found with id: " + userId));
-    authorizationService.requireSectorAssignmentPermission(actingUserId, user, sectorId);
-    if (sectorId == null) {
-      user.setSector(null);
-    } else {
-      Sector sector =
-          sectorRepository
-              .findById(sectorId)
-              .orElseThrow(
-                  () -> new IllegalArgumentException("Sector not found with id: " + sectorId));
-      user.setSector(sector);
-    }
-    return userRepository.save(user);
-  }
-
-  @Transactional
   public User assignProfile(long userId, Long profileId) {
     User user =
         userRepository
@@ -146,10 +121,8 @@ public class UserService {
     return userRepository.save(user);
   }
 
-  public List<User> listUsers(Long sectorId, Long profileId) {
-    if (sectorId != null) {
-      return userRepository.findBySector_Id(sectorId);
-    }
+  public List<User> listUsers(Long profileId, long actingUserId) {
+    authorizationService.requirePermission(actingUserId, "ADMIN");
     if (profileId != null) {
       return userRepository.findByProfile_Id(profileId);
     }

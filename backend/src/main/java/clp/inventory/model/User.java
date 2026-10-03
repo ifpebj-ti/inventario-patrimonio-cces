@@ -38,11 +38,6 @@ public class User {
   private LocalDateTime updatedAt;
 
   @ManyToOne
-  @JoinColumn(name = "id_sector")
-  @JsonIgnore
-  private Sector sector;
-
-  @ManyToOne
   @JoinColumn(name = "id_profile")
   @JsonIgnore
   private Profile profile;
@@ -80,18 +75,6 @@ public class User {
 
   public void setGoogleId(String googleId) {
     this.googleId = googleId;
-  }
-
-  public Sector getSector() {
-    return sector;
-  }
-
-  public void setSector(Sector sector) {
-    this.sector = sector;
-  }
-
-  public Long getSectorId() {
-    return sector != null ? sector.id() : null;
   }
 
   public Profile getProfile() {

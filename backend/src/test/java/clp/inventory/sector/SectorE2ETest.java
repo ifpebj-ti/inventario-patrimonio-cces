@@ -2,8 +2,12 @@ package clp.inventory.sector;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import clp.inventory.model.Sector;
+import clp.inventory.model.SectorAllocation;
 import clp.inventory.model.User;
 import clp.inventory.repository.ProfileRepository;
+import clp.inventory.repository.SectorAllocationRepository;
+import clp.inventory.repository.SectorRepository;
 import clp.inventory.repository.UserRepository;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
@@ -49,6 +53,16 @@ class SectorE2ETest {
   @Autowired UserRepository userRepository;
 
   @Autowired ProfileRepository profileRepository;
+
+  @Autowired SectorRepository sectorRepository;
+
+  @Autowired SectorAllocationRepository sectorAllocationRepository;
+
+  private void allocateSectorDirectly(long userId, long sectorId) {
+    User user = userRepository.findById(userId).orElseThrow();
+    Sector sector = sectorRepository.findById(sectorId).orElseThrow();
+    sectorAllocationRepository.save(new SectorAllocation(user, sector));
+  }
 
   private long createUserWithProfile(String email, String profileName) {
     var profile =
@@ -368,6 +382,73 @@ class SectorE2ETest {
             Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+  }
+
+  @Test
+  void listUsers_returnsAllocatedUsers() {
+    long adminId = adminUserId();
+    var created = create("Setor Com Usuarios", null, adminId);
+    long sectorId = ((Number) created.getBody().get("id")).longValue();
+    long userId = createUserWithProfile("usuario-alocado@ifpe.edu.br", "CONSULTA");
+    allocateSectorDirectly(userId, sectorId);
+
+    var response =
+        restTemplate.exchange(
+            "/sectors/" + sectorId + "/users",
+            HttpMethod.GET,
+            new HttpEntity<>(authHeadersFor(adminId)),
+            List.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(response.getBody()).hasSize(1);
+  }
+
+  @Test
+  void listUsers_asGestorSetor_succeeds() {
+    long adminId = adminUserId();
+    var created = create("Setor Usuarios Gestor", null, adminId);
+    long sectorId = ((Number) created.getBody().get("id")).longValue();
+    long gestorId = createUserWithProfile("gestor-usuarios@ifpe.edu.br", "GESTOR_SETOR");
+
+    var response =
+        restTemplate.exchange(
+            "/sectors/" + sectorId + "/users",
+            HttpMethod.GET,
+            new HttpEntity<>(authHeadersFor(gestorId)),
+            List.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+  }
+
+  @Test
+  void listUsers_asUserWithoutPermission_returns403() {
+    long adminId = adminUserId();
+    var created = create("Setor Usuarios Sem Permissao", null, adminId);
+    long sectorId = ((Number) created.getBody().get("id")).longValue();
+    long consultaId = createUserWithProfile("consulta-usuarios@ifpe.edu.br", "CONSULTA");
+
+    var response =
+        restTemplate.exchange(
+            "/sectors/" + sectorId + "/users",
+            HttpMethod.GET,
+            new HttpEntity<>(authHeadersFor(consultaId)),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+  }
+
+  @Test
+  void listUsers_notFound_returns404() {
+    long adminId = adminUserId();
+
+    var response =
+        restTemplate.exchange(
+            "/sectors/999999/users",
+            HttpMethod.GET,
+            new HttpEntity<>(authHeadersFor(adminId)),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
   }
 
   @Test
