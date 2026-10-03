@@ -1,5 +1,8 @@
 # inventory
 
+Contrato de autenticação abaixo. Setor, usuário, perfil e permissão estão documentados em
+`docs/wiki/API-Setor-Perfil-e-Permissoes.md`.
+
 # - Autenticação
 
 O login com Google é o **único** jeito de entrar. Não existe cadastro próprio, senha,
