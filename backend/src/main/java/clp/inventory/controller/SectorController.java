@@ -1,7 +1,9 @@
 package clp.inventory.controller;
 
 import clp.inventory.dto.SectorDto;
+import clp.inventory.dto.UserDto;
 import clp.inventory.model.Sector;
+import clp.inventory.service.SectorAllocationService;
 import clp.inventory.service.SectorService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
@@ -22,9 +24,12 @@ import org.springframework.web.server.ResponseStatusException;
 public class SectorController {
 
   private final SectorService sectorService;
+  private final SectorAllocationService sectorAllocationService;
 
-  public SectorController(SectorService sectorService) {
+  public SectorController(
+      SectorService sectorService, SectorAllocationService sectorAllocationService) {
     this.sectorService = sectorService;
+    this.sectorAllocationService = sectorAllocationService;
   }
 
   @PostMapping
@@ -84,6 +89,22 @@ public class SectorController {
     try {
       return ResponseEntity.ok(
           SectorDto.from(sectorService.deactivateSector(id, actingUserId(request))));
+    } catch (NoSuchElementException e) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+    }
+  }
+
+  @GetMapping("/{id}/users")
+  public ResponseEntity<List<UserDto>> listUsers(
+      @PathVariable long id, HttpServletRequest request) {
+    try {
+      long actingUserId = actingUserId(request);
+      sectorService.findSectorById(id, actingUserId);
+      List<UserDto> dtos =
+          sectorAllocationService.usersAllocatedToSector(id).stream()
+              .map(u -> UserDto.from(u, sectorAllocationService.sectorIdsOf(u.getId())))
+              .toList();
+      return ResponseEntity.ok(dtos);
     } catch (NoSuchElementException e) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
     }

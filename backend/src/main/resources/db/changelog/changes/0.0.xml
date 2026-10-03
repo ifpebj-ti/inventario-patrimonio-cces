@@ -401,4 +401,67 @@
 
     </changeSet>
 
+    <!-- =========================== SECTOR ALLOCATION ================================== -->
+
+    <changeSet id="20261003-1" author="Lucas Silva">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="im_sector_allocation"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="im_sector_allocation">
+            <column name="id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="id_user" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="id_sector" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addPrimaryKey tableName="im_sector_allocation" columnNames="id" constraintName="pk_sector_allocation"/>
+
+        <addForeignKeyConstraint baseTableName="im_sector_allocation" baseColumnNames="id_user"
+                                 referencedTableName="im_user" referencedColumnNames="id"
+                                 constraintName="fk_sector_allocation_user"/>
+
+        <addForeignKeyConstraint baseTableName="im_sector_allocation" baseColumnNames="id_sector"
+                                 referencedTableName="im_sector" referencedColumnNames="id"
+                                 constraintName="fk_sector_allocation_sector"/>
+
+        <addUniqueConstraint tableName="im_sector_allocation" columnNames="id_user, id_sector"
+                             constraintName="uk_sector_allocation_user_sector"/>
+
+        <createSequence sequenceName="im_sector_allocation_id" incrementBy="1" startValue="1"/>
+
+    </changeSet>
+
+    <changeSet id="20261003-2" author="Lucas Silva">
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="im_user" columnName="id_sector"/>
+        </preConditions>
+
+        <sql>
+            INSERT INTO im_sector_allocation (id, id_user, id_sector)
+            SELECT nextval('im_sector_allocation_id'), id, id_sector
+            FROM im_user
+            WHERE id_sector IS NOT NULL;
+        </sql>
+
+    </changeSet>
+
+    <changeSet id="20261003-3" author="Lucas Silva">
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="im_user" columnName="id_sector"/>
+        </preConditions>
+
+        <dropForeignKeyConstraint baseTableName="im_user" constraintName="fk_6424971323953"/>
+
+        <dropColumn tableName="im_user" columnName="id_sector"/>
+
+    </changeSet>
+
 </databaseChangeLog>

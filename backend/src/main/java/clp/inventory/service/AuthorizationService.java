@@ -1,6 +1,7 @@
 package clp.inventory.service;
 
 import clp.inventory.model.User;
+import clp.inventory.repository.SectorAllocationRepository;
 import clp.inventory.repository.UserRepository;
 import java.util.Arrays;
 import org.springframework.http.HttpStatus;
@@ -11,9 +12,12 @@ import org.springframework.web.server.ResponseStatusException;
 public class AuthorizationService {
 
   private final UserRepository userRepository;
+  private final SectorAllocationRepository sectorAllocationRepository;
 
-  public AuthorizationService(UserRepository userRepository) {
+  public AuthorizationService(
+      UserRepository userRepository, SectorAllocationRepository sectorAllocationRepository) {
     this.userRepository = userRepository;
+    this.sectorAllocationRepository = sectorAllocationRepository;
   }
 
   public boolean hasPermission(long userId, String permissionName) {
@@ -39,20 +43,16 @@ public class AuthorizationService {
     }
   }
 
-  public void requireSectorAssignmentPermission(
-      long actingUserId, User targetUser, Long newSectorId) {
+  public void requireSectorPermission(long actingUserId, long sectorId) {
     if (hasPermission(actingUserId, "ADMIN")) {
       return;
     }
-    Long relevantSectorId = newSectorId != null ? newSectorId : targetUser.getSectorId();
-    User actingUser = requireUser(actingUserId);
     boolean managesSector =
         hasPermission(actingUserId, "MANAGE_SECTOR")
-            && relevantSectorId != null
-            && relevantSectorId.equals(actingUser.getSectorId());
+            && sectorAllocationRepository.existsByUser_IdAndSector_Id(actingUserId, sectorId);
     if (!managesSector) {
       throw new ResponseStatusException(
-          HttpStatus.FORBIDDEN, "Requer ADMIN ou MANAGE_SECTOR no setor de destino");
+          HttpStatus.FORBIDDEN, "Requer ADMIN ou MANAGE_SECTOR no setor informado");
     }
   }
 
