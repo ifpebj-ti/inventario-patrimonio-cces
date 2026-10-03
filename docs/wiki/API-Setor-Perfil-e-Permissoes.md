@@ -12,8 +12,9 @@ Setor e alocação usuário↔setor), ambas sub-issues de #154. **Não cobre** `
   Forbidden` — não `401` — porque o `SecurityConfig` ainda não tem um `AuthenticationEntryPoint`
   customizado (é um TODO em aberto no backend).
 - **Um JWT com assinatura válida mas cujo `subject` não existe mais em `im_user`** (ex: usuário
-  excluído) faz as rotas que checam permissão (`/sectors` e `PATCH /users/{id}/sector`) responderem
-  `401 Unauthorized`, não `403`. É o único caso em que essas rotas devolvem 401 em vez de 403.
+  excluído) faz as rotas que checam permissão (`/sectors` e `/users/{id}/sectors/{sectorId}`)
+  responderem `401 Unauthorized`, não `403`. É o único caso em que essas rotas devolvem 401 em vez
+  de 403.
 - **O corpo de erro nunca tem um campo `message`.** O backend não tem `@ControllerAdvice`/handler
   próprio, então quem responde é o tratamento padrão do Spring Boot, que por padrão omite a
   mensagem detalhada. O corpo de qualquer erro (400/401/403/404/409) tem sempre este formato:
@@ -36,8 +37,8 @@ Hoje existem só 3 permissões, seedadas automaticamente, e cada perfil seedado 
 
 | Permissão | Perfil que tem | O que libera hoje |
 | --- | --- | --- |
-| `ADMIN` | `ADMIN_ORGANIZATION` | Escrita e leitura em `/sectors`; alocar qualquer usuário em qualquer setor. |
-| `MANAGE_SECTOR` | `GESTOR_SETOR` | Leitura em `/sectors`; alocar/desvincular usuário **só dentro do próprio setor**. |
+| `ADMIN` | `ADMIN_ORGANIZATION` | Escrita e leitura em `/sectors`; alocar/desalocar qualquer usuário em qualquer setor. |
+| `MANAGE_SECTOR` | `GESTOR_SETOR` | Leitura em `/sectors`; alocar/desalocar usuário **só nos setores em que o próprio ator está alocado**. |
 | `MANAGE_ITEM` | `OPERADOR_CAMPO` | Seedada, mas **nenhum endpoint checa essa permissão ainda** (Item/Inventory ficam para uma etapa futura). |
 | (nenhuma) | `CONSULTA` | Não dá acesso a nada que exija permissão. |
 
@@ -57,6 +58,7 @@ permissões continuam sendo entidades independentes e configuráveis via `/profi
 | `PUT /sectors/{id}` | `ADMIN` | `200` |
 | `PATCH /sectors/{id}/activate` | `ADMIN` | `200` |
 | `PATCH /sectors/{id}/deactivate` | `ADMIN` | `200` |
+| `GET /sectors/{id}/users` | `ADMIN` ou `MANAGE_SECTOR` | `200` |
 
 **Não existe `DELETE /sectors/{id}`.** Setor nunca é removido — só ativado/desativado via os dois
 `PATCH` acima. Não implemente um botão de "excluir setor" na UI.
@@ -96,13 +98,23 @@ no front — a API não tem um parâmetro para isso hoje.
 
 - `400`: `name` vazio/em branco, `name`/`code` passando do tamanho máximo, `name` duplicado.
 - `403`: usuário autenticado sem `ADMIN` (escrita) ou sem `ADMIN`/`MANAGE_SECTOR` (leitura).
-- `404`: setor não existe (`GET`/`PUT`/`activate`/`deactivate` por id).
+- `404`: setor não existe (`GET`/`PUT`/`activate`/`deactivate`/`users` por id).
+
+### `GET /sectors/{id}/users` — usuários alocados a este setor
+
+Mesma permissão de leitura de `/sectors` (`ADMIN` ou `MANAGE_SECTOR`, sem precisar estar alocado
+nesse setor específico — é a mesma regra de `GET /sectors/{id}`). É a rota para a tela de setor
+abrir a aba lateral com quem está alocado ali. Devolve um array no mesmo formato do `GET /users`
+(ver seção `/users` abaixo). `404` se o setor não existe.
 
 ---
 
-## `/users` — listagem e alocação
+## `/users` — listagem e alocação a setor
 
-### `GET /users?sectorId=&profileId=`
+Um usuário pode estar alocado a **vários setores ao mesmo tempo** (tabela `im_sector_allocation`)
+— não existe mais um único "setor do usuário".
+
+### `GET /users?profileId=`
 
 **Permissão: `ADMIN`.** Devolve um array de usuário no formato:
 
@@ -111,45 +123,43 @@ no front — a API não tem um parâmetro para isso hoje.
   "id": 7,
   "name": "Maria Silva",
   "email": "maria.silva@ifpe.edu.br",
-  "sectorId": 1,
-  "profileId": 2,
-  "createdAt": "2026-10-03T20:21:58.123",
-  "updatedAt": "2026-10-03T20:21:58.123"
+  "sectorIds": [1, 4],
+  "profileId": 2
 }
 ```
 
-`sectorId`/`profileId` vêm `null` quando o usuário não está alocado. `googleId` nunca aparece no
-JSON.
+`sectorIds` é sempre uma lista (vazia se o usuário não estiver alocado a nenhum setor).
+`profileId` vem `null` quando o usuário não tem perfil. `googleId`, `createdAt` e `updatedAt`
+nunca aparecem no JSON de usuário (isso já era assim antes, não é uma mudança desta revisão).
 
-**Os filtros não se combinam.** Se `sectorId` e `profileId` forem enviados juntos, só `sectorId` é
-aplicado e `profileId` é ignorado em silêncio (sem erro). Envie só um filtro por vez.
+**Não existe mais filtro por setor aqui** (`?sectorId=` saiu). Para ver quem está alocado a um
+setor específico, use `GET /sectors/{id}/users`.
 
 Erro: `403` se quem está autenticado não tem `ADMIN`.
 
-### `PATCH /users/{id}/sector` — alocar ou desvincular usuário de um setor
+### `POST /users/{id}/sectors/{sectorId}` — alocar usuário a um setor
 
-Corpo:
+Sem corpo. **Permissão**: autorizado se quem está autenticado tem `ADMIN` (qualquer setor), **ou**
+tem `MANAGE_SECTOR` e já está alocado nesse mesmo `{sectorId}` — ou seja, um `GESTOR_SETOR` só
+aloca gente nos setores em que ele próprio está. Sem nenhuma das duas condições, `403`.
+**Recomendação de UX**: para um usuário `GESTOR_SETOR`, só ofereça na UI os setores em que ele
+está alocado como opção de destino — a chamada para qualquer outro setor vai dar 403.
 
-```json
-{ "sectorId": 3 }
-```
+Idempotente: alocar quem já está alocado a esse setor não dá erro, só devolve o estado atual sem
+duplicar nada.
 
-Para desvincular, envie `{ "sectorId": null }`.
+Resposta: o `User` atualizado (`200`), mesmo formato do `GET /users`.
 
-**Permissão**: autorizado se quem está autenticado tem `ADMIN` (qualquer setor), **ou** tem
-`MANAGE_SECTOR` e está alocado no setor relevante da operação:
-- ao **atribuir** um setor (`sectorId` não nulo): o setor relevante é o **novo** setor —
-  quem faz a chamada precisa estar alocado nesse setor de destino.
-- ao **desvincular** (`sectorId: null`): o setor relevante é o setor **atual** do usuário-alvo —
-  quem faz a chamada precisa estar alocado nesse setor antes da operação.
+Erros: `404` usuário ou setor não existe; `403` conforme acima.
 
-Sem nenhuma das duas condições, `403`. **Recomendação de UX**: para um usuário `GESTOR_SETOR`, não
-ofereça na UI a opção de mover alguém para um setor que não é o dele — a chamada vai dar 403, então
-é melhor nem mostrar a opção do que deixar o usuário tentar e tomar erro.
+### `DELETE /users/{id}/sectors/{sectorId}` — desalocar usuário de um setor
 
-Resposta: o `User` atualizado, mesmo formato do `GET /users`.
+Mesma permissão do `POST` (`ADMIN`, ou `MANAGE_SECTOR` estando alocado nesse `{sectorId}`).
+Idempotente: desalocar quem não está alocado a esse setor não dá erro, só devolve o estado atual.
+Remove só a alocação para `{sectorId}` — os outros setores do usuário, se houver, não mudam.
 
-Erros: `404` usuário não existe; `400` `sectorId` enviado não existe; `403` conforme acima.
+Resposta: o `User` atualizado (`200`). Erros: `404` usuário ou setor não existe; `403` conforme
+acima.
 
 ### `PATCH /users/{id}/profile` — alocar ou desvincular perfil
 
@@ -248,3 +258,4 @@ versão anterior do seed; se algo no front ou em anotações antigas citar `SECT
 | --- | --- | --- |
 | 1.0 | 2026-10-03 | Criação do documento, cobrindo o estado da API após as issues #179 e #181. |
 | 1.1 | 2026-10-03 | `GET /users` passa a exigir `ADMIN` (issue #185). |
+| 1.2 | 2026-10-03 | Usuário pode estar alocado a vários setores ao mesmo tempo: `PATCH /users/{id}/sector` sai, entram `POST`/`DELETE /users/{id}/sectors/{sectorId}` e `GET /sectors/{id}/users`; `GET /users` perde o filtro `?sectorId=`; resposta de usuário troca `sectorId` por `sectorIds` (issue #187). |
