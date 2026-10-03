@@ -9,8 +9,9 @@ group = 'clp'
 version = '0.0.1-SNAPSHOT'
 
 ext['tomcat.version'] = '10.1.59'
-// Mantém todos os módulos Jackson no mesmo patch corrigido pelo CVE-2026-68497.
-ext['jackson.version'] = '2.21.6'
+// Mantém todos os módulos Jackson no mesmo patch corrigido pelos CVE-2026-89407,
+// CVE-2026-89425, CVE-2026-91776 e CVE-2026-91777.
+ext['jackson.version'] = '2.21.7'
 
 java {
     toolchain {
