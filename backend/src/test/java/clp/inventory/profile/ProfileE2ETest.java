@@ -25,7 +25,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * Sobe a aplicação inteira (Postgres real via Testcontainers, HTTP real via TestRestTemplate). O
- * JWT é assinado diretamente no teste, mesma abordagem do OrganizationE2ETest/SectorE2ETest.
+ * JWT é assinado diretamente no teste, mesma abordagem do SectorE2ETest.
  */
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
