@@ -1,12 +1,13 @@
 package clp.inventory.providers;
 
 import clp.inventory.dto.GoogleUserInfo;
+import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import javax.security.sasl.AuthenticationException;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtClaimValidator;
@@ -15,6 +16,7 @@ import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 @Service
 public class GoogleTokenProvider {
@@ -34,15 +36,16 @@ public class GoogleTokenProvider {
       @Value("${google.oauth.jwk-set-uri}") String jwkSetUri) {
     this.clientId = clientId;
 
+    // O RestTemplate padrão não tem timeout: uma conexão pendurada com o Google prenderia uma
+    // thread do Tomcat indefinidamente.
+    JdkClientHttpRequestFactory requestFactory =
+        new JdkClientHttpRequestFactory(
+            HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build());
+    requestFactory.setReadTimeout(Duration.ofSeconds(5));
+
     NimbusJwtDecoder nimbusDecoder =
         NimbusJwtDecoder.withJwkSetUri(jwkSetUri)
-            // O RestTemplate padrão não tem timeout: uma conexão pendurada com o
-            // Google prenderia uma thread do Tomcat indefinidamente.
-            .restOperations(
-                new RestTemplateBuilder()
-                    .connectTimeout(Duration.ofSeconds(5))
-                    .readTimeout(Duration.ofSeconds(5))
-                    .build())
+            .restOperations(new RestTemplate(requestFactory))
             .build();
 
     nimbusDecoder.setJwtValidator(

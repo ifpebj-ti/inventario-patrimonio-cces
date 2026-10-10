@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.5.16'
+    id 'org.springframework.boot' version '4.1.1'
     id 'io.spring.dependency-management' version '1.1.7'
     id 'com.diffplug.spotless' version '8.10.3'
 }
@@ -8,10 +8,9 @@ plugins {
 group = 'clp'
 version = '0.0.1-SNAPSHOT'
 
-ext['tomcat.version'] = '10.1.59'
-// Mantém todos os módulos Jackson no mesmo patch corrigido pelos CVE-2026-89407,
-// CVE-2026-89425, CVE-2026-91776 e CVE-2026-91777.
-ext['jackson.version'] = '2.21.7'
+// O Boot 4 gerencia o Jackson 2 em 2.21.5 (ainda usado pelo java-jwt). Mantém todos os módulos
+// no patch que corrige os CVE-2026-89407, CVE-2026-89425, CVE-2026-91776 e CVE-2026-91777.
+ext['jackson-2-bom.version'] = '2.21.7'
 
 java {
     toolchain {
@@ -26,7 +25,7 @@ repositories {
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
-    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
     implementation "org.springframework.boot:spring-boot-starter-security"
@@ -50,18 +49,22 @@ dependencies {
     // Validação do ID token do Google (assinatura via JWKS + iss/aud/exp)
     implementation 'org.springframework.security:spring-security-oauth2-jose'
 
-    // Versionamento e migração do schema do banco de dados
-    implementation 'org.liquibase:liquibase-core'
+    // Versionamento e migração do schema do banco de dados. No Boot 4 a auto-configuração do
+    // Liquibase vem do starter; só o liquibase-core não dispara a migração.
+    implementation 'org.springframework.boot:spring-boot-starter-liquibase'
 
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
     runtimeOnly 'org.postgresql:postgresql:42.7.13'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    // No Boot 4 o TestRestTemplate saiu do starter-test e vive neste módulo.
+    testImplementation 'org.springframework.boot:spring-boot-resttestclient'
+    testImplementation 'org.springframework.boot:spring-boot-restclient'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     // Teste de ponta a ponta do login com Google: Postgres real via container.
     testImplementation 'org.springframework.boot:spring-boot-testcontainers'
-    testImplementation 'org.testcontainers:junit-jupiter'
-    testImplementation 'org.testcontainers:postgresql'
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+    testImplementation 'org.testcontainers:testcontainers-postgresql'
 }
 
 tasks.named('test') {
