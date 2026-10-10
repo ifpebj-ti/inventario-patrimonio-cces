@@ -8,8 +8,14 @@ plugins {
 group = 'clp'
 version = '0.0.1-SNAPSHOT'
 
-// O Boot 4 gerencia o Jackson 2 em 2.21.5 (ainda usado pelo java-jwt). Mantém todos os módulos
-// no patch que corrige os CVE-2026-89407, CVE-2026-89425, CVE-2026-91776 e CVE-2026-91777.
+// Patches de segurança acima do que o Boot 4.1.1 gerencia. Cada pin sai quando o Boot passar a
+// gerenciar uma versão corrigida.
+// Tomcat 11.0.24 -> 11.0.26: CVE-2026-65182, CVE-2026-65905 e CVE-2026-68525.
+ext['tomcat.version'] = '11.0.26'
+// Jackson 3 (Boot gerencia 3.1.5): CVE-2026-68497, CVE-2026-89407, CVE-2026-89425,
+// CVE-2026-91776 e CVE-2026-91777.
+ext['jackson-bom.version'] = '3.1.7'
+// Jackson 2 (Boot gerencia 2.21.5; ainda usado pelo java-jwt): mesmos CVEs, corrigidos na 2.21.7.
 ext['jackson-2-bom.version'] = '2.21.7'
 
 java {
