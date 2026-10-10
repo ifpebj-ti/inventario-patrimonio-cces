@@ -3,8 +3,9 @@
 Este documento descreve, para quem for implementar o front-end, todas as rotas de `/sectors`,
 `/users` (listagem e alocação), `/profiles` e `/permissions` como elas existem hoje em `main`,
 após as issues #179 (remoção de `Organization`, `Sector` independente) e #181 (autorização real em
-Setor e alocação usuário↔setor), ambas sub-issues de #154. **Não cobre** `/auth`, `/inventories` nem
-`/items` — essas rotas não foram tocadas por este trabalho.
+Setor e alocação usuário↔setor), ambas sub-issues de #154. Do `/auth`, cobre só o
+`POST /auth/login` da conta de sistema (issue #192). **Não cobre** `/inventories` nem `/items` —
+essas rotas não foram tocadas por este trabalho.
 
 ## Antes de implementar: comportamentos não óbvios
 
@@ -45,6 +46,28 @@ Hoje existem só 3 permissões, seedadas automaticamente, e cada perfil seedado 
 Um usuário sem perfil atribuído (`profileId: null`) não tem nenhuma permissão. Perfis e
 permissões continuam sendo entidades independentes e configuráveis via `/profiles` e
 `/permissions` — a tabela acima é só o estado do seed, não uma regra fixa no código.
+
+---
+
+## `POST /auth/login` — conta de sistema (admin)
+
+Existe uma única conta que entra por usuário e senha, sem Google: a conta de sistema, com o
+perfil `ADMIN_ORGANIZATION` (portanto `ADMIN`). Todos os outros usuários continuam entrando só pelo
+Google (`POST /auth/google`). Sem `Authorization`.
+
+```json
+{ "username": "admin", "password": "<senha configurada no backend>" }
+```
+
+- Resposta `200`: a mesma do login Google, `{ "token": "<JWT 24h>", "user": { "id", "name", "email" } }`.
+  O `email` dessa conta é o próprio identificador de login (ex: `admin`, sem `@`). O token é usado
+  exatamente como o do Google (`Authorization: Bearer ...`).
+- `400`: `username` ou `password` ausentes/vazios.
+- `401`: usuário inexistente, senha errada **ou** login por senha desligado no backend (sem senha
+  configurada). A resposta é a mesma nos três casos, de propósito.
+- A senha e o identificador vêm de `SYSTEM_ADMIN_PASSWORD`/`SYSTEM_ADMIN_USERNAME` no `.env` do
+  backend; o front não tem como saber se o login por senha está ligado, só tentar.
+- Essa conta aparece em `GET /users` como qualquer usuário (com `profileId` do administrador).
 
 ---
 
@@ -259,3 +282,4 @@ versão anterior do seed; se algo no front ou em anotações antigas citar `SECT
 | 1.0 | 2026-10-03 | Criação do documento, cobrindo o estado da API após as issues #179 e #181. |
 | 1.1 | 2026-10-03 | `GET /users` passa a exigir `ADMIN` (issue #185). |
 | 1.2 | 2026-10-03 | Usuário pode estar alocado a vários setores ao mesmo tempo: `PATCH /users/{id}/sector` sai, entram `POST`/`DELETE /users/{id}/sectors/{sectorId}` e `GET /sectors/{id}/users`; `GET /users` perde o filtro `?sectorId=`; resposta de usuário troca `sectorId` por `sectorIds` (issue #187). |
+| 1.3 | 2026-10-10 | Documenta `POST /auth/login` da conta de sistema (issue #192). |

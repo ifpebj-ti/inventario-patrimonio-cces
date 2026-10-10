@@ -464,4 +464,33 @@
 
     </changeSet>
 
+    <!-- =========================== SYSTEM USER ================================== -->
+
+    <changeSet id="20261010-1" author="Lucas Silva">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="im_user" columnName="is_system_user"/>
+            </not>
+        </preConditions>
+
+        <addColumn tableName="im_user">
+            <column name="is_system_user" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="password_hash" type="VARCHAR(100)"/>
+        </addColumn>
+
+        <dropNotNullConstraint tableName="im_user" columnName="google_id" columnDataType="VARCHAR(255)"/>
+
+        <sql>
+            ALTER TABLE im_user ADD CONSTRAINT ck_user_system_google CHECK (
+                (google_id IS NULL AND is_system_user = true)
+                OR (google_id IS NOT NULL AND is_system_user = false));
+
+            ALTER TABLE im_user ADD CONSTRAINT ck_user_password_only_system CHECK (
+                is_system_user = true OR password_hash IS NULL);
+        </sql>
+
+    </changeSet>
+
 </databaseChangeLog>

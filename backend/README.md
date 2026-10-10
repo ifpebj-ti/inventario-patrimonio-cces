@@ -5,15 +5,17 @@ Contrato de autenticação abaixo. Setor, usuário, perfil e permissão estão d
 
 # - Autenticação
 
-O login com Google é o **único** jeito de entrar. Não existe cadastro próprio, senha,
-verificação de e-mail nem recuperação de senha.
+O login com Google é o jeito de entrar de todos os usuários. Não existe cadastro próprio,
+verificação de e-mail nem recuperação de senha. A única exceção é a **conta de sistema** (admin),
+que entra por usuário e senha — veja "Conta de sistema" abaixo.
 
 O backend recebe o **ID token** que o Google Identity Services entrega ao frontend, valida a
 assinatura contra o JWKS do Google mais os claims `iss`, `aud`, `exp` e `email_verified`, e
 devolve o JWT da própria aplicação (HS256, 24h). Sem redirect, sem sessão e sem client secret —
 o fluxo de ID token usa apenas o client id, que é público.
 
-Só existem dois endpoints de autenticação: `POST /auth/google` e `GET /auth/me`.
+Os endpoints de autenticação são `POST /auth/google`, `POST /auth/login` (só conta de sistema) e
+`GET /auth/me`.
 
 ## Configuração
 
@@ -75,8 +77,38 @@ Nos acessos seguintes o usuário é localizado pelo e-mail, normalizado em minú
 devolve o e-mail canonicalizado, mas o índice único do Postgres é case-sensitive, e sem normalizar
 o mesmo dono viraria duas contas.
 
-A coluna `google_id` guarda o `sub` do Google. Ela é `NOT NULL` porque todo usuário nasce por este
-caminho, mas **não é consultada para autenticar** — quem autentica é a assinatura do ID token.
+A coluna `google_id` guarda o `sub` do Google e **não é consultada para autenticar** — quem
+autentica é a assinatura do ID token. Ela só é nula na conta de sistema (veja abaixo); o banco
+garante isso: `google_id` nulo se e somente se `is_system_user` verdadeiro.
+
+## Conta de sistema
+
+Uma conta (`admin` por padrão) que entra por usuário e senha, sem Google, com o perfil
+`ADMIN_ORGANIZATION`. Serve para o primeiro acesso e para atribuir perfis aos usuários do Google.
+
+- A senha vem do `.env` (`SYSTEM_ADMIN_PASSWORD`), **sem valor padrão**: o repositório é público.
+  O identificador de login vem de `SYSTEM_ADMIN_USERNAME` e é gravado na coluna `email`.
+- No boot, o backend cria a conta (ou atualiza o hash) a partir dessas variáveis. Trocar a senha é
+  trocar a variável e reiniciar. Senha vazia **desliga** o login por senha (a conta e o perfil
+  ficam, só o hash é apagado). Senha com menos de 12 caracteres é recusada e a conta não é
+  criada nem alterada.
+- A conta de sistema nunca entra pelo Google.
+
+`POST /auth/login` — sem autenticação.
+
+```json
+{ "username": "admin", "password": "<SYSTEM_ADMIN_PASSWORD>" }
+```
+
+Resposta 200: a mesma do `POST /auth/google` (`{ token, user }`).
+
+| Status | Corpo | Quando |
+|---|---|---|
+| 400 | `Missing credentials` | corpo ausente ou `username`/`password` vazios |
+| 401 | `Invalid credentials` | usuário inexistente, senha errada ou login por senha desligado |
+
+A mensagem de 401 é única de propósito, igual ao `/auth/google`. Não há limite de tentativas: a
+defesa hoje é a senha longa obrigatória.
 
 
 # - Limpeza de Dados com clear-all-data.sh

@@ -51,6 +51,10 @@ public class UserService {
 
     Optional<User> existing = userRepository.findByEmail(email);
     if (existing.isPresent()) {
+      // A conta de sistema só entra por usuário e senha, nunca pelo Google.
+      if (existing.get().isSystemUser()) {
+        throw new AuthenticationException("System account cannot sign in with Google");
+      }
       return existing.get();
     }
 
