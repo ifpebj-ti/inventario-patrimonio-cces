@@ -23,11 +23,19 @@ public class User {
   private String email;
 
   // O sub do Google. Não é consultado para autenticar — quem autentica é a
-  // assinatura do ID token —, mas todo usuário nasce pelo login com Google,
-  // então a coluna é obrigatória.
-  @Column(name = "google_id", unique = true, nullable = false)
+  // assinatura do ID token. Todo usuário nasce pelo login com Google, exceto a conta de sistema,
+  // que não tem Google: o banco garante google_id nulo se e somente se is_system_user.
+  @Column(name = "google_id", unique = true)
   @JsonIgnore
   private String googleId;
+
+  @Column(name = "is_system_user", nullable = false)
+  @JsonIgnore
+  private boolean systemUser = false;
+
+  @Column(name = "password_hash")
+  @JsonIgnore
+  private String passwordHash;
 
   @CreationTimestamp
   @Column(nullable = false, updatable = false)
@@ -75,6 +83,24 @@ public class User {
 
   public void setGoogleId(String googleId) {
     this.googleId = googleId;
+  }
+
+  @JsonIgnore
+  public boolean isSystemUser() {
+    return systemUser;
+  }
+
+  public void setSystemUser(boolean systemUser) {
+    this.systemUser = systemUser;
+  }
+
+  @JsonIgnore
+  public String getPasswordHash() {
+    return passwordHash;
+  }
+
+  public void setPasswordHash(String passwordHash) {
+    this.passwordHash = passwordHash;
   }
 
   public Profile getProfile() {

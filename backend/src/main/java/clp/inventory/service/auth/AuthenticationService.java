@@ -2,15 +2,19 @@ package clp.inventory.service.auth;
 
 import clp.inventory.dto.AuthResponseDTO;
 import clp.inventory.dto.GoogleAuthDto;
+import clp.inventory.dto.LoginDto;
 import clp.inventory.model.User;
 import clp.inventory.providers.GoogleTokenProvider;
+import clp.inventory.repository.UserRepository;
 import clp.inventory.service.UserService;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Locale;
 import javax.security.sasl.AuthenticationException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -21,10 +25,43 @@ public class AuthenticationService {
 
   private final UserService userService;
   private final GoogleTokenProvider googleTokenProvider;
+  private final UserRepository userRepository;
+  private final PasswordEncoder passwordEncoder;
+  private final String decoyPasswordHash;
 
-  public AuthenticationService(UserService userService, GoogleTokenProvider googleTokenProvider) {
+  public AuthenticationService(
+      UserService userService,
+      GoogleTokenProvider googleTokenProvider,
+      UserRepository userRepository,
+      PasswordEncoder passwordEncoder) {
     this.userService = userService;
     this.googleTokenProvider = googleTokenProvider;
+    this.userRepository = userRepository;
+    this.passwordEncoder = passwordEncoder;
+    this.decoyPasswordHash = passwordEncoder.encode("decoy-password-for-timing");
+  }
+
+  /**
+   * Login da conta de sistema. O identificador de login é a coluna email. Quando não há conta
+   * utilizável, a senha é conferida mesmo assim contra um hash descartável, para que "usuário
+   * inexistente" e "senha errada" levem o mesmo tempo.
+   */
+  public AuthResponseDTO authenticateWithPassword(LoginDto loginDto)
+      throws AuthenticationException {
+    String identifier = loginDto.username().trim().toLowerCase(Locale.ROOT);
+    User user =
+        userRepository
+            .findByEmail(identifier)
+            .filter(u -> u.isSystemUser() && u.getPasswordHash() != null)
+            .orElse(null);
+
+    String hash = user != null ? user.getPasswordHash() : decoyPasswordHash;
+    boolean matches = passwordEncoder.matches(loginDto.password(), hash);
+    if (user == null || !matches) {
+      throw new AuthenticationException("Invalid credentials");
+    }
+
+    return new AuthResponseDTO(issueToken(user), user);
   }
 
   public AuthResponseDTO authenticateWithGoogle(GoogleAuthDto googleAuthDto)
