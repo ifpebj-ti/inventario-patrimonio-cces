@@ -47,7 +47,7 @@ public class ItemController {
 
       return new ResponseEntity<>(pdf, headers, HttpStatus.OK);
     } catch (Exception e) {
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
     }
   }
 
@@ -93,7 +93,7 @@ public class ItemController {
 
       return new ResponseEntity<>(pdf, headers, HttpStatus.OK);
     } catch (Exception e) {
-      return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
     }
   }
 

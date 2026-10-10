@@ -34,7 +34,7 @@ flowchart LR
 | Container | Tecnologia e localização | Responsabilidades implementadas |
 | --- | --- | --- |
 | Aplicação web | Next.js 16.3, React 19, TypeScript e Tailwind CSS; diretório `frontend`. | Exibe login, painel de inventários, detalhes de itens e modais de importação, edição, observações e envio de planilha. Armazena o JWT em cookie e o envia nas chamadas à API. |
-| API REST | Spring Boot 3, Java 21, Spring Security, JPA e Liquibase; diretório `backend`. | Expõe endpoints de autenticação, inventários, itens, usuários, organizações, setores, perfis e permissões. Também processa XLSX, gera PDF de etiquetas legado e encaminha a planilha por e-mail. |
+| API REST | Spring Boot 4, Java 21, Spring Security, JPA e Liquibase; diretório `backend`. | Expõe endpoints de autenticação, inventários, itens, usuários, organizações, setores, perfis e permissões. Também processa XLSX, gera PDF de etiquetas legado e encaminha a planilha por e-mail. |
 | Banco de dados | PostgreSQL 15; serviço `postgres` no `docker-compose.yml`. | Armazena usuários, organização, setor, perfil, permissão, inventário, item e observação. O esquema é criado/evoluído por changelogs Liquibase. |
 
 ## Comunicação entre containers
