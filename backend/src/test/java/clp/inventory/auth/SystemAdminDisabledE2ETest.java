@@ -6,8 +6,9 @@ import clp.inventory.repository.UserRepository;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -19,6 +20,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 /** Sem SYSTEM_ADMIN_PASSWORD a conta de sistema não existe e o login por senha fica desligado. */
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureTestRestTemplate
 class SystemAdminDisabledE2ETest {
 
   @Container @ServiceConnection
