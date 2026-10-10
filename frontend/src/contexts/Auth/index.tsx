@@ -7,7 +7,11 @@ import toast from 'react-hot-toast'
 
 import { AuthContext } from './context'
 import { ProviderProps, User } from './types'
-import { googleSignInRequest, recoverUserInformation } from '@/services/auth'
+import {
+  googleSignInRequest,
+  passwordSignInRequest,
+  recoverUserInformation,
+} from '@/services/auth'
 
 export const TOKEN_COOKIE = 'inventarium.token'
 
@@ -49,16 +53,31 @@ export const AuthProvider = ({ children }: ProviderProps) => {
       .finally(() => setLoading(false))
   }, [])
 
-  const signInWithGoogle = useCallback(
-    async (credential: string) => {
-      // Deixa o AuthError subir: quem chama decide a mensagem exibida.
-      const { token, user } = await googleSignInRequest(credential)
-
+  // Parte comum aos dois logins: o backend devolve o mesmo { token, user }.
+  const startSession = useCallback(
+    (token: string, user: User) => {
       setCookie(undefined, TOKEN_COOKIE, token, COOKIE_OPTIONS)
       setUser(user)
       router.replace('/dashboard')
     },
     [router],
+  )
+
+  // Nos dois logins o AuthError sobe: quem chama decide a mensagem exibida.
+  const signInWithGoogle = useCallback(
+    async (credential: string) => {
+      const { token, user } = await googleSignInRequest(credential)
+      startSession(token, user)
+    },
+    [startSession],
+  )
+
+  const signInWithPassword = useCallback(
+    async (username: string, password: string) => {
+      const { token, user } = await passwordSignInRequest(username, password)
+      startSession(token, user)
+    },
+    [startSession],
   )
 
   const signOut = useCallback(() => {
@@ -72,7 +91,14 @@ export const AuthProvider = ({ children }: ProviderProps) => {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, isAuthenticated, signInWithGoogle, signOut }}
+      value={{
+        user,
+        loading,
+        isAuthenticated,
+        signInWithGoogle,
+        signInWithPassword,
+        signOut,
+      }}
     >
       {children}
     </AuthContext.Provider>
