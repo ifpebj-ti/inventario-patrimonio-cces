@@ -8,6 +8,7 @@ import toast from 'react-hot-toast'
 import { useAuth } from '@/hooks/useAuth'
 import { AuthError } from '@/commons/exceptions/AuthError'
 import { GOOGLE_CLIENT_ID } from '@/commons/env'
+import { PasswordLoginForm } from '@/components/organisms/passwordLoginForm'
 
 const MESSAGES = {
   // O 401 do backend cobre token inválido E domínio não permitido, com a mesma
@@ -30,6 +31,9 @@ export const LoginForm = () => {
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // O login por usuário e senha é da conta de sistema; o Google segue como caminho
+  // principal e o formulário só aparece quando o link é acionado.
+  const [showPasswordForm, setShowPasswordForm] = useState(false)
 
   // Quem já tem sessão válida não precisa ver o botão de login.
   useEffect(() => {
@@ -61,6 +65,39 @@ export const LoginForm = () => {
     }
   }
 
+  const googleLogin = !GOOGLE_CLIENT_ID ? (
+    <p className="text-red-500 text-[14px] text-center max-w-xs px-4">
+      {MESSAGES.misconfigured}
+    </p>
+  ) : (
+    <GoogleOAuthProvider
+      clientId={GOOGLE_CLIENT_ID}
+      locale="pt-BR"
+      onScriptLoadError={() => setError(MESSAGES.google)}
+    >
+      {/* min-h evita o card pular quando o botão vira o texto de progresso */}
+      <div className="flex flex-col items-center gap-4 min-h-[44px]">
+        {submitting ? (
+          <p className="text-gray-500">Entrando...</p>
+        ) : (
+          <GoogleLogin
+            onSuccess={(response) => handleCredential(response.credential)}
+            onError={() => setError(MESSAGES.google)}
+            text="signin_with"
+            shape="pill"
+            size="large"
+            width={280}
+          />
+        )}
+      </div>
+    </GoogleOAuthProvider>
+  )
+
+  const togglePasswordForm = () => {
+    setError(null)
+    setShowPasswordForm((visible) => !visible)
+  }
+
   return (
     <div className="w-full h-full xl:w-2/3 bg-white flex justify-center items-center flex-col gap-6 xl:h-3/4 rounded-3xl shadow-2xl">
       <h2 className="text-3xl text-blue-600">Seja Bem-vindo</h2>
@@ -69,33 +106,7 @@ export const LoginForm = () => {
         Entre com sua conta institucional para acessar o Inventarium.
       </p>
 
-      {!GOOGLE_CLIENT_ID ? (
-        <p className="text-red-500 text-[14px] text-center max-w-xs px-4">
-          {MESSAGES.misconfigured}
-        </p>
-      ) : (
-        <GoogleOAuthProvider
-          clientId={GOOGLE_CLIENT_ID}
-          locale="pt-BR"
-          onScriptLoadError={() => setError(MESSAGES.google)}
-        >
-          {/* min-h evita o card pular quando o botão vira o texto de progresso */}
-          <div className="flex flex-col items-center gap-4 min-h-[44px]">
-            {submitting ? (
-              <p className="text-gray-500">Entrando...</p>
-            ) : (
-              <GoogleLogin
-                onSuccess={(response) => handleCredential(response.credential)}
-                onError={() => setError(MESSAGES.google)}
-                text="signin_with"
-                shape="pill"
-                size="large"
-                width={280}
-              />
-            )}
-          </div>
-        </GoogleOAuthProvider>
-      )}
+      {showPasswordForm ? <PasswordLoginForm /> : googleLogin}
 
       {error && (
         <p
@@ -105,6 +116,17 @@ export const LoginForm = () => {
           {error}
         </p>
       )}
+
+      {/* Fora do ternário do Google de propósito: sem client id o aviso aparece
+          e este link continua sendo a única forma de entrar. */}
+      <button
+        type="button"
+        onClick={togglePasswordForm}
+        aria-expanded={showPasswordForm}
+        className="text-sm text-gray-500 underline hover:text-gray-700 cursor-pointer min-h-[44px]"
+      >
+        {showPasswordForm ? 'Voltar' : 'Entrar com usuário e senha'}
+      </button>
     </div>
   )
 }
