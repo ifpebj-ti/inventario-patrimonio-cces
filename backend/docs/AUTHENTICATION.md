@@ -1,8 +1,11 @@
 # Autenticação
 
-O Inventarium usa **exclusivamente login com Google** (OAuth 2.0 / OpenID Connect, fluxo de ID
-token). Não existe usuário/senha: não há cadastro próprio, verificação de e-mail nem recuperação
-de senha. Toda conta nasce e se autentica pelo Google.
+O Inventarium usa **login com Google** (OAuth 2.0 / OpenID Connect, fluxo de ID token). Não há
+cadastro próprio, verificação de e-mail nem recuperação de senha: toda conta de usuário nasce e se
+autentica pelo Google. A única exceção é a **conta de sistema** (`POST /auth/login`, usuário e
+senha, perfil `ADMIN_ORGANIZATION`), que serve ao primeiro acesso e tem limite de tentativas
+contra força bruta. Ela está descrita em [`backend/README.md`](../README.md#conta-de-sistema); o
+resto deste documento trata do fluxo Google.
 
 Este documento explica como o fluxo funciona, onde cada peça está no código, e o que falta
 configurar para rodar em produção.

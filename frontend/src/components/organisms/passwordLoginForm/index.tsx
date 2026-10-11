@@ -14,12 +14,25 @@ import loginSchema from '@/validations/login'
 
 type LoginFormData = z.infer<typeof loginSchema>
 
+// O tempo vem do Retry-After do backend; sem ele (ou se o navegador não deixar
+// ler o cabeçalho) a mensagem fica genérica.
+const rateLimitedMessage = (retryAfterSeconds?: number) => {
+  if (!retryAfterSeconds) {
+    return 'Muitas tentativas. Tente novamente em alguns minutos.'
+  }
+
+  const minutes = Math.ceil(retryAfterSeconds / 60)
+
+  return `Muitas tentativas. Tente novamente em ${minutes} ${minutes === 1 ? 'minuto' : 'minutos'}.`
+}
+
 const MESSAGES: Record<AuthErrorKind, string> = {
   // O 401 do backend cobre usuário inexistente, senha errada e login por senha
   // desligado, com a mesma mensagem, de propósito: o front não distingue.
   unauthorized: 'Usuário ou senha incorretos.',
   unavailable:
     'O serviço de autenticação está indisponível no momento. Tente novamente em alguns minutos.',
+  rateLimited: rateLimitedMessage(),
   unexpected: 'Falha inesperada ao entrar. Tente novamente.',
 }
 
@@ -46,7 +59,11 @@ export const PasswordLoginForm = () => {
       toast.success('Bem-vindo ao Inventarium!')
     } catch (err) {
       const message =
-        err instanceof AuthError ? MESSAGES[err.kind] : MESSAGES.unexpected
+        err instanceof AuthError
+          ? err.kind === 'rateLimited'
+            ? rateLimitedMessage(err.retryAfterSeconds)
+            : MESSAGES[err.kind]
+          : MESSAGES.unexpected
 
       // O erro fica inline além do toast, para poder ser relido depois que o
       // toast some sozinho.

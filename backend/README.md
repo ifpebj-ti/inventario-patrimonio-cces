@@ -110,8 +110,34 @@ Resposta 200: a mesma do `POST /auth/google` (`{ token, user }`).
 | 400 | `Missing credentials` | corpo ausente ou `username`/`password` vazios |
 | 401 | `Invalid credentials` | usuário inexistente, senha errada ou login por senha desligado |
 
-A mensagem de 401 é única de propósito, igual ao `/auth/google`. Não há limite de tentativas: a
-defesa hoje é a senha longa obrigatória.
+| 429 | `Too many attempts` | limite de tentativas estourado (veja abaixo); vem com o cabeçalho `Retry-After` em segundos |
+
+A mensagem de 401 é única de propósito, igual ao `/auth/google`.
+
+### Limite de tentativas
+
+O login por senha tem bloqueio temporário contra força bruta, com contadores **em memória** (a
+aplicação roda numa instância; reiniciar o backend zera os contadores):
+
+- **Por usuário**: 5 falhas em 15 min bloqueiam aquele usuário por 15 min, de qualquer IP. Usuário
+  inexistente conta igual, então a resposta não revela quais usuários existem.
+- **Por IP**: 10 falhas em 15 min bloqueiam aquele IP por 15 min, para qualquer usuário.
+- Durante o bloqueio a resposta é `429` **mesmo com a senha certa** (e sem gastar BCrypt). Pedidos
+  bloqueados não prolongam o bloqueio, e requisições com campos vazios (400) não contam.
+- Um login com sucesso zera o contador do usuário, mas não o do IP.
+- O bloqueio é temporário de propósito: bloqueio permanente permitiria a qualquer um travar o
+  `admin`. Contrapartida: quem insistir consegue manter o `admin` indisponível, sem afetar o login
+  Google dos demais.
+
+Os limites são configuráveis: `AUTH_LOGIN_USER_MAX_FAILURES`, `AUTH_LOGIN_IP_MAX_FAILURES`,
+`AUTH_LOGIN_WINDOW` e `AUTH_LOGIN_BLOCK_DURATION` (ex.: `15m`).
+
+**IP do cliente.** O limite por IP usa o IP de quem conecta. Atrás de um proxy (nginx) esse seria o
+IP do proxy, e todos os clientes dividiriam o mesmo contador. Nesse caso o proxy precisa
+**sobrescrever** o `X-Forwarded-For` (não anexar ao que veio do cliente) e o backend precisa de
+`FORWARD_HEADERS_STRATEGY=native`. Sem proxy confiável deixe o padrão (`none`): o cabeçalho viria do
+cliente e seria falsificável. O `/auth/google` não tem esse limite: não há segredo para adivinhar
+(o que entra é um ID token assinado pelo Google).
 
 
 # - Limpeza de Dados com clear-all-data.sh
