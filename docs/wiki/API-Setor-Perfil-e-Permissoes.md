@@ -65,6 +65,11 @@ Google (`POST /auth/google`). Sem `Authorization`.
 - `400`: `username` ou `password` ausentes/vazios.
 - `401`: usuário inexistente, senha errada **ou** login por senha desligado no backend (sem senha
   configurada). A resposta é a mesma nos três casos, de propósito.
+- `429`: muitas tentativas. Corpo `Too many attempts` e cabeçalho `Retry-After` (segundos até poder
+  tentar de novo). O bloqueio vale por usuário (5 falhas em 15 min) e por IP (10 falhas em 15 min),
+  dura 15 min e vale **mesmo com a senha certa**. Mostre uma mensagem própria ("Muitas tentativas,
+  tente de novo em N minutos") em vez de tratar como erro genérico. O `Retry-After` é legível pelo
+  navegador (CORS expõe o cabeçalho).
 - A senha e o identificador vêm de `SYSTEM_ADMIN_PASSWORD`/`SYSTEM_ADMIN_USERNAME` no `.env` do
   backend; o front não tem como saber se o login por senha está ligado, só tentar.
 - Essa conta aparece em `GET /users` como qualquer usuário (com `profileId` do administrador).
@@ -283,3 +288,4 @@ versão anterior do seed; se algo no front ou em anotações antigas citar `SECT
 | 1.1 | 2026-10-03 | `GET /users` passa a exigir `ADMIN` (issue #185). |
 | 1.2 | 2026-10-03 | Usuário pode estar alocado a vários setores ao mesmo tempo: `PATCH /users/{id}/sector` sai, entram `POST`/`DELETE /users/{id}/sectors/{sectorId}` e `GET /sectors/{id}/users`; `GET /users` perde o filtro `?sectorId=`; resposta de usuário troca `sectorId` por `sectorIds` (issue #187). |
 | 1.3 | 2026-10-10 | Documenta `POST /auth/login` da conta de sistema (issue #192). |
+| 1.4 | 2026-10-11 | `POST /auth/login` passa a responder `429` com `Retry-After` após falhas repetidas (issue #201). |
