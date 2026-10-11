@@ -29,7 +29,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/inventory")
-@CrossOrigin(origins = "*")
 public class InventoryController {
 
   private final InventoryService inventoryService;

@@ -17,7 +17,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/item")
-@CrossOrigin(origins = "*")
 public class ItemController {
 
   private final ItemPdfService itemPdfService;

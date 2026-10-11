@@ -30,7 +30,8 @@ public class SecurityConfig {
     http.csrf(AbstractHttpConfigurer::disable)
         .cors(Customizer.withDefaults())
         // Autenticação é só por Bearer: sessão persistida somada a CSRF desabilitado
-        // e origins="*" seria o que abriria espaço para CSRF de verdade.
+        // e CORS aberto a qualquer origem seria o que abriria espaço para CSRF de verdade.
+        // As origens permitidas vêm do bean CorsConfigurationSource (CorsConfig).
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(

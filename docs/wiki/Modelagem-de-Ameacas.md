@@ -76,7 +76,7 @@ As ameaças críticas abertas estao concentradas em autorização por objeto e e
 | 12 | Medium | Open | Denial of service | Planilha XLSX + mensagem | Abuso do servico de e-mail por requisições repetidas |
 | 13 | High | Mitigated | Tampering | REST API + Bearer JWT + uploads | Interceptacao ou alteracao do trafego cliente-API |
 | 14 | Medium | Open | Spoofing | Backend API / Spring Boot | JWT da aplicação sem revogacao ou rotacao de sessão |
-| 15 | Medium | Open | Tampering | Backend API / Spring Boot | CORS permissivo para origens não confiáveis |
+| 15 | Medium | Mitigated | Tampering | Backend API / Spring Boot | CORS permissivo para origens não confiáveis |
 | 16 | Medium | Open | Information disclosure | Backend API / Spring Boot | Enumeracao de IDs por respostas e tempos diferentes |
 | 17 | High | Open | Denial of service | REST API + Bearer JWT + uploads | Upload XLSX malformado ou zip bomb contra o parser |
 | 18 | Medium | Open | Information disclosure | JWT + dados + PDF/XLSX | Formula injection em planilhas exportadas |
@@ -105,7 +105,7 @@ Os itens 14 a 21 foram adicionados ao JSON versionado a partir da leitura do có
 4. Endurecer o processamento de XLSX com limites de tamanho, linhas, colunas, timeout e defesa contra zip bomb.
 5. Reduzir impacto de XSS com CSP e considerar migracao do token para cookie `Secure`, `HttpOnly` e `SameSite`.
 6. Implementar auditoria append-only para operações críticas.
-7. Revisar CORS, credenciais de banco, TLS entre serviços e política de backup.
+7. Revisar credenciais de banco, TLS entre serviços e política de backup. O CORS foi tratado: a API só aceita as origens de `CORS_ALLOWED_ORIGINS` (ameaça 15), sem credenciais, e recusa `*` na inicialização.
 
 ## Critérios de manutenção
 
