@@ -1,7 +1,7 @@
 # API de Setor, Usuário, Perfil e Permissão
 
 Este documento descreve, para quem for implementar o front-end, todas as rotas de `/sectors`,
-`/users` (listagem e alocação), `/profiles` e `/permissions` como elas existem hoje em `main`,
+`/users` (listagem, alocação e perfil), `/profiles` e `/permissions` como elas existem hoje em `main`,
 após as issues #179 (remoção de `Organization`, `Sector` independente) e #181 (autorização real em
 Setor e alocação usuário↔setor), ambas sub-issues de #154. Do `/auth`, cobre só o
 `POST /auth/login` da conta de sistema (issue #192). **Não cobre** `/inventories` nem `/items` —
@@ -13,9 +13,9 @@ essas rotas não foram tocadas por este trabalho.
   Forbidden` — não `401` — porque o `SecurityConfig` ainda não tem um `AuthenticationEntryPoint`
   customizado (é um TODO em aberto no backend).
 - **Um JWT com assinatura válida mas cujo `subject` não existe mais em `im_user`** (ex: usuário
-  excluído) faz as rotas que checam permissão (`/sectors` e `/users/{id}/sectors/{sectorId}`)
-  responderem `401 Unauthorized`, não `403`. É o único caso em que essas rotas devolvem 401 em vez
-  de 403.
+  excluído) faz as rotas que checam permissão (`/sectors`, `/profiles`, `/permissions`,
+  `/users/{id}/sectors/{sectorId}` e `PATCH /users/{id}/profile`) responderem `401 Unauthorized`,
+  não `403`. É o único caso em que essas rotas devolvem 401 em vez de 403.
 - **O corpo de erro nunca tem um campo `message`.** O backend não tem `@ControllerAdvice`/handler
   próprio, então quem responde é o tratamento padrão do Spring Boot, que por padrão omite a
   mensagem detalhada. O corpo de qualquer erro (400/401/403/404/409) tem sempre este formato:
@@ -38,14 +38,20 @@ Hoje existem só 3 permissões, seedadas automaticamente, e cada perfil seedado 
 
 | Permissão | Perfil que tem | O que libera hoje |
 | --- | --- | --- |
-| `ADMIN` | `ADMIN_ORGANIZATION` | Escrita e leitura em `/sectors`; alocar/desalocar qualquer usuário em qualquer setor. |
+| `ADMIN` | `ADMIN_ORGANIZATION` | Escrita e leitura em `/sectors`; alocar/desalocar qualquer usuário em qualquer setor; `GET /users`; tudo em `/profiles` e `/permissions` (leitura); `PATCH /users/{id}/profile`. |
 | `MANAGE_SECTOR` | `GESTOR_SETOR` | Leitura em `/sectors`; alocar/desalocar usuário **só nos setores em que o próprio ator está alocado**. |
 | `MANAGE_ITEM` | `OPERADOR_CAMPO` | Seedada, mas **nenhum endpoint checa essa permissão ainda** (Item/Inventory ficam para uma etapa futura). |
 | (nenhuma) | `CONSULTA` | Não dá acesso a nada que exija permissão. |
 
-Um usuário sem perfil atribuído (`profileId: null`) não tem nenhuma permissão. Perfis e
-permissões continuam sendo entidades independentes e configuráveis via `/profiles` e
-`/permissions` — a tabela acima é só o estado do seed, não uma regra fixa no código.
+Um usuário sem perfil atribuído (`profileId: null`) não tem nenhuma permissão. **Perfis** são
+configuráveis via `/profiles` (um perfil pode ter qualquer combinação de permissões), mas
+**permissões não**: elas são definidas em código e `/permissions` é só leitura. Uma permissão nova
+só entra por task + migration. A tabela acima é o estado do seed dos perfis, não uma regra fixa no
+código — exceto `ADMIN_ORGANIZATION`, que é protegido (ver `/profiles`).
+
+**A conta de sistema (`admin`) nunca perde o perfil `ADMIN_ORGANIZATION` nem a permissão `ADMIN`,
+por ação de ninguém, nem de outro admin.** Qualquer outro usuário, mesmo com `ADMIN`, pode ter o
+perfil trocado ou removido por outro admin.
 
 ---
 
@@ -198,33 +204,37 @@ conta de sistema); `403` conforme acima.
 
 Corpo: `{ "profileId": 5 }` ou `{ "profileId": null }` para desvincular.
 
-**Sem nenhuma checagem de permissão ainda** — qualquer usuário autenticado pode trocar o perfil de
-qualquer outro usuário. Isso é uma lacuna conhecida (TODO no backend), não uma decisão de produto.
-Até isso ser resolvido, considere esconder essa ação na UI para quem não for `ADMIN`, já que o
-backend não vai impedir — a validação, por enquanto, é só de UX, não de segurança.
+**Permissão: `ADMIN`.** Quem não tem `ADMIN` recebe `403`, inclusive para tentar mudar o próprio
+perfil (não dá para "se promover"). Esconda essa ação na UI para quem não for `ADMIN`.
 
-Resposta: o `User` atualizado. Erros: `404` usuário não existe (ou é a conta de sistema, cujo perfil
-não pode ser alterado por aqui); `400` `profileId` enviado não existe.
+Um admin pode trocar ou remover o perfil de qualquer outro usuário, inclusive de outro admin e de si
+mesmo. **A conta de sistema é a exceção**: o perfil dela não pode ser alterado por aqui (responde `404`,
+como se ela não existisse — ela também não aparece em `GET /users`).
+
+Resposta: o `User` atualizado. Erros: `403` sem `ADMIN`; `404` usuário não existe (ou é a conta de
+sistema); `400` `profileId` enviado não existe.
 
 ---
 
 ## `/profiles`
 
-CRUD completo, **sem checagem de permissão ainda** (TODO no backend) — qualquer autenticado pode
-gerenciar perfis.
+**Todas as rotas exigem `ADMIN`**, inclusive as de leitura (`403` para qualquer outro perfil). Não
+mostre a tela de perfis para quem não for `ADMIN`.
 
-| Método e rota | O que faz |
-| --- | --- |
-| `POST /profiles` | Cria perfil |
-| `GET /profiles` | Lista todos |
-| `GET /profiles/{id}` | Busca por id |
-| `PUT /profiles/{id}` | Edita nome/descrição |
-| `DELETE /profiles/{id}` | Remove (só se nenhum usuário estiver com esse perfil) |
-| `POST /profiles/{id}/permissions/{permissionId}` | Associa uma permissão ao perfil |
-| `DELETE /profiles/{id}/permissions/{permissionId}` | Remove a associação |
+| Método e rota | O que faz | Sucesso |
+| --- | --- | --- |
+| `POST /profiles` | Cria perfil | `201` |
+| `GET /profiles` | Lista todos | `200` |
+| `GET /profiles/{id}` | Busca por id | `200` |
+| `PUT /profiles/{id}` | Edita nome/descrição | `200` |
+| `DELETE /profiles/{id}` | Remove (só se nenhum usuário estiver com esse perfil) | `204` |
+| `POST /profiles/{id}/permissions/{permissionId}` | Associa uma permissão ao perfil | `200` com o perfil |
+| `DELETE /profiles/{id}/permissions/{permissionId}` | Remove a associação | `200` com o perfil |
 
 Corpo de `POST`/`PUT`: `{ "name": "GESTOR_SETOR", "description": "..." }` — `name` obrigatório,
-único, máximo 100 caracteres; `description` opcional, máximo 255 caracteres.
+único, máximo 100 caracteres (espaços nas pontas são removidos antes de validar e gravar, então
+`"X "` e `"X"` são o mesmo nome); `description` opcional, máximo 255 caracteres. A unicidade do nome
+diferencia maiúsculas de minúsculas.
 
 Resposta (`ProfileDto`):
 
@@ -241,35 +251,50 @@ Resposta (`ProfileDto`):
 
 `POST`/`DELETE .../permissions/{permissionId}` são idempotentes: adicionar uma permissão já
 associada, ou remover uma que não está associada, devolve `200` normalmente (sem erro), só não
-muda nada.
+muda nada. Excluir um perfil **não** apaga as permissões dele, só o vínculo.
 
-Erros: `400` nome vazio/duplicado/tamanho; `404` perfil ou permissão não existe; `409` ao tentar
-apagar um perfil que está atribuído a algum usuário.
+### Erros
+
+| Status | Quando |
+| --- | --- |
+| `400` | nome vazio, ausente, duplicado ou com mais de 100 caracteres; descrição com mais de 255 |
+| `403` | quem chama não tem `ADMIN` |
+| `404` | perfil ou permissão não existe |
+| `409` | o perfil de administrador foi alvo de uma operação proibida, **ou** o perfil a excluir ainda tem usuários (veja abaixo) |
+
+O `409` tem **dois significados** e o corpo do erro não diz qual (ver "O corpo de erro nunca tem um
+campo `message`"). Diferencie pelo perfil:
+
+- **Perfil `ADMIN_ORGANIZATION` (protegido).** É o perfil da conta de sistema, e o backend depende
+  dele para subir. Não pode ser **renomeado** (a descrição pode), **excluído** nem **perder a
+  permissão `ADMIN`** (`DELETE .../permissions/{id da ADMIN}`). Adicionar outras permissões a ele e
+  remover essas extras é permitido. Na UI, não ofereça renomear, excluir nem remover `ADMIN` desse
+  perfil.
+- **Qualquer outro perfil, ao excluir:** `409` quer dizer que ainda há usuário com esse perfil
+  (inclusive a conta de sistema). Para a tela já poder avisar antes, use
+  `GET /users?profileId=<id>` (só `ADMIN`; a conta de sistema não aparece nessa lista, então um `409`
+  pode ocorrer mesmo com a lista vazia — trate o `409` de qualquer forma).
 
 Perfis seedados hoje: `ADMIN_ORGANIZATION`, `GESTOR_SETOR`, `OPERADOR_CAMPO`, `CONSULTA` (ver
-tabela de permissões acima).
+tabela de permissões acima). Só o `ADMIN_ORGANIZATION` é protegido; os outros três podem ser
+editados e excluídos (se sem usuário).
 
 ---
 
-## `/permissions`
+## `/permissions` — somente leitura
 
-CRUD completo, **sem checagem de permissão ainda** (TODO no backend).
+**Exige `ADMIN`** (`403` para os demais). Não existe criar, editar nem excluir permissão pela API:
+`POST /permissions`, `PUT /permissions/{id}` e `DELETE /permissions/{id}` **foram removidos e
+respondem `405`**. As permissões são definidas em código; uma nova entra por task + migration, não
+por tela.
 
 | Método e rota | O que faz |
 | --- | --- |
-| `POST /permissions` | Cria permissão |
 | `GET /permissions` | Lista todas |
-| `GET /permissions/{id}` | Busca por id |
-| `PUT /permissions/{id}` | Edita nome/descrição |
-| `DELETE /permissions/{id}` | Remove (só se nenhum perfil tiver essa permissão) |
+| `GET /permissions/{id}` | Busca por id (`404` se não existe) |
 
-Corpo de `POST`/`PUT`: `{ "name": "ADMIN", "description": "..." }` — `name` obrigatório, único,
-máximo 100 caracteres; `description` opcional, máximo 255 caracteres.
-
-Resposta (`PermissionDto`): `{ "id": 1, "name": "ADMIN", "description": "..." }`.
-
-Erros: `400` nome vazio/duplicado/tamanho; `404` não existe; `409` ao tentar apagar uma permissão
-que está associada a algum perfil.
+Resposta (`PermissionDto`): `{ "id": 1, "name": "ADMIN", "description": "..." }`. A tela de perfis
+usa esta lista para mostrar quais permissões podem ser associadas a um perfil.
 
 Permissões seedadas hoje: `ADMIN`, `MANAGE_SECTOR`, `MANAGE_ITEM` (só 3 — nomes mudaram de uma
 versão anterior do seed; se algo no front ou em anotações antigas citar `SECTOR_MANAGE`,
@@ -277,10 +302,22 @@ versão anterior do seed; se algo no front ou em anotações antigas citar `SECT
 
 ---
 
+## Resumo das mudanças de contrato (versão 1.6, issue #205)
+
+Para quem já tinha algo montado em cima da versão anterior:
+
+- `/profiles`, `/permissions` e `PATCH /users/{id}/profile` **passaram a exigir `ADMIN`**. Antes
+  qualquer usuário autenticado podia chamá-las; agora os demais recebem `403`.
+- `POST`, `PUT` e `DELETE /permissions` **foram removidos** (`405`). `GET` continua.
+- Novos `409` em `/profiles`: renomear, excluir ou tirar a permissão `ADMIN` do perfil
+  `ADMIN_ORGANIZATION`.
+- Criar ou renomear um perfil para um nome que só difere por espaços nas pontas agora responde `400`
+  (antes podia responder `500`).
+
 ## O que ainda não existe (não contar com isso)
 
-- Checagem de permissão em `/profiles`, `/permissions` e em `PATCH /users/{id}/profile` — hoje é
-  tudo aberto a qualquer autenticado.
+- Endpoint para listar ou contar os usuários de um perfil (use `GET /users?profileId=`, que não
+  traz a conta de sistema).
 - Qualquer vínculo entre `Inventory`/`Item` e `Sector`, ou autorização por setor nessas rotas —
   `MANAGE_ITEM` existe no seed mas nenhum endpoint a verifica ainda.
 - Histórico/fluxo de validação entre setores.
@@ -295,3 +332,4 @@ versão anterior do seed; se algo no front ou em anotações antigas citar `SECT
 | 1.3 | 2026-10-10 | Documenta `POST /auth/login` da conta de sistema (issue #192). |
 | 1.4 | 2026-10-11 | `POST /auth/login` passa a responder `429` com `Retry-After` após falhas repetidas (issue #201). |
 | 1.5 | 2026-10-11 | A conta de sistema sai de `GET /users` e `GET /sectors/{id}/users`, e as rotas de perfil e alocação respondem `404` para ela (issue #202). |
+| 1.6 | 2026-10-11 | `/profiles`, `/permissions` e `PATCH /users/{id}/profile` passam a exigir `ADMIN`; `/permissions` vira somente leitura (`POST`/`PUT`/`DELETE` removidos); o perfil `ADMIN_ORGANIZATION` fica protegido (409); nome de perfil com `trim` (issue #205). |

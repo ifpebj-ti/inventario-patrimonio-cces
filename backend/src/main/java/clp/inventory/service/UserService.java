@@ -103,7 +103,8 @@ public class UserService {
   }
 
   @Transactional
-  public User assignProfile(long userId, Long profileId) {
+  public User assignProfile(long userId, Long profileId, long actingUserId) {
+    authorizationService.requirePermission(actingUserId, "ADMIN");
     // A conta de sistema responde como se não existisse: mexer no perfil dela por aqui poderia
     // deixar o sistema sem nenhum administrador.
     User user =

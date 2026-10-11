@@ -11,6 +11,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
   List<User> findByProfile_Id(long profileId);
 
+  boolean existsByProfile_Id(long profileId);
+
   // Listagens não mostram a conta de sistema; findById/findByEmail seguem enxergando-a, porque o
   // login, o /auth/me e a autorização dependem delas.
   List<User> findAllBySystemUserFalse();

@@ -24,7 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class SystemAdminInitializer implements ApplicationRunner {
 
   static final int MIN_PASSWORD_LENGTH = 12;
-  static final String ADMIN_PROFILE = "ADMIN_ORGANIZATION";
+  static final String ADMIN_PROFILE = Profile.ADMIN_PROFILE_NAME;
 
   private static final Logger log = LoggerFactory.getLogger(SystemAdminInitializer.class);
 
