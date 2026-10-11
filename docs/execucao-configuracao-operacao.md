@@ -59,7 +59,13 @@ Preencha o `.env` antes de subir a aplicação.
 | `NEXT_PUBLIC_API_URL` | Nao | Frontend | URL pública que o navegador usa para chamar a API. Local: `http://localhost:8080`. |
 | `GOOGLE_ALLOWED_DOMAINS` | Nao | Backend | Dominios permitidos no login Google. Padrao: `ifpe.edu.br`. |
 | `SPRING_MAIL_USERNAME` | Nao | Backend | Conta SMTP usada para envio de emails. |
-| `SPRING_MAIL_PASSWORD` | Nao | Backend | Senha de app do Gmail ou credencial SMTP equivalente. |
+| `SPRING_MAIL_PASSWORD` | Nao | Backend | Senha de app do Gmail ou credencial SMTP equivalente. Em produção é obrigatória (o compose de produção aborta sem ela). |
+| `SYSTEM_ADMIN_USERNAME` | Nao | Backend | Usuário da conta de sistema que entra por senha (`POST /auth/login`). Padrao: `admin`. |
+| `SYSTEM_ADMIN_PASSWORD` | Nao | Backend | Senha da conta de sistema. Vazia desliga o login por senha. Precisa ter **no mínimo 12 caracteres**: com menos, a conta não é criada e o backend só registra um erro no log. Trocar o valor e reiniciar troca a senha da conta. |
+| `FORWARD_HEADERS_STRATEGY` | Nao | Backend | `none` (padrão local) ou `native`. Use `native` somente atrás do Nginx, que deve sobrescrever o `X-Forwarded-For`; é o padrão do compose de produção. O limite de tentativas de login por IP depende disso. |
+| `AUTH_LOGIN_IP_MAX_FAILURES`, `AUTH_LOGIN_USER_MAX_FAILURES`, `AUTH_LOGIN_WINDOW`, `AUTH_LOGIN_BLOCK_DURATION` | Nao | Backend | Limites do login por senha. Padrao: 10 falhas por IP, 5 por usuário, janela e bloqueio de `15m`. O compose de produção os repassa. |
+| `IMAGE_TAG` | Nao | Compose de produção | Tag das imagens do GHCR. Padrao: `latest` (última release). Para rollback, use `vX.Y.Z`. |
+| `CORS_ALLOWED_ORIGINS` | Nao | Compose de produção | Origens autorizadas a chamar a API pelo navegador. Padrao: `https://inventariumifpe.me`. O backend passa a ler esta variável em mudança própria; até lá ela é apenas repassada. |
 
 Variáveis sensiveis não devem ser commitadas. Em produção, mantenha `SECURITY_TOKEN_SECRET`, `POSTGRES_PASSWORD` e `SPRING_MAIL_PASSWORD` em mecanismo seguro de secrets ou no arquivo `.env` protegido da VM.
 
@@ -79,11 +85,17 @@ A pipeline pública imagens no GitHub Container Registry, mas não injeta secret
 
 Cada tag de release do GHCR é uma imagem multi-arquitetura, com variantes `linux/amd64` e `linux/arm64`. Ao executar `docker compose pull`, o Docker escolhe a variante compatível com a CPU da VM automaticamente; a referência da imagem permanece a mesma.
 
-Para produção, configure a stack da VM ou o `.env` protegido apontando para as tags versionadas publicadas pelo workflow de release:
+Em produção usa-se o `docker-compose.production.yml`, que não constrói nada: ele puxa `ghcr.io/ifpebj-ti/inventarium-back` e `inventarium-front` na tag `IMAGE_TAG` (padrão `latest`). Ele também:
+
+- fixa o nome do projeto (`inventarium`) e do volume do banco (`inventarium_postgres-data`), para que mudar o diretório ou recriar a stack no Portainer não aponte para um volume novo e vazio;
+- publica as portas do backend e do frontend apenas em `127.0.0.1`; quem atende a internet é o Nginx do host;
+- não publica a porta do Postgres.
+
+Configure a stack da VM ou o `.env` protegido (permissão `0600`) com:
 
 ```bash
-BACKEND_IMAGE=ghcr.io/<owner>/inventarium-back:v0.2.1
-FRONTEND_IMAGE=ghcr.io/<owner>/inventarium-front:v0.2.1
+# latest acompanha a última release; para rollback fixe uma tag publicada, como v0.2.0.
+IMAGE_TAG=latest
 
 SECURITY_TOKEN_SECRET=<valor-forte>
 POSTGRES_USER=<usuário>
@@ -92,11 +104,16 @@ POSTGRES_DB=inventory_management
 SPRING_MAIL_USERNAME=<conta-smtp>
 SPRING_MAIL_PASSWORD=<senha-ou-app-password>
 GOOGLE_OAUTH_CLIENT_ID=<client-id-google>
-NEXT_PUBLIC_API_URL=<url-publica-da-api>
 GOOGLE_ALLOWED_DOMAINS=ifpe.edu.br
+SYSTEM_ADMIN_USERNAME=admin
+SYSTEM_ADMIN_PASSWORD=<12-ou-mais-caracteres>
+FORWARD_HEADERS_STRATEGY=native
+CORS_ALLOWED_ORIGINS=https://inventariumifpe.me
 ```
 
-Para rollback, troque apenas `BACKEND_IMAGE` e `FRONTEND_IMAGE` para uma tag de versão anterior ja publicada, como `v0.2.0`. As demais variáveis podem permanecer iguais.
+`NEXT_PUBLIC_API_URL` não faz parte da stack: ela é argumento de build do frontend e vem das variáveis do repositório no GitHub. Mudar a URL exige uma nova release.
+
+Para rollback, troque apenas `IMAGE_TAG` para uma tag de versão anterior já publicada, como `v0.2.0`, e atualize a stack com re-pull das imagens. As demais variáveis podem permanecer iguais. O rollback de imagem não reverte migrações do Liquibase já aplicadas.
 
 No Portainer, prefira manter essas variáveis como environment da stack, não como valores digitados manualmente a cada recriacao de container. Se a pipeline passar a fazer deploy automatico na VM depois, ela deve atualizar somente a referencia da imagem versionada ou forcar pull/recreate da stack, preservando as variáveis de runtime ja configuradas.
 

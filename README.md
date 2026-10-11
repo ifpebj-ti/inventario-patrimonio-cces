@@ -135,7 +135,7 @@ O `docker-compose.yml` builda as imagens locais `inventarium-front:local` e `inv
 O guia completo de execução, configuração e operação está em:
 
 ```text
-docs/execução-configuração-operação.md
+docs/execucao-configuracao-operacao.md
 ```
 
 Para rodar apenas o backend fora do Compose, use também o exemplo dentro de `backend` quando necessário.
