@@ -3,6 +3,7 @@
 // Por isso classificamos pelo status HTTP, nunca pelo texto do corpo.
 export type AuthErrorKind =
   | 'unauthorized' // 401/400: token recusado ou conta fora do domínio permitido
+  | 'rateLimited' // 429: muitas tentativas de login, bloqueio temporário no backend
   | 'unavailable' // 5xx ou falha de rede: backend fora do ar ou mal configurado
   | 'unexpected'
 
@@ -10,6 +11,8 @@ export class AuthError extends Error {
   constructor(
     public readonly kind: AuthErrorKind,
     message: string,
+    // Só no 429: segundos até poder tentar de novo, vindos do Retry-After.
+    public readonly retryAfterSeconds?: number,
   ) {
     super(message)
     this.name = 'AuthError'
