@@ -6,6 +6,20 @@ O histórico é atualizado manualmente na própria pull request antes do merge e
 
 ## [Unreleased]
 
+### Added
+
+- Adicionado o `docker-compose.production.yml` para a VM de produção, com imagens do GHCR selecionadas por `IMAGE_TAG`, nome de projeto e de volume fixos, portas do backend e do frontend apenas em loopback e healthcheck do frontend.
+- Adicionados testes (`npm run test:github`) que validam o compose de produção com `docker compose config`.
+
+### Changed
+
+- O compose de produção passa a repassar `SYSTEM_ADMIN_*`, `FORWARD_HEADERS_STRATEGY` (padrão `native`), `AUTH_LOGIN_*` e `CORS_ALLOWED_ORIGINS`.
+- Atualizados `.env.example`, `backend/.env.example` e o guia de execução e operação com as variáveis de produção.
+
+### Security
+
+- Removido de `backend/docs/GOOGLE_AUTH_SETUP.md` um valor de exemplo de `SECURITY_TOKEN_SECRET`; se algum ambiente o usou, o segredo deve ser rotacionado.
+
 ## [v0.4.0] - 2026-09-28
 
 ### Added
