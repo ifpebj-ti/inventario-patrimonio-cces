@@ -16,7 +16,6 @@ import org.springframework.web.server.ResponseStatusException;
  */
 @RestController
 @RequestMapping("/permissions")
-@CrossOrigin(origins = "*")
 public class PermissionController {
 
   private final PermissionService permissionService;

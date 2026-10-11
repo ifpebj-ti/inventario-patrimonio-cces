@@ -18,7 +18,6 @@ import org.springframework.web.server.ResponseStatusException;
  * exige ADMIN ou (MANAGE_SECTOR + estar alocado no setor informado) — ver AuthorizationService.
  */
 @RestController
-@CrossOrigin(origins = "*")
 public class UserController {
 
   private final UserService userService;

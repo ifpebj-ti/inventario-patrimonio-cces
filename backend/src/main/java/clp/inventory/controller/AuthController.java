@@ -15,8 +15,6 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/auth")
-// Retry-After precisa estar exposto para o navegador conseguir ler o tempo de bloqueio do login.
-@CrossOrigin(origins = "*", exposedHeaders = "Retry-After")
 public class AuthController {
 
   private final AuthenticationService authenticationService;

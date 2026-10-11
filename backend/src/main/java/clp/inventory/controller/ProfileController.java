@@ -17,7 +17,6 @@ import org.springframework.web.server.ResponseStatusException;
  */
 @RestController
 @RequestMapping("/profiles")
-@CrossOrigin(origins = "*")
 public class ProfileController {
 
   private final ProfileService profileService;

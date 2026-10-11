@@ -20,7 +20,6 @@ import org.springframework.web.server.ResponseStatusException;
  */
 @RestController
 @RequestMapping("/sectors")
-@CrossOrigin(origins = "*")
 public class SectorController {
 
   private final SectorService sectorService;
