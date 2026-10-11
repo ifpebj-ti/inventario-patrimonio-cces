@@ -94,8 +94,12 @@ Uma conta (`admin` por padrão) que entra por usuário e senha, sem Google, com 
   criada nem alterada.
 - A conta de sistema nunca entra pelo Google.
 - A conta não aparece em `GET /users` nem em `GET /sectors/{id}/users`, e `PATCH /users/{id}/profile`
-  e a alocação em setor respondem `404` para ela: ninguém pode tirar o perfil de administrador da
-  conta (e ficar sem acesso) pela API.
+  e a alocação em setor respondem `404` para ela. O perfil `ADMIN_ORGANIZATION`, que ela usa, não
+  pode ser renomeado, excluído nem perder a permissão `ADMIN` pela API (409), e `/permissions` é
+  somente leitura. Assim ninguém, nem outro admin, consegue deixar o sistema sem acesso
+  administrativo pela API. Qualquer outro usuário pode ter o perfil trocado por um admin.
+- `/profiles`, `/permissions` e `PATCH /users/{id}/profile` exigem `ADMIN`. Uma permissão nova não se
+  cria pela API: entra por migration do Liquibase.
 
 `POST /auth/login` — sem autenticação.
 

@@ -14,10 +14,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * GET /users exige ADMIN. POST/DELETE /users/{id}/sectors/{sectorId} exige ADMIN ou
- * (MANAGE_SECTOR + estar alocado no setor informado) — ver AuthorizationService. TODO: restringir
- * /users/{id}/profile quando a checagem de permissão para atribuição de perfil for definida (ver
- * docs/wiki/Proposta-de-Modelagem-Organizacoes-Setores-e-Permissoes.md).
+ * GET /users e PATCH /users/{id}/profile exigem ADMIN. POST/DELETE /users/{id}/sectors/{sectorId}
+ * exige ADMIN ou (MANAGE_SECTOR + estar alocado no setor informado) — ver AuthorizationService.
  */
 @RestController
 @CrossOrigin(origins = "*")
@@ -66,9 +64,10 @@ public class UserController {
 
   @PatchMapping("/users/{id}/profile")
   public ResponseEntity<UserDto> assignProfile(
-      @PathVariable long id, @RequestBody AssignProfileDto dto) {
+      @PathVariable long id, @RequestBody AssignProfileDto dto, HttpServletRequest request) {
     try {
-      return ResponseEntity.ok(toDto(userService.assignProfile(id, dto.profileId())));
+      return ResponseEntity.ok(
+          toDto(userService.assignProfile(id, dto.profileId(), actingUserId(request))));
     } catch (NoSuchElementException e) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
     } catch (IllegalArgumentException e) {

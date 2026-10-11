@@ -62,8 +62,9 @@ class UserSectorProfileE2ETest {
 
   @Autowired SectorAllocationRepository sectorAllocationRepository;
 
+  // PATCH /users/{id}/profile e a criação de perfis exigem ADMIN.
   private HttpHeaders authHeaders() {
-    return authHeadersFor(1);
+    return authHeadersFor(adminUserId());
   }
 
   private HttpHeaders authHeadersFor(long userId) {
@@ -555,5 +556,81 @@ class UserSectorProfileE2ETest {
             Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+  }
+
+  // --- PATCH /users/{id}/profile exige ADMIN ---
+
+  private ResponseEntity<Map> patchProfile(long userId, Object profileId, long actingUserId) {
+    var body = new HashMap<String, Object>();
+    body.put("profileId", profileId);
+    return restTemplate.exchange(
+        "/users/" + userId + "/profile",
+        HttpMethod.PATCH,
+        new HttpEntity<>(body, authHeadersFor(actingUserId)),
+        Map.class);
+  }
+
+  @Test
+  void assignProfile_asNonAdmin_returns403() {
+    long profileId = createProfile("Perfil Recusado Para Nao Admin");
+    long consultaId = createUserWithProfile("consulta-atribui-perfil@ifpe.edu.br", "CONSULTA");
+    long targetId = createUser("alvo-patch-sem-permissao@ifpe.edu.br");
+
+    var response = patchProfile(targetId, profileId, consultaId);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    assertThat(userRepository.findById(targetId).orElseThrow().getProfile()).isNull();
+  }
+
+  @Test
+  void assignProfile_nonAdminCannotPromoteThemselves() {
+    var adminProfile =
+        profileRepository.findAll().stream()
+            .filter(p -> "ADMIN_ORGANIZATION".equals(p.name()))
+            .findFirst()
+            .orElseThrow();
+    long consultaId = createUserWithProfile("auto-promocao@ifpe.edu.br", "CONSULTA");
+
+    var response = patchProfile(consultaId, adminProfile.id(), consultaId);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    assertThat(userRepository.findById(consultaId).orElseThrow().getProfile().name())
+        .isEqualTo("CONSULTA");
+  }
+
+  @Test
+  void assignProfile_asGestorSetor_returns403() {
+    long profileId = createProfile("Perfil Recusado Para Gestor");
+    long gestorId = createUserWithProfile("gestor-atribui-perfil@ifpe.edu.br", "GESTOR_SETOR");
+    long targetId = createUser("alvo-do-gestor@ifpe.edu.br");
+
+    assertThat(patchProfile(targetId, profileId, gestorId).getStatusCode())
+        .isEqualTo(HttpStatus.FORBIDDEN);
+  }
+
+  @Test
+  void assignProfile_adminCanRemoveAdminFromAnotherRegularAdmin() {
+    long actingAdminId = adminUserId();
+    long otherAdminId = adminUserId();
+
+    var response = patchProfile(otherAdminId, null, actingAdminId);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(userRepository.findById(otherAdminId).orElseThrow().getProfile()).isNull();
+  }
+
+  @Test
+  void assignProfile_systemAccountKeepsItsProfileEvenForAdmins() {
+    User system = createSystemAccount();
+    long adminId = adminUserId();
+
+    assertThat(patchProfile(system.getId(), null, adminId).getStatusCode())
+        .isEqualTo(HttpStatus.NOT_FOUND);
+    assertThat(
+            patchProfile(system.getId(), createProfile("Perfil Para Rebaixar Sistema 2"), adminId)
+                .getStatusCode())
+        .isEqualTo(HttpStatus.NOT_FOUND);
+    assertThat(userRepository.findById(system.getId()).orElseThrow().getProfile().name())
+        .isEqualTo("ADMIN_ORGANIZATION");
   }
 }

@@ -11,6 +11,10 @@ import org.hibernate.annotations.UpdateTimestamp;
 @Table(name = "im_profile")
 public class Profile {
 
+  // Perfil da conta de sistema e do administrador do Inventarium. O boot depende dele (o
+  // SystemAdminInitializer o procura por este nome), então não pode ser renomeado nem excluído.
+  public static final String ADMIN_PROFILE_NAME = "ADMIN_ORGANIZATION";
+
   @Id
   @Column(name = "id")
   @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "im_profile_id")

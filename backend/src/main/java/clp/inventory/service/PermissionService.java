@@ -1,79 +1,36 @@
 package clp.inventory.service;
 
-import clp.inventory.dto.PermissionDto;
 import clp.inventory.model.Permission;
 import clp.inventory.repository.PermissionRepository;
 import java.util.List;
 import java.util.NoSuchElementException;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Permissões são somente leitura pela API e exigem ADMIN. Elas são definidas em código (só ADMIN,
+ * MANAGE_SECTOR e MANAGE_ITEM têm efeito); uma permissão nova entra por migration do Liquibase.
+ */
 @Service
 public class PermissionService {
 
   private final PermissionRepository permissionRepository;
+  private final AuthorizationService authorizationService;
 
-  public PermissionService(PermissionRepository permissionRepository) {
+  public PermissionService(
+      PermissionRepository permissionRepository, AuthorizationService authorizationService) {
     this.permissionRepository = permissionRepository;
+    this.authorizationService = authorizationService;
   }
 
-  @Transactional
-  public Permission createPermission(PermissionDto dto) {
-    validate(dto);
-    if (permissionRepository.existsByName(dto.name())) {
-      throw new IllegalArgumentException(
-          "Permission with name '" + dto.name() + "' already exists");
-    }
-    Permission permission = new Permission(dto.name().trim(), dto.description());
-    return permissionRepository.save(permission);
-  }
-
-  @Transactional
-  public Permission updatePermission(long id, PermissionDto dto) {
-    validate(dto);
-    Permission permission = findPermissionById(id);
-    if (permissionRepository.existsByNameAndIdNot(dto.name(), id)) {
-      throw new IllegalArgumentException(
-          "Permission with name '" + dto.name() + "' already exists");
-    }
-    permission.setName(dto.name().trim());
-    permission.setDescription(dto.description());
-    return permissionRepository.save(permission);
-  }
-
-  @Transactional
-  public void deletePermission(long id) {
-    if (!permissionRepository.existsById(id)) {
-      throw new NoSuchElementException("Permission not found with id: " + id);
-    }
-    try {
-      permissionRepository.deleteById(id);
-      permissionRepository.flush();
-    } catch (DataIntegrityViolationException e) {
-      throw new IllegalStateException("Permission is in use and cannot be deleted");
-    }
-  }
-
-  public Permission findPermissionById(long id) {
+  public Permission findPermissionById(long id, long actingUserId) {
+    authorizationService.requirePermission(actingUserId, "ADMIN");
     return permissionRepository
         .findById(id)
         .orElseThrow(() -> new NoSuchElementException("Permission not found with id: " + id));
   }
 
-  public List<Permission> listAllPermissions() {
+  public List<Permission> listAllPermissions(long actingUserId) {
+    authorizationService.requirePermission(actingUserId, "ADMIN");
     return permissionRepository.findAll();
-  }
-
-  private void validate(PermissionDto dto) {
-    if (dto.name() == null || dto.name().trim().isEmpty()) {
-      throw new IllegalArgumentException("Permission name cannot be null or empty");
-    }
-    if (dto.name().trim().length() > 100) {
-      throw new IllegalArgumentException("Permission name cannot exceed 100 characters");
-    }
-    if (dto.description() != null && dto.description().length() > 255) {
-      throw new IllegalArgumentException("Permission description cannot exceed 255 characters");
-    }
   }
 }
