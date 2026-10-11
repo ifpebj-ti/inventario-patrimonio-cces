@@ -29,6 +29,11 @@ essas rotas não foram tocadas por este trabalho.
   ```
   **Não dá para montar uma mensagem de erro para o usuário a partir do corpo da resposta** — use
   somente o status HTTP para decidir o que mostrar na tela.
+- **CORS: só as origens configuradas em `CORS_ALLOWED_ORIGINS` chamam a API pelo navegador.** O
+  padrão é `http://localhost:3000`; em produção, `https://inventariumifpe.me`. Uma origem não
+  listada recebe `403` já no preflight. São aceitos apenas os headers `Authorization` e
+  `Content-Type`; um header extra no cliente derruba o preflight. `Retry-After` e
+  `Content-Disposition` são legíveis pelo navegador. Não há cookies nem credenciais de navegador.
 - Todos os campos de resposta estão em `camelCase` e batem exatamente com os nomes abaixo (são os
   nomes dos componentes dos records Java que viram o JSON).
 

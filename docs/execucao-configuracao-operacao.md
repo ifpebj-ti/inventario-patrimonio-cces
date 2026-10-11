@@ -65,7 +65,7 @@ Preencha o `.env` antes de subir a aplicação.
 | `FORWARD_HEADERS_STRATEGY` | Nao | Backend | `none` (padrão local) ou `native`. Use `native` somente atrás do Nginx, que deve sobrescrever o `X-Forwarded-For`; é o padrão do compose de produção. O limite de tentativas de login por IP depende disso. |
 | `AUTH_LOGIN_IP_MAX_FAILURES`, `AUTH_LOGIN_USER_MAX_FAILURES`, `AUTH_LOGIN_WINDOW`, `AUTH_LOGIN_BLOCK_DURATION` | Nao | Backend | Limites do login por senha. Padrao: 10 falhas por IP, 5 por usuário, janela e bloqueio de `15m`. O compose de produção os repassa. |
 | `IMAGE_TAG` | Nao | Compose de produção | Tag das imagens do GHCR. Padrao: `latest` (última release). Para rollback, use `vX.Y.Z`. |
-| `CORS_ALLOWED_ORIGINS` | Nao | Compose de produção | Origens autorizadas a chamar a API pelo navegador. Padrao: `https://inventariumifpe.me`. O backend passa a ler esta variável em mudança própria; até lá ela é apenas repassada. |
+| `CORS_ALLOWED_ORIGINS` | Nao | Compose de produção | Origens (separadas por vírgula) autorizadas a chamar a API pelo navegador. Padrao no compose de produção: `https://inventariumifpe.me`; em desenvolvimento: `http://localhost:3000`. `*` é recusado na inicialização do backend. |
 
 Variáveis sensiveis não devem ser commitadas. Em produção, mantenha `SECURITY_TOKEN_SECRET`, `POSTGRES_PASSWORD` e `SPRING_MAIL_PASSWORD` em mecanismo seguro de secrets ou no arquivo `.env` protegido da VM.
 
