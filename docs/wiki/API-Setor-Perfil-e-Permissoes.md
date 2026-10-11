@@ -72,7 +72,9 @@ Google (`POST /auth/google`). Sem `Authorization`.
   navegador (CORS expõe o cabeçalho).
 - A senha e o identificador vêm de `SYSTEM_ADMIN_PASSWORD`/`SYSTEM_ADMIN_USERNAME` no `.env` do
   backend; o front não tem como saber se o login por senha está ligado, só tentar.
-- Essa conta aparece em `GET /users` como qualquer usuário (com `profileId` do administrador).
+- Essa conta **não aparece** em `GET /users` nem em `GET /sectors/{id}/users`, e as rotas que mexem em
+  usuário por id (`PATCH /users/{id}/profile`, `POST`/`DELETE /users/{id}/sectors/{sectorId}`)
+  respondem `404` para ela, como se não existisse. Ela só entra pelo login e é lida por `/auth/me`.
 
 ---
 
@@ -163,6 +165,9 @@ nunca aparecem no JSON de usuário (isso já era assim antes, não é uma mudan�
 **Não existe mais filtro por setor aqui** (`?sectorId=` saiu). Para ver quem está alocado a um
 setor específico, use `GET /sectors/{id}/users`.
 
+A conta de sistema (`admin`) **não vem na lista**, nem com `?profileId=` do perfil
+`ADMIN_ORGANIZATION`. Não conte com ela para saber quem é administrador.
+
 Erro: `403` se quem está autenticado não tem `ADMIN`.
 
 ### `POST /users/{id}/sectors/{sectorId}` — alocar usuário a um setor
@@ -178,7 +183,7 @@ duplicar nada.
 
 Resposta: o `User` atualizado (`200`), mesmo formato do `GET /users`.
 
-Erros: `404` usuário ou setor não existe; `403` conforme acima.
+Erros: `404` usuário ou setor não existe (ou o usuário é a conta de sistema); `403` conforme acima.
 
 ### `DELETE /users/{id}/sectors/{sectorId}` — desalocar usuário de um setor
 
@@ -186,8 +191,8 @@ Mesma permissão do `POST` (`ADMIN`, ou `MANAGE_SECTOR` estando alocado nesse `{
 Idempotente: desalocar quem não está alocado a esse setor não dá erro, só devolve o estado atual.
 Remove só a alocação para `{sectorId}` — os outros setores do usuário, se houver, não mudam.
 
-Resposta: o `User` atualizado (`200`). Erros: `404` usuário ou setor não existe; `403` conforme
-acima.
+Resposta: o `User` atualizado (`200`). Erros: `404` usuário ou setor não existe (ou o usuário é a
+conta de sistema); `403` conforme acima.
 
 ### `PATCH /users/{id}/profile` — alocar ou desvincular perfil
 
@@ -198,8 +203,8 @@ qualquer outro usuário. Isso é uma lacuna conhecida (TODO no backend), não um
 Até isso ser resolvido, considere esconder essa ação na UI para quem não for `ADMIN`, já que o
 backend não vai impedir — a validação, por enquanto, é só de UX, não de segurança.
 
-Resposta: o `User` atualizado. Erros: `404` usuário não existe; `400` `profileId` enviado não
-existe.
+Resposta: o `User` atualizado. Erros: `404` usuário não existe (ou é a conta de sistema, cujo perfil
+não pode ser alterado por aqui); `400` `profileId` enviado não existe.
 
 ---
 
@@ -289,3 +294,4 @@ versão anterior do seed; se algo no front ou em anotações antigas citar `SECT
 | 1.2 | 2026-10-03 | Usuário pode estar alocado a vários setores ao mesmo tempo: `PATCH /users/{id}/sector` sai, entram `POST`/`DELETE /users/{id}/sectors/{sectorId}` e `GET /sectors/{id}/users`; `GET /users` perde o filtro `?sectorId=`; resposta de usuário troca `sectorId` por `sectorIds` (issue #187). |
 | 1.3 | 2026-10-10 | Documenta `POST /auth/login` da conta de sistema (issue #192). |
 | 1.4 | 2026-10-11 | `POST /auth/login` passa a responder `429` com `Retry-After` após falhas repetidas (issue #201). |
+| 1.5 | 2026-10-11 | A conta de sistema sai de `GET /users` e `GET /sectors/{id}/users`, e as rotas de perfil e alocação respondem `404` para ela (issue #202). |

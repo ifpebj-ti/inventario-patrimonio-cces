@@ -96,10 +96,6 @@ public class UserService {
     return user.orElseThrow(() -> new RuntimeException("User not found"));
   }
 
-  public List<User> listAllUsers() {
-    return userRepository.findAll();
-  }
-
   public User findUserById(long userId) {
     return userRepository
         .findById(userId)
@@ -108,9 +104,12 @@ public class UserService {
 
   @Transactional
   public User assignProfile(long userId, Long profileId) {
+    // A conta de sistema responde como se não existisse: mexer no perfil dela por aqui poderia
+    // deixar o sistema sem nenhum administrador.
     User user =
         userRepository
             .findById(userId)
+            .filter(found -> !found.isSystemUser())
             .orElseThrow(() -> new NoSuchElementException("User not found with id: " + userId));
     if (profileId == null) {
       user.setProfile(null);
@@ -128,8 +127,8 @@ public class UserService {
   public List<User> listUsers(Long profileId, long actingUserId) {
     authorizationService.requirePermission(actingUserId, "ADMIN");
     if (profileId != null) {
-      return userRepository.findByProfile_Id(profileId);
+      return userRepository.findByProfile_IdAndSystemUserFalse(profileId);
     }
-    return userRepository.findAll();
+    return userRepository.findAllBySystemUserFalse();
   }
 }
