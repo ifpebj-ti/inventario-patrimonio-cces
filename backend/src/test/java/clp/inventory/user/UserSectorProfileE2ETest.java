@@ -422,4 +422,138 @@ class UserSectorProfileE2ETest {
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
   }
+
+  // --- Conta de sistema: fora das listagens e protegida contra alteração pela API ---
+
+  private User createSystemAccount() {
+    var adminProfile =
+        profileRepository.findAll().stream()
+            .filter(p -> "ADMIN_ORGANIZATION".equals(p.name()))
+            .findFirst()
+            .orElseThrow();
+    User user = new User();
+    user.setName("System Account");
+    user.setEmail("sistema-" + System.nanoTime());
+    user.setSystemUser(true);
+    user.setProfile(adminProfile);
+    return userRepository.save(user);
+  }
+
+  @SuppressWarnings("unchecked")
+  private List<Map<String, Object>> getList(String url, long actingUserId) {
+    var response =
+        restTemplate.exchange(
+            url, HttpMethod.GET, new HttpEntity<>(authHeadersFor(actingUserId)), List.class);
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    return (List<Map<String, Object>>) response.getBody();
+  }
+
+  private static List<Long> idsOf(List<Map<String, Object>> users) {
+    return users.stream().map(u -> ((Number) u.get("id")).longValue()).toList();
+  }
+
+  @Test
+  void list_doesNotReturnTheSystemAccount() {
+    long adminId = adminUserId();
+    long regularId = createUser("lista-sem-sistema@ifpe.edu.br");
+    User system = createSystemAccount();
+
+    var ids = idsOf(getList("/users", adminId));
+
+    assertThat(ids).contains(adminId, regularId).doesNotContain(system.getId());
+  }
+
+  @Test
+  void list_filteredByAdminProfile_doesNotReturnTheSystemAccount() {
+    long adminId = adminUserId();
+    User system = createSystemAccount();
+    long adminProfileId = system.getProfile().id();
+
+    var ids = idsOf(getList("/users?profileId=" + adminProfileId, adminId));
+
+    assertThat(ids).contains(adminId).doesNotContain(system.getId());
+  }
+
+  @Test
+  void sectorUsers_doesNotReturnTheSystemAccount() {
+    long adminId = adminUserId();
+    long sectorId = createSector("Setor Sem Conta De Sistema");
+    long regularId = createUserWithProfile("alocado-sem-sistema@ifpe.edu.br", "CONSULTA");
+    User system = createSystemAccount();
+    allocateSectorDirectly(regularId, sectorId);
+    allocateSectorDirectly(system.getId(), sectorId);
+
+    var ids = idsOf(getList("/sectors/" + sectorId + "/users", adminId));
+
+    assertThat(ids).containsExactly(regularId);
+  }
+
+  @Test
+  void assignProfile_onTheSystemAccount_returns404AndKeepsItsProfile() {
+    User system = createSystemAccount();
+    long otherProfileId = createProfile("Perfil Para Rebaixar Sistema");
+
+    var response =
+        restTemplate.exchange(
+            "/users/" + system.getId() + "/profile",
+            HttpMethod.PATCH,
+            new HttpEntity<>(Map.of("profileId", otherProfileId), authHeaders()),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    var unchanged = userRepository.findById(system.getId()).orElseThrow();
+    assertThat(unchanged.getProfile().name()).isEqualTo("ADMIN_ORGANIZATION");
+  }
+
+  @Test
+  void unassignProfile_onTheSystemAccount_returns404AndKeepsItsProfile() {
+    User system = createSystemAccount();
+    var body = new HashMap<String, Object>();
+    body.put("profileId", null);
+
+    var response =
+        restTemplate.exchange(
+            "/users/" + system.getId() + "/profile",
+            HttpMethod.PATCH,
+            new HttpEntity<>(body, authHeaders()),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    assertThat(userRepository.findById(system.getId()).orElseThrow().getProfile()).isNotNull();
+  }
+
+  @Test
+  void allocate_theSystemAccount_returns404AndDoesNotAllocate() {
+    long adminId = adminUserId();
+    long sectorId = createSector("Setor Que Recusa Conta De Sistema");
+    User system = createSystemAccount();
+
+    var response =
+        restTemplate.exchange(
+            "/users/" + system.getId() + "/sectors/" + sectorId,
+            HttpMethod.POST,
+            new HttpEntity<>(authHeadersFor(adminId)),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    assertThat(sectorAllocationRepository.existsByUser_IdAndSector_Id(system.getId(), sectorId))
+        .isFalse();
+  }
+
+  @Test
+  void deallocate_theSystemAccount_returns404() {
+    long adminId = adminUserId();
+    long sectorId = createSector("Setor Com Conta De Sistema Alocada");
+    User system = createSystemAccount();
+    allocateSectorDirectly(system.getId(), sectorId);
+
+    var response =
+        restTemplate.exchange(
+            "/users/" + system.getId() + "/sectors/" + sectorId,
+            HttpMethod.DELETE,
+            new HttpEntity<>(authHeadersFor(adminId)),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+  }
 }

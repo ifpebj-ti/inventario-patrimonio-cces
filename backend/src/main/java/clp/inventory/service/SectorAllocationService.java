@@ -36,6 +36,7 @@ public class SectorAllocationService {
     User user =
         userRepository
             .findById(userId)
+            .filter(found -> !found.isSystemUser())
             .orElseThrow(() -> new NoSuchElementException("User not found with id: " + userId));
     Sector sector =
         sectorRepository
@@ -54,6 +55,7 @@ public class SectorAllocationService {
     User user =
         userRepository
             .findById(userId)
+            .filter(found -> !found.isSystemUser())
             .orElseThrow(() -> new NoSuchElementException("User not found with id: " + userId));
     if (!sectorRepository.existsById(sectorId)) {
       throw new NoSuchElementException("Sector not found with id: " + sectorId);
@@ -71,6 +73,7 @@ public class SectorAllocationService {
   public List<User> usersAllocatedToSector(long sectorId) {
     return sectorAllocationRepository.findBySector_Id(sectorId).stream()
         .map(SectorAllocation::user)
+        .filter(user -> !user.isSystemUser())
         .toList();
   }
 }

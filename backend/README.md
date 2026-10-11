@@ -93,6 +93,9 @@ Uma conta (`admin` por padrão) que entra por usuário e senha, sem Google, com 
   ficam, só o hash é apagado). Senha com menos de 12 caracteres é recusada e a conta não é
   criada nem alterada.
 - A conta de sistema nunca entra pelo Google.
+- A conta não aparece em `GET /users` nem em `GET /sectors/{id}/users`, e `PATCH /users/{id}/profile`
+  e a alocação em setor respondem `404` para ela: ninguém pode tirar o perfil de administrador da
+  conta (e ficar sem acesso) pela API.
 
 `POST /auth/login` — sem autenticação.
 
