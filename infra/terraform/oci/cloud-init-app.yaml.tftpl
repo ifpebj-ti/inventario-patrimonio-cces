@@ -1,25 +1,27 @@
 #cloud-config
-package_update: true
-packages:
-  - nginx
-  - dnf-utils
-
+# VM da aplicacao. Este cloud-init so grava os arquivos versionados no repositorio (infra/nginx e
+# infra/scripts) e dispara o bootstrap, que e idempotente. Nenhum segredo passa por aqui: os segredos
+# da aplicacao entram depois, por scp, em bootstrap-portainer-stack.sh.
 write_files:
+  - path: /etc/inventarium/edge.env
+    permissions: "0640"
+    content: |
+      ${indent(6, edge_env)}
   - path: /etc/motd
     permissions: "0644"
     content: |
       Inventarium application VM
 
-      Planned services:
-      - Nginx reverse proxy
-      - Docker containers for frontend, backend and database
-      - Portainer CE for container administration
+      - Nginx (TLS, proxy reverso) -> /etc/nginx, instalado por /opt/inventarium-app/bin/install-nginx-config.sh
+      - Portainer em 127.0.0.1:9443, publicado apenas via Nginx
+      - Stack da aplicacao: criada no Portainer por bootstrap-portainer-stack.sh
+      - Log do bootstrap: /var/log/inventarium-bootstrap.log
+%{ for path, content in source_files ~}
+  - path: /opt/inventarium-app/src/${path}
+    permissions: "0640"
+    content: |
+      ${indent(6, content)}
+%{ endfor ~}
 
 runcmd:
-  - dnf config-manager --add-repo=https://download.docker.com/linux/centos/docker-ce.repo
-  - dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-  - systemctl enable --now docker
-  - systemctl enable --now nginx
-  - mkdir -p /opt/inventarium-app
-  - docker volume create portainer_data
-  - docker run -d --name portainer --restart=always -p 9443:9443 -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:lts
+  - [bash, -c, "bash /opt/inventarium-app/src/scripts/bootstrap-vm.sh >> /var/log/inventarium-bootstrap.log 2>&1"]

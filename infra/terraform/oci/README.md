@@ -14,8 +14,10 @@ Neste primeiro passo, o Terraform ainda nao cria recursos. Ele apenas configura 
 - `locals.tf`: monta listas de regras de rede a partir das variaveis.
 - `security.tf`: declara os NSGs e as regras de entrada/saida das VMs.
 - `state.tf`: cria o bucket privado e versionado que sera usado como backend remoto do Terraform state.
-- `compute.tf`: declara as VMs de aplicacao e observabilidade.
-- `cloud-init-app.yaml.tftpl`: prepara a VM de aplicacao com Nginx, Docker e Portainer CE.
+- `compute.tf`: declara as VMs de aplicacao e observabilidade (IPs privados fixos).
+- `public-ip.tf`: IP publico RESERVADO da VM de aplicacao (sobrevive a recriacao da VM; use-o no DNS).
+- `backup.tf`: bucket privado de backups do Postgres, retencao (lifecycle) e IAM (dynamic group e policies) para a VM enviar dumps com instance principal.
+- `cloud-init-app.yaml.tftpl`: grava os arquivos versionados de `infra/nginx/app-vm` e `infra/scripts/app-vm` na VM e dispara o `bootstrap-vm.sh` (Nginx, Docker, Portainer, timers de backup e de certificado).
 - `cloud-init-observability.yaml.tftpl`: prepara a VM de observabilidade com Nginx e Docker.
 - `backend.oci.hcl.example`: modelo de configuracao do backend remoto, usado depois que o bucket existir.
 - `outputs.tf`: mostra os Availability Domains retornados pela Oracle.
@@ -53,15 +55,18 @@ As duas subnets usam uma security list base sem regras de entrada. Ela libera ap
 O NSG da aplicacao libera:
 
 - SSH `22` somente para `allowed_ssh_cidrs`.
-- HTTP `80` e HTTPS `443` somente para `allowed_web_cidrs`.
-- Portainer `9443` somente para `allowed_admin_cidrs`.
+- HTTP `80` e HTTPS `443` para `allowed_web_cidrs`. O site e publico e o Let's Encrypt (HTTP-01) valida pela porta 80, entao use `0.0.0.0/0`.
 - Saida para internet.
+
+A porta `9443` (Portainer) **nao** e mais exposta: o Portainer escuta so em `127.0.0.1` e a UI e publicada pelo Nginx em `portainer.<dominio>`, restrita aos IPs de `allowed_admin_cidrs` (o Terraform recusa `0.0.0.0/0` nessa variavel).
 
 O NSG de observabilidade nao recebe trafego direto da internet. Ele libera SSH `22` somente a partir da subnet publica da aplicacao, permitindo um acesso futuro via VM da aplicacao como ponto de entrada interno.
 
 ## VMs iniciais
 
-A VM de aplicacao nasce na subnet publica, recebe IP publico e usa o NSG da aplicacao. O cloud-init instala Nginx, Docker e Portainer CE.
+A VM de aplicacao nasce na subnet publica, sem IP publico efemero, e recebe o IP publico reservado (`public-ip.tf`). Usa o NSG da aplicacao e o IP privado fixo `cidrhost(subnet, 10)`. O cloud-init instala Nginx, Docker e Portainer CE e aplica a configuracao versionada; o passo a passo esta em `docs/wiki/Deploy-em-Producao-OCI.md`.
+
+O `user_data` vai comprimido (`base64gzip`) porque o Nginx e os scripts passam do limite de 32 KB em texto puro. Ele tem `ignore_changes` na VM de aplicacao: a VM guarda o volume do Postgres e nao pode ser recriada por mudanca de Nginx ou de script. Para atualizar o Nginx use `infra/scripts/deploy-nginx.sh`; para reprovisionar de proposito use `terraform apply -replace=oci_core_instance.app` (apos garantir um backup).
 
 A VM de observabilidade nasce na subnet privada, sem IP publico, e usa o NSG de observabilidade. O cloud-init instala Nginx e Docker para receber a stack de observabilidade e SonarQube depois.
 
@@ -71,11 +76,14 @@ O bucket `inventarium-terraform-state` e criado como privado (`NoPublicAccess`) 
 
 O acesso ao state deve ser controlado por IAM da OCI e pelas credenciais usadas pelo Terraform. Para GitHub Actions, o ideal e usar credenciais/secrets especificos da pipeline, nao liberar o bucket por IP publico.
 
-O backend remoto ainda nao esta ativado em `versions.tf`, porque o bucket precisa existir antes da migracao. O fluxo esperado e:
+O backend `oci` esta declarado em `versions.tf` e exige Terraform 1.12 ou superior. Como o bucket precisa existir antes da migracao do state, o fluxo da primeira vez e:
 
 ```bash
-terraform apply
+terraform init -backend=false   # cria o bucket do state com state local
+terraform apply -target=oci_objectstorage_bucket.terraform_state
 terraform init -migrate-state -backend-config=backend.oci.hcl
 ```
+
+Nas demais execucoes basta `terraform init -backend-config=backend.oci.hcl`.
 
 O arquivo real `backend.oci.hcl` deve ser criado localmente a partir de `backend.oci.hcl.example` e nao deve ser commitado se tiver OCIDs ou caminhos reais de chave.
