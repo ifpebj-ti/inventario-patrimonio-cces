@@ -3,6 +3,7 @@ import { PHASE_PRODUCTION_BUILD } from 'next/constants'
 import path from 'node:path'
 
 const nextConfig: NextConfig = {
+  distDir: process.env.PLAYWRIGHT_TEST === '1' ? '.next/e2e' : '.next',
   output: 'standalone',
   outputFileTracingRoot: path.resolve(__dirname),
   typescript: {
