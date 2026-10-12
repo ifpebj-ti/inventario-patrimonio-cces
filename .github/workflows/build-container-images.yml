@@ -379,35 +379,35 @@ jobs:
 
       - name: Upload Trivy secret report to Code Scanning
         if: always() && hashFiles('trivy-secrets.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-secrets.sarif
           category: trivy-secrets
 
       - name: Upload Trivy frontend dependency report to Code Scanning
         if: always() && hashFiles('trivy-frontend-dependencies.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-frontend-dependencies.sarif
           category: trivy-frontend-dependencies
 
       - name: Upload Trivy backend dependency report to Code Scanning
         if: always() && hashFiles('trivy-backend-dependencies.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-backend-dependencies.sarif
           category: trivy-backend-dependencies
 
       - name: Upload Trivy frontend image report to Code Scanning
         if: always() && hashFiles('trivy-frontend-image.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-frontend-image.sarif
           category: trivy-frontend-image
 
       - name: Upload Trivy backend image report to Code Scanning
         if: always() && hashFiles('trivy-backend-image.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-backend-image.sarif
           category: trivy-backend-image
