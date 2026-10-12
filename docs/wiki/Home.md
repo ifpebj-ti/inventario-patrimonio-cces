@@ -68,6 +68,7 @@ Documentos disponiveis:
 11. [C4 - Contexto](./C4-Contexto)
 12. [C4 - Containers](./C4-Containers)
 13. [C4 - Componentes](./C4-Componentes)
+14. [Validação de Planilha](./Validacao-de-Planilha)
 
 Os documentos pendentes ou parcialmente cobertos estao acompanhados em [Mapa da Documentação](./Mapa-da-Documentação).
 

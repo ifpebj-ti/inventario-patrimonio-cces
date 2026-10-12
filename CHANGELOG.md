@@ -6,8 +6,14 @@ O histórico é atualizado manualmente na própria pull request antes do merge e
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- Os endpoints de validação e importação de itens passam a aceitar exclusivamente CSV; uploads XLS/XLSX deixam de ser aceitos. A exportação continua em XLSX.
+
 ### Added
 
+- Adicionados modelo CSV para download, verificação de extensão/cabeçalho no frontend, parsing CSV no backend, mensagens do fluxo de validação/importação e limpeza dos itens com confirmação na interface.
+- Documentado o fluxo de planilha em duas etapas, a detecção de duplicatas durante a importação sequencial e as pendências de validação prévia, persistência em lote e paralelismo.
 - Adicionado o `docker-compose.production.yml` para a VM de produção, com imagens do GHCR selecionadas por `IMAGE_TAG`, nome de projeto e de volume fixos, portas do backend e do frontend apenas em loopback e healthcheck do frontend.
 - Adicionados testes (`npm run test:github`) que validam o compose de produção com `docker compose config`.
 - Adicionada a configuração do Nginx da VM da aplicação em `infra/nginx/app-vm/`: TLS 1.2/1.3, redirecionamento 80→443, HSTS, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, CSP (em `Report-Only` na primeira semana), rate limit e proxy para front, API, Portainer, Sonar e Grafana.
