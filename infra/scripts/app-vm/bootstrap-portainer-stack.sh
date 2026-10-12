@@ -62,8 +62,9 @@ portainer_login() {
   local login jwt
   login="$(jq -n --arg p "$(cat "$PW_FILE")" '{username: "admin", password: $p}')"
   jwt="$(curl_api -X POST "$PORTAINER_API/auth" -H 'Content-Type: application/json' --data "$login" | jq -r .jwt)"
-  [ -n "$jwt" ] && [ "$jwt" != "null" ] \
-    || die "falha ao autenticar no Portainer (a senha de admin foi alterada na UI? ajuste $PW_FILE)."
+  if [ -z "$jwt" ] || [ "$jwt" = "null" ]; then
+    die "falha ao autenticar no Portainer (a senha de admin foi alterada na UI? ajuste $PW_FILE)."
+  fi
   auth=(-H "Authorization: Bearer $jwt")
 }
 

@@ -10,6 +10,8 @@ docker run --rm \
   -v /var/www/certbot:/var/www/certbot \
   "$CERTBOT_IMAGE" renew --webroot -w /var/www/certbot --non-interactive
 
-command -v restorecon >/dev/null 2>&1 && restorecon -R /etc/letsencrypt || true
+if command -v restorecon >/dev/null 2>&1; then
+  restorecon -R /etc/letsencrypt || true
+fi
 nginx -t
 systemctl reload nginx

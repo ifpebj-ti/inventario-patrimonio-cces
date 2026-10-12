@@ -23,8 +23,9 @@ die() { printf '[install-nginx-config] ERRO: %s\n' "$*" >&2; exit 1; }
 [ "$(id -u)" -eq 0 ] || die "execute como root (sudo)."
 [ "$#" -eq 1 ] || die "uso: $0 <diretorio-fonte>"
 src="$1"
-[ -f "$src/nginx.conf" ] && [ -d "$src/conf.d" ] && [ -d "$src/snippets" ] && [ -d "$src/sites-tls" ] \
-  || die "$src nao parece ser infra/nginx/app-vm (faltam nginx.conf, conf.d, snippets ou sites-tls)."
+if [ ! -f "$src/nginx.conf" ] || [ ! -d "$src/conf.d" ] || [ ! -d "$src/snippets" ] || [ ! -d "$src/sites-tls" ]; then
+  die "$src nao parece ser infra/nginx/app-vm (faltam nginx.conf, conf.d, snippets ou sites-tls)."
+fi
 [ -r "$EDGE_ENV" ] || die "$EDGE_ENV ausente (ADMIN_CIDRS e OBSERVABILITY_IP)."
 
 # shellcheck disable=SC1090
@@ -91,7 +92,9 @@ apply() {
   chmod 0644 "$NGINX_ETC"/conf.d/*.conf "$NGINX_ETC"/inventarium/snippets/*.conf
   chmod 0640 "$NGINX_ETC"/inventarium/generated/*.conf
   mkdir -p /var/www/certbot
-  command -v restorecon >/dev/null 2>&1 && restorecon -R "$NGINX_ETC" /var/www/certbot || true
+  if command -v restorecon >/dev/null 2>&1; then
+    restorecon -R "$NGINX_ETC" /var/www/certbot || true
+  fi
 }
 
 rollback() {

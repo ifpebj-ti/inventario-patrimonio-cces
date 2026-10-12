@@ -14,7 +14,10 @@ user="${2:-opc}"
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
-[ -d infra/nginx/app-vm ] && [ -d infra/scripts/app-vm ] || { echo "execute dentro do repositorio." >&2; exit 1; }
+if [ ! -d infra/nginx/app-vm ] || [ ! -d infra/scripts/app-vm ]; then
+  echo "execute dentro do repositorio." >&2
+  exit 1
+fi
 
 stage="/tmp/inventarium-deploy-$$"
 echo "[deploy-nginx] enviando para ${user}@${host}:${stage}"

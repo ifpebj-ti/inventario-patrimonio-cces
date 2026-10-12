@@ -70,7 +70,9 @@ docker run --rm \
   --email "$ACME_EMAIL" --agree-tos --no-eff-email --non-interactive "${extra[@]}"
 
 [ "$staging" -eq 1 ] || rm -f "$STAGING_MARKER"
-command -v restorecon >/dev/null 2>&1 && restorecon -R /etc/letsencrypt || true
+if command -v restorecon >/dev/null 2>&1; then
+  restorecon -R /etc/letsencrypt || true
+fi
 
 log "ligando os vhosts HTTPS no Nginx"
 /opt/inventarium-app/bin/install-nginx-config.sh /opt/inventarium-app/src/nginx

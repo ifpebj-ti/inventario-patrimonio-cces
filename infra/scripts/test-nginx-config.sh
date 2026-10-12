@@ -25,7 +25,9 @@ work=".nginx-test.$$"
 mkdir -p "$work"
 cid=""
 cleanup() {
-  [ -n "$cid" ] && docker rm -f "$cid" >/dev/null 2>&1 || true
+  if [ -n "$cid" ]; then
+    docker rm -f "$cid" >/dev/null 2>&1 || true
+  fi
   rm -rf "$work"
 }
 trap cleanup EXIT
