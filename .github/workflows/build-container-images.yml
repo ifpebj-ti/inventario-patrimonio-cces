@@ -174,7 +174,7 @@ jobs:
 
       - name: Set up QEMU for multi-platform release images
         if: inputs.publish_images && (steps.changes.outputs.frontend == 'true' || steps.changes.outputs.backend == 'true')
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
         if: steps.changes.outputs.frontend == 'true' || steps.changes.outputs.backend == 'true'
