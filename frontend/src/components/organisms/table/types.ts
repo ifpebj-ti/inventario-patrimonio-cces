@@ -10,6 +10,7 @@ export interface TableProps {
   selectedRows?: number[]
   showExportButtons?: boolean
   onClearInventory?: () => void
+  disableClear?: boolean
   onDeleteSelected?: () => void
   onExportSelected?: () => void
   onExportSheet?: () => void

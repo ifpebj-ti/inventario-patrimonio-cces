@@ -61,6 +61,7 @@ export const Table = ({
   onRowDoubleClick,
   showExportButtons = false,
   onClearInventory,
+  disableClear = false,
   onDeleteSelected,
   onExportSelected,
   onExportSheet,
@@ -404,7 +405,8 @@ export const Table = ({
             />
             <Button
               type="button"
-              variant={content.length > 0 ? 6 : 4}
+              variant={content.length > 0 && !disableClear ? 6 : 4}
+              disabled={content.length === 0 || disableClear}
               onClick={
                 content.length > 0
                   ? onClearInventory || onDeleteSelected || onExportSelected

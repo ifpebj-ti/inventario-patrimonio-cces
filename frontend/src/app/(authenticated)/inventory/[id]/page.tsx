@@ -3,9 +3,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { Table } from '@/components/organisms/table'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  addItemsBySheet,
   getInventoryItemsRequest,
-  validateSpreadsheetData,
   InventoryResponse,
   deleteItemFromInventory,
   clearInventoryItemsRequest,
@@ -25,13 +23,8 @@ import { ConfirmationModal } from '@/components/organisms/modalConfirmation'
 import { ScannerCard } from '@/components/molecules/scannerCard'
 import { BarcodeQrScannerModal } from '@/components/organisms/barcodeQrScannerModal'
 import { ItemDetailDrawer } from '@/components/organisms/itemDetailDrawer'
-import { truncateFileName } from '@/commons/utils/truncateFileName'
-
-export type errorSheet = {
-  code: string
-  line: string
-  errors: string[]
-}
+import { useSpreadsheetImport } from '@/hooks/useSpreadsheetImport'
+import { getSpreadsheetFailure } from '@/commons/utils/spreadsheet'
 
 export default function Inventory() {
   const { id } = useParams()
@@ -45,9 +38,7 @@ export default function Inventory() {
   // Estado para gerenciar linhas selecionadas
   const [selectedRows, setSelectedRows] = useState<number[]>([])
   const [isUploading, setIsUploading] = useState(false)
-  const [validationErrors, setValidationErrors] = useState<errorSheet[] | null>(
-    null,
-  )
+  const clearing = useRef(false)
 
   // Estados para controle do Scanner via Câmera e Drawer de Edição de Item
   const [isScannerOpen, setIsScannerOpen] = useState(false)
@@ -93,117 +84,7 @@ export default function Inventory() {
     }
   }
 
-  const handleSpreadsheetValidation = async (file: File) => {
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-      const shortName = truncateFileName(file.name, 24)
-      toast.error(
-        `O arquivo "${shortName}" foi bloqueado. Envie apenas arquivos .csv.`,
-      )
-      return
-    }
-
-    try {
-      setIsUploading(true)
-      setValidationErrors(null)
-
-      const response = await validateSpreadsheetData(file)
-
-      if (
-        (response?.hasErrors &&
-          response?.errors &&
-          response.errors.length > 0) ||
-        (response?.errors && response.errors.length > 0)
-      ) {
-        setValidationErrors(response.errors)
-        toast.error(
-          'Erros encontrados na planilha! Clique em "Ver erros" para conferir os detalhes.',
-        )
-      } else if (response?.hasErrors && response?.message) {
-        toast.error(response.message)
-      } else if (
-        response?.message &&
-        (response.message.includes('não suportado') ||
-          response.message.includes('inválido') ||
-          response.message.includes('vazio') ||
-          response.message.includes('obrigatórias') ||
-          response.message.includes('esperadas') ||
-          response.message.includes('Erro'))
-      ) {
-        toast.error(response.message)
-      } else {
-        toast.success(
-          'Planilha CSV validada com sucesso! Clique em "Processar" para importar.',
-        )
-      }
-    } catch (error) {
-      console.error('Erro ao validar planilha:', error)
-      toast.error(
-        'Erro de comunicação ao validar a planilha. Verifique o arquivo e tente novamente.',
-      )
-    } finally {
-      setIsUploading(false)
-    }
-  }
-
-  const handleFileUpload = async (file: File) => {
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-      const shortName = truncateFileName(file.name, 24)
-      toast.error(
-        `O arquivo "${shortName}" foi bloqueado. Envie apenas arquivos .csv.`,
-      )
-      return
-    }
-
-    const toastId = toast.loading('Processando e importando planilha...')
-    try {
-      setIsUploading(true)
-
-      const response = await addItemsBySheet(file, Number(id))
-
-      const successes = response?.successes ?? response?.['successes\n'] ?? 0
-      const failures = response?.failures ?? response?.['failures\n'] ?? 0
-
-      if (failures === 0 && successes > 0) {
-        toast.success(
-          `Sucesso! ${successes} ${successes === 1 ? 'item importado' : 'itens importados'} com êxito.`,
-          { id: toastId },
-        )
-      } else if (successes > 0 && failures > 0) {
-        toast.success(
-          `Importação concluída: ${successes} itens adicionados, ${failures} falharam.`,
-          { id: toastId },
-        )
-      } else if (failures > 0 && successes === 0) {
-        toast.error(
-          response?.status ||
-            'Nenhum item pôde ser importado da planilha enviada.',
-          { id: toastId },
-        )
-      } else {
-        toast.success(response?.status || 'Planilha processada com sucesso!', {
-          id: toastId,
-        })
-      }
-
-      await fetchItemsByInventory()
-    } catch (error: unknown) {
-      console.error('Erro ao enviar arquivo:', error)
-      const err = error as {
-        response?: { data?: { message?: string } | string }
-      }
-      const errorMsg =
-        err?.response?.data &&
-        typeof err.response.data === 'object' &&
-        'message' in err.response.data
-          ? err.response.data.message
-          : typeof err?.response?.data === 'string'
-            ? err.response.data
-            : 'Erro ao processar a planilha. Verifique os dados e tente novamente.'
-      toast.error(errorMsg || 'Erro ao processar a planilha.', { id: toastId })
-    } finally {
-      setIsUploading(false)
-    }
-  }
+  const spreadsheet = useSpreadsheetImport(Number(id), fetchItemsByInventory)
 
   useEffect(() => {
     fetchItemsByInventory()
@@ -248,6 +129,7 @@ export default function Inventory() {
   }
 
   const handleOpenClearInventoryModal = () => {
+    if (spreadsheet.state.status === 'importing' || clearing.current) return
     if (!itemData.length) {
       toast.error('O inventário já está vazio.')
       return
@@ -283,6 +165,8 @@ export default function Inventory() {
   }
 
   const handleConfirmClearInventory = async () => {
+    if (clearing.current || spreadsheet.state.status === 'importing') return
+    clearing.current = true
     const toastId = toast.loading('Removendo todos os itens do inventário...')
     try {
       setIsUploading(true)
@@ -290,15 +174,17 @@ export default function Inventory() {
       setItemData([])
       setSelectedRows([])
       setIsClearAllModalOpen(false)
+      spreadsheet.remove()
       toast.success('Todos os itens foram removidos do inventário!', {
         id: toastId,
       })
     } catch (error) {
       console.error('Erro ao limpar itens do inventário:', error)
-      toast.error('Erro ao limpar itens do inventário. Tente novamente.', {
+      toast.error(getSpreadsheetFailure(error).message, {
         id: toastId,
       })
     } finally {
+      clearing.current = false
       setIsUploading(false)
     }
   }
@@ -439,9 +325,11 @@ export default function Inventory() {
         {/* Card 3: Importação de Planilha (Upload e Drag-and-drop) */}
         <div className="h-full">
           <FileUploadComponent
-            onFileSelect={handleFileUpload}
-            onValidateFile={handleSpreadsheetValidation}
-            validationErrors={validationErrors}
+            state={spreadsheet.state}
+            onSelect={spreadsheet.select}
+            onRemove={spreadsheet.remove}
+            onProcess={spreadsheet.process}
+            disabled={isUploading}
           />
         </div>
       </div>
@@ -464,6 +352,7 @@ export default function Inventory() {
           onRowDoubleClick={handleRowDoubleClick}
           showExportButtons={true}
           onClearInventory={handleOpenClearInventoryModal}
+          disableClear={isUploading || spreadsheet.state.status === 'importing'}
           onExportSheet={handleExportSheet}
           onSendEmailSheet={handleOpenEmailModal}
           onDeleteItem={handleOpenDeleteItemModal}
@@ -505,6 +394,7 @@ export default function Inventory() {
           message="Tem certeza que deseja remover todos os itens e limpar este inventário? Esta ação é irreversível e excluirá todos os bens cadastrados."
           confirmButtonText="Sim, limpar inventário"
           cancelButtonText="Cancelar"
+          busy={isUploading}
         />
       )}
 

@@ -1,11 +1,11 @@
-import { errorSheet } from '@/app/(authenticated)/inventory/[id]/page'
+import type { SpreadsheetError } from '@/commons/models/spreadsheet'
 import React from 'react'
 
 // Define as propriedades que o modal de erros espera receber.
 interface ModalErrorsProps {
   onClose: () => void // Função para fechar o modal.
   title?: string // Título opcional para o modal.
-  errors: errorSheet[] | null // Array de erros a serem exibidos.
+  errors: SpreadsheetError[] | null // Array de erros a serem exibidos.
 }
 
 // Componente de modal projetado especificamente para exibir uma lista de erros
@@ -33,7 +33,12 @@ export const ModalErrorsSheet = ({
       {/* Contêiner que centraliza o conteúdo do modal na tela. */}
       <div className="fixed inset-0 flex justify-center items-center z-60 p-4">
         {/* O painel branco principal do modal, com estilos de sombra, borda e rolagem. */}
-        <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-5 sm:p-8 relative w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={title || 'Erros da planilha'}
+          className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-5 sm:p-8 relative w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+        >
           {/* Botão para fechar o modal no canto superior direito. */}
           <button
             className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 text-2xl font-bold transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl"

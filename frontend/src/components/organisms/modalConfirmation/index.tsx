@@ -12,6 +12,7 @@ interface ConfirmationModalProps {
   message: string // A mensagem ou pergunta de confirmação.
   confirmButtonText?: string // Texto opcional para o botão de confirmação.
   cancelButtonText?: string // Texto opcional para o botão de cancelar.
+  busy?: boolean
 }
 
 // Componente de modal genérico e reutilizável para ações de confirmação (ex: deletar).
@@ -23,6 +24,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   message,
   confirmButtonText = 'Confirmar', // Define 'Confirmar' como texto padrão.
   cancelButtonText = 'Cancelar', // Define 'Cancelar' como texto padrão.
+  busy = false,
 }) => {
   // Se a prop 'isOpen' for falsa, o componente não renderiza nada no DOM.
   if (!isOpen) return null
@@ -30,7 +32,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   // Função para fechar o modal se o usuário clicar no fundo escuro (backdrop).
   const handleBackdropClick = (e: React.MouseEvent) => {
     // Verifica se o clique foi no próprio elemento de backdrop, e não em um de seus filhos (o painel do modal).
-    if (e.target === e.currentTarget) {
+    if (!busy && e.target === e.currentTarget) {
       onClose()
     }
   }
@@ -45,11 +47,18 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
       {/* Contêiner que usa Flexbox para centralizar o modal na tela. */}
       <div className="fixed inset-0 flex justify-center items-center z-50 p-4">
         {/* Painel branco principal do modal. */}
-        <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 relative w-full max-w-lg">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={title}
+          aria-busy={busy}
+          className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 relative w-full max-w-lg"
+        >
           {/* Botão de fechar (X) no canto superior direito. */}
           <button
             className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 text-3xl font-bold transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl"
             onClick={onClose}
+            disabled={busy}
             aria-label="Fechar modal"
           >
             &times;
@@ -66,6 +75,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
             {/* Botão de Cancelar, que chama a função onClose. */}
             <button
               onClick={onClose}
+              disabled={busy}
               className="w-full sm:w-auto px-6 py-2.5 min-h-[44px] rounded-xl bg-slate-200 hover:bg-slate-300 font-semibold text-slate-800 transition-colors cursor-pointer flex items-center justify-center"
             >
               {cancelButtonText}
@@ -73,9 +83,10 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
             {/* Botão de Confirmar, que chama a função onConfirm. */}
             <button
               onClick={onConfirm}
+              disabled={busy}
               className="w-full sm:w-auto px-6 py-2.5 min-h-[44px] rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 transition-colors cursor-pointer flex items-center justify-center"
             >
-              {confirmButtonText}
+              {busy ? 'Aguarde...' : confirmButtonText}
             </button>
           </div>
         </div>
