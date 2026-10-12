@@ -6,8 +6,7 @@ public record SectorDto(
     long id,
     String name,
     String code,
-    long organizationId,
-    Long parentSectorId,
+    boolean active,
     String createdAt,
     String updatedAt) {
 
@@ -16,8 +15,7 @@ public record SectorDto(
         sector.id(),
         sector.name(),
         sector.code(),
-        sector.organization().id(),
-        sector.parentSector() != null ? sector.parentSector().id() : null,
+        sector.active(),
         sector.createdAt() != null ? sector.createdAt().toString() : null,
         sector.updatedAt() != null ? sector.updatedAt().toString() : null);
   }

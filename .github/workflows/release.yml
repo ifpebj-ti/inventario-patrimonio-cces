@@ -93,6 +93,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      security-events: write
 
   publish-github-release:
     name: Publish GitHub Release

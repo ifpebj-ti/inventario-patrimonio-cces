@@ -1,14 +1,10 @@
 package clp.inventory.service;
 
 import clp.inventory.dto.SectorDto;
-import clp.inventory.model.Organization;
 import clp.inventory.model.Sector;
-import clp.inventory.repository.OrganizationRepository;
 import clp.inventory.repository.SectorRepository;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.Objects;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,116 +12,67 @@ import org.springframework.transaction.annotation.Transactional;
 public class SectorService {
 
   private final SectorRepository sectorRepository;
-  private final OrganizationRepository organizationRepository;
+  private final AuthorizationService authorizationService;
 
-  public SectorService(
-      SectorRepository sectorRepository, OrganizationRepository organizationRepository) {
+  public SectorService(SectorRepository sectorRepository, AuthorizationService authorizationService) {
     this.sectorRepository = sectorRepository;
-    this.organizationRepository = organizationRepository;
+    this.authorizationService = authorizationService;
   }
 
   @Transactional
-  public Sector createSector(SectorDto dto) {
+  public Sector createSector(SectorDto dto, long actingUserId) {
+    authorizationService.requirePermission(actingUserId, "ADMIN");
     validateFields(dto);
-    Organization organization = findOrganization(dto.organizationId());
-    Sector parentSector = resolveParent(dto.parentSectorId(), organization);
-    validateUniqueName(organization, parentSector, dto.name(), null);
-
-    Sector sector = new Sector(dto.name().trim(), dto.code(), organization, parentSector);
+    if (sectorRepository.existsByName(dto.name())) {
+      throw new IllegalArgumentException("Sector with name '" + dto.name() + "' already exists");
+    }
+    Sector sector = new Sector(dto.name().trim(), dto.code());
     return sectorRepository.save(sector);
   }
 
   @Transactional
-  public Sector updateSector(long id, SectorDto dto) {
+  public Sector updateSector(long id, SectorDto dto, long actingUserId) {
+    authorizationService.requirePermission(actingUserId, "ADMIN");
     validateFields(dto);
-    Sector sector = findSectorById(id);
-    Sector parentSector = resolveParent(dto.parentSectorId(), sector.organization());
-    if (parentSector != null) {
-      ensureNoCycle(sector, parentSector);
+    Sector sector = findSectorByIdInternal(id);
+    if (sectorRepository.existsByNameAndIdNot(dto.name(), id)) {
+      throw new IllegalArgumentException("Sector with name '" + dto.name() + "' already exists");
     }
-    validateUniqueName(sector.organization(), parentSector, dto.name(), id);
-
     sector.setName(dto.name().trim());
     sector.setCode(dto.code());
-    sector.setParentSector(parentSector);
     return sectorRepository.save(sector);
   }
 
   @Transactional
-  public void deleteSector(long id) {
-    if (!sectorRepository.existsById(id)) {
-      throw new NoSuchElementException("Sector not found with id: " + id);
-    }
-    try {
-      sectorRepository.deleteById(id);
-      sectorRepository.flush();
-    } catch (DataIntegrityViolationException e) {
-      throw new IllegalStateException("Sector has child sectors and cannot be deleted");
-    }
+  public Sector activateSector(long id, long actingUserId) {
+    authorizationService.requirePermission(actingUserId, "ADMIN");
+    Sector sector = findSectorByIdInternal(id);
+    sector.setActive(true);
+    return sectorRepository.save(sector);
   }
 
-  public Sector findSectorById(long id) {
+  @Transactional
+  public Sector deactivateSector(long id, long actingUserId) {
+    authorizationService.requirePermission(actingUserId, "ADMIN");
+    Sector sector = findSectorByIdInternal(id);
+    sector.setActive(false);
+    return sectorRepository.save(sector);
+  }
+
+  public Sector findSectorById(long id, long actingUserId) {
+    authorizationService.requireAnyPermission(actingUserId, "ADMIN", "MANAGE_SECTOR");
+    return findSectorByIdInternal(id);
+  }
+
+  public List<Sector> listAllSectors(long actingUserId) {
+    authorizationService.requireAnyPermission(actingUserId, "ADMIN", "MANAGE_SECTOR");
+    return sectorRepository.findAll();
+  }
+
+  private Sector findSectorByIdInternal(long id) {
     return sectorRepository
         .findById(id)
         .orElseThrow(() -> new NoSuchElementException("Sector not found with id: " + id));
-  }
-
-  public List<Sector> listSectors(Long organizationId) {
-    return organizationId != null
-        ? sectorRepository.findByOrganization_Id(organizationId)
-        : sectorRepository.findAll();
-  }
-
-  private Organization findOrganization(long organizationId) {
-    return organizationRepository
-        .findById(organizationId)
-        .orElseThrow(
-            () ->
-                new IllegalArgumentException("Organization not found with id: " + organizationId));
-  }
-
-  private Sector resolveParent(Long parentSectorId, Organization organization) {
-    if (parentSectorId == null) {
-      return null;
-    }
-    Sector parent =
-        sectorRepository
-            .findById(parentSectorId)
-            .orElseThrow(
-                () ->
-                    new IllegalArgumentException(
-                        "Parent sector not found with id: " + parentSectorId));
-    if (parent.organization().id() != organization.id()) {
-      throw new IllegalArgumentException("Parent sector must belong to the same organization");
-    }
-    return parent;
-  }
-
-  private void ensureNoCycle(Sector sector, Sector newParent) {
-    Sector current = newParent;
-    while (current != null) {
-      if (current.id() == sector.id()) {
-        throw new IllegalArgumentException("Sector cannot be its own ancestor");
-      }
-      current = current.parentSector();
-    }
-  }
-
-  private void validateUniqueName(
-      Organization organization, Sector parentSector, String name, Long excludeId) {
-    boolean duplicate =
-        sectorRepository.findByOrganization_Id(organization.id()).stream()
-            .filter(s -> excludeId == null || s.id() != excludeId)
-            .filter(
-                s ->
-                    Objects.equals(
-                        s.parentSector() != null ? s.parentSector().id() : null,
-                        parentSector != null ? parentSector.id() : null))
-            .anyMatch(s -> s.name().equals(name.trim()));
-    if (duplicate) {
-      throw new IllegalArgumentException(
-          "Sector with name '" + name + "' already exists under the same parent");
-    }
   }
 
   private void validateFields(SectorDto dto) {

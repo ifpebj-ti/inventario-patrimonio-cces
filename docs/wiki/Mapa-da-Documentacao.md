@@ -31,7 +31,8 @@ Este mapa serve para saber rapidamente onde cada artefato está. Ele não substi
 | --- | --- | --- |
 | Modelagem de ameaças | [Modelagem de Ameaças](./Modelagem-de-Ameaças) | Inclui o arquivo do OWASP Threat Dragon e a lista de riscos STRIDE. |
 | Boas praticas de desenvolvimento seguro | [Guia de Boas Praticas de Desenvolvimento Seguro](./Guia-de-Boas-Praticas-de-Desenvolvimento-Seguro) | Cobre autenticação, autorização, secrets, API, frontend, banco, supply chain e release. |
-| Vulnerabilidades do Dependabot | Aba Security/Dependabot do GitHub | A evidencia vem do GitHub. Se houver vulnerabilidade crítica aberta, esse item não deve ser marcado como concluído. |
+| Achados de análise estática | Aba Security/Code scanning do GitHub | Centraliza alertas de CodeQL, Semgrep e Trivy enviados em SARIF. A evidência detalhada temporária fica nos artifacts da execução. |
+| Vulnerabilidades do Dependabot | Aba Security/Dependabot do GitHub | A evidência vem do GitHub. Se houver vulnerabilidade crítica aberta, esse item não deve ser marcado como concluído. |
 
 ## Infraestrutura
 
@@ -39,6 +40,7 @@ Este mapa serve para saber rapidamente onde cada artefato está. Ele não substi
 | --- | --- | --- |
 | Aplicação conteinerizada | `docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile` | Compose sobe PostgreSQL, backend e frontend. |
 | Execução, configuração e operação | [Guia de Execução, Configuração e Operação](./Guia-de-Execução-Configuração-e-Operação) | Explica ambiente local, variáveis, GHCR, logs, validação e troubleshooting. |
+| Deploy em produção | [Deploy em Produção na OCI](./Deploy-em-Produção-OCI) | Runbook de go-live, deploy, rollback, certificados, backup e restauração na OCI. |
 | Esteira de CI/CD | [Esteira de CI/CD](./Esteira-de-CI-CD) | Mostra o que existe hoje e o que ainda depende de evolucao para deploy, smoke tests e observabilidade. |
 
 ## O Que Ainda Nao Está Fechado

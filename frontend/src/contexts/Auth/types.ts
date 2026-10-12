@@ -1,6 +1,6 @@
 import { ReactNode } from 'react'
 
-// Exatamente o que o backend devolve em /auth/me e /auth/google.
+// Exatamente o que o backend devolve em /auth/me, /auth/google e /auth/login.
 export type User = {
   id: number
   name: string
@@ -15,6 +15,8 @@ export type AuthContextType = {
   isAuthenticated: boolean
   // Recebe o ID token do Google devolvido pelo <GoogleLogin>.
   signInWithGoogle: (credential: string) => Promise<void>
+  // Login da conta de sistema (usuário e senha, sem Google).
+  signInWithPassword: (username: string, password: string) => Promise<void>
   signOut: () => void
 }
 

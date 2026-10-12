@@ -15,19 +15,14 @@ public class Sector {
   @SequenceGenerator(name = "im_sector_id", sequenceName = "im_sector_id", allocationSize = 1)
   private long id;
 
-  @Column(nullable = false)
+  @Column(nullable = false, unique = true)
   private String name;
 
   @Column(length = 100)
   private String code;
 
-  @ManyToOne
-  @JoinColumn(name = "id_organization", nullable = false)
-  private Organization organization;
-
-  @ManyToOne
-  @JoinColumn(name = "id_parent_sector")
-  private Sector parentSector;
+  @Column(nullable = false)
+  private boolean active = true;
 
   @CreationTimestamp
   @Column(nullable = false, updatable = false)
@@ -39,11 +34,9 @@ public class Sector {
 
   public Sector() {}
 
-  public Sector(String name, String code, Organization organization, Sector parentSector) {
+  public Sector(String name, String code) {
     this.name = name;
     this.code = code;
-    this.organization = organization;
-    this.parentSector = parentSector;
   }
 
   public long id() {
@@ -66,16 +59,12 @@ public class Sector {
     this.code = code;
   }
 
-  public Organization organization() {
-    return organization;
+  public boolean active() {
+    return active;
   }
 
-  public Sector parentSector() {
-    return parentSector;
-  }
-
-  public void setParentSector(Sector parentSector) {
-    this.parentSector = parentSector;
+  public void setActive(boolean active) {
+    this.active = active;
   }
 
   public LocalDateTime createdAt() {

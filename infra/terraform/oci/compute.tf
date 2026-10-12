@@ -32,21 +32,33 @@ resource "oci_core_instance" "app" {
   }
 
   create_vnic_details {
-    assign_public_ip = true
+    # O IP publico vem do oci_core_public_ip.app (RESERVED), que sobrevive a recriacao da VM.
+    assign_public_ip = false
     display_name     = "${var.project_name}-app-vnic"
     hostname_label   = "app"
     nsg_ids          = [oci_core_network_security_group.app.id]
+    private_ip       = local.app_private_ip
     subnet_id        = oci_core_subnet.app_public.id
   }
 
   metadata = {
     ssh_authorized_keys = var.ssh_public_key
-    user_data           = base64encode(templatefile("${path.module}/cloud-init-app.yaml.tftpl", {}))
+    # gzip: o Nginx e os scripts versionados estouram o limite de 32 KB do user_data em texto puro.
+    # O cloud-init descompacta automaticamente.
+    user_data = base64gzip(local.app_cloud_init)
   }
 
   source_details {
     source_id   = data.oci_core_images.app.images[0].id
     source_type = "image"
+  }
+
+  lifecycle {
+    # A VM guarda o volume do Postgres. Nginx, scripts e a imagem "mais recente" mudam com o tempo e
+    # NAO podem recriar a VM: atualize o Nginx/scripts com infra/scripts/deploy-nginx.sh. Para
+    # reprovisionar de proposito (perdendo o volume, depois de restaurar de backup), use
+    # `terraform apply -replace=oci_core_instance.app`.
+    ignore_changes = [source_details[0].source_id, metadata["user_data"]]
   }
 }
 
@@ -70,6 +82,7 @@ resource "oci_core_instance" "observability" {
     display_name     = "${var.project_name}-observability-vnic"
     hostname_label   = "observability"
     nsg_ids          = [oci_core_network_security_group.observability.id]
+    private_ip       = local.observability_private_ip
     subnet_id        = oci_core_subnet.observability_private.id
   }
 

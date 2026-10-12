@@ -2,10 +2,8 @@ package clp.inventory.service;
 
 import clp.inventory.dto.GoogleUserInfo;
 import clp.inventory.model.Profile;
-import clp.inventory.model.Sector;
 import clp.inventory.model.User;
 import clp.inventory.repository.ProfileRepository;
-import clp.inventory.repository.SectorRepository;
 import clp.inventory.repository.UserRepository;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
@@ -26,19 +24,19 @@ public class UserService {
   private List<String> allowedDomains = List.of();
 
   private final UserRepository userRepository;
-  private final SectorRepository sectorRepository;
   private final ProfileRepository profileRepository;
+  private final AuthorizationService authorizationService;
 
   @Value("${security.token.secret}")
   private String secretKey;
 
   public UserService(
       UserRepository userRepository,
-      SectorRepository sectorRepository,
-      ProfileRepository profileRepository) {
+      ProfileRepository profileRepository,
+      AuthorizationService authorizationService) {
     this.userRepository = userRepository;
-    this.sectorRepository = sectorRepository;
     this.profileRepository = profileRepository;
+    this.authorizationService = authorizationService;
   }
 
   /**
@@ -53,6 +51,10 @@ public class UserService {
 
     Optional<User> existing = userRepository.findByEmail(email);
     if (existing.isPresent()) {
+      // A conta de sistema só entra por usuário e senha, nunca pelo Google.
+      if (existing.get().isSystemUser()) {
+        throw new AuthenticationException("System account cannot sign in with Google");
+      }
       return existing.get();
     }
 
@@ -94,10 +96,6 @@ public class UserService {
     return user.orElseThrow(() -> new RuntimeException("User not found"));
   }
 
-  public List<User> listAllUsers() {
-    return userRepository.findAll();
-  }
-
   public User findUserById(long userId) {
     return userRepository
         .findById(userId)
@@ -105,29 +103,14 @@ public class UserService {
   }
 
   @Transactional
-  public User assignSector(long userId, Long sectorId) {
+  public User assignProfile(long userId, Long profileId, long actingUserId) {
+    authorizationService.requirePermission(actingUserId, "ADMIN");
+    // A conta de sistema responde como se não existisse: mexer no perfil dela por aqui poderia
+    // deixar o sistema sem nenhum administrador.
     User user =
         userRepository
             .findById(userId)
-            .orElseThrow(() -> new NoSuchElementException("User not found with id: " + userId));
-    if (sectorId == null) {
-      user.setSector(null);
-    } else {
-      Sector sector =
-          sectorRepository
-              .findById(sectorId)
-              .orElseThrow(
-                  () -> new IllegalArgumentException("Sector not found with id: " + sectorId));
-      user.setSector(sector);
-    }
-    return userRepository.save(user);
-  }
-
-  @Transactional
-  public User assignProfile(long userId, Long profileId) {
-    User user =
-        userRepository
-            .findById(userId)
+            .filter(found -> !found.isSystemUser())
             .orElseThrow(() -> new NoSuchElementException("User not found with id: " + userId));
     if (profileId == null) {
       user.setProfile(null);
@@ -142,13 +125,11 @@ public class UserService {
     return userRepository.save(user);
   }
 
-  public List<User> listUsers(Long sectorId, Long profileId) {
-    if (sectorId != null) {
-      return userRepository.findBySector_Id(sectorId);
-    }
+  public List<User> listUsers(Long profileId, long actingUserId) {
+    authorizationService.requirePermission(actingUserId, "ADMIN");
     if (profileId != null) {
-      return userRepository.findByProfile_Id(profileId);
+      return userRepository.findByProfile_IdAndSystemUserFalse(profileId);
     }
-    return userRepository.findAll();
+    return userRepository.findAllBySystemUserFalse();
   }
 }

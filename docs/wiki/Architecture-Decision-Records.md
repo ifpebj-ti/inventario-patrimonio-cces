@@ -17,13 +17,14 @@ Eles registram decisões arquiteturais relevantes, incluindo contexto, decisao, 
 | `0003-adotar-postgresql-com-liquibase.md` | Adotar PostgreSQL com Liquibase para persistência relacional. | Accepted |
 | `0004-versionar-documentação-na-wiki.md` | Versionar documentação da wiki no repositório. | Accepted |
 | `0005-adotar-api-rest-stateless.md` | Adotar API REST stateless com Bearer JWT. | Accepted |
+| `0006-publicar-na-oci-com-nginx-tls-e-portainer.md` | Publicar o Inventarium na OCI com Nginx, TLS Let's Encrypt e Portainer. | Accepted |
 
 ## Convencao
 
 Novos ADRs devem usar numeracao sequencial com quatro digitos e titulo curto em kebab-case:
 
 ```text
-0006-nome-da-decisao.md
+0007-nome-da-decisao.md
 ```
 
 Status permitidos:

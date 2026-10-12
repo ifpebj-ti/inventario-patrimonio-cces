@@ -1,8 +1,11 @@
 # Autenticação
 
-O Inventarium usa **exclusivamente login com Google** (OAuth 2.0 / OpenID Connect, fluxo de ID
-token). Não existe usuário/senha: não há cadastro próprio, verificação de e-mail nem recuperação
-de senha. Toda conta nasce e se autentica pelo Google.
+O Inventarium usa **login com Google** (OAuth 2.0 / OpenID Connect, fluxo de ID token). Não há
+cadastro próprio, verificação de e-mail nem recuperação de senha: toda conta de usuário nasce e se
+autentica pelo Google. A única exceção é a **conta de sistema** (`POST /auth/login`, usuário e
+senha, perfil `ADMIN_ORGANIZATION`), que serve ao primeiro acesso e tem limite de tentativas
+contra força bruta. Ela está descrita em [`backend/README.md`](../README.md#conta-de-sistema); o
+resto deste documento trata do fluxo Google.
 
 Este documento explica como o fluxo funciona, onde cada peça está no código, e o que falta
 configurar para rodar em produção.
@@ -288,11 +291,19 @@ login do Google simplesmente não funciona.
 
 ### 5. CORS
 
-Hoje `AuthController` usa `@CrossOrigin(origins = "*")` — aceitável em desenvolvimento, mas em
-produção vale restringir à origem real do frontend, em vez de aceitar qualquer origem. Isso não
-é uma falha de autenticação (o JWT continua sendo a única credencial validada, e não há cookie
-de sessão ambiente para um CSRF explorar), mas é uma superfície desnecessariamente ampla para
-manter aberta.
+O CORS é global e configurável (`CorsConfig`): só as origens listadas em `CORS_ALLOWED_ORIGINS`
+(separadas por vírgula; padrão `http://localhost:3000`) podem chamar a API pelo navegador. Em
+produção use a origem real do frontend, por exemplo `https://inventariumifpe.me`.
+
+- Valor `*` é recusado na inicialização, e lista vazia não libera nenhuma origem.
+- Métodos: `GET`, `POST`, `PUT`, `PATCH`, `DELETE` e `OPTIONS`. Headers aceitos: `Authorization` e
+  `Content-Type`.
+- `Retry-After` (bloqueio do login) e `Content-Disposition` (nome do arquivo exportado) ficam
+  expostos ao navegador.
+- Sem credenciais (`allowCredentials=false`): a autenticação é só pelo Bearer no header.
+- Origem não listada recebe `403` no preflight e na requisição real, sem headers CORS.
+
+CORS não substitui a autenticação: o JWT continua sendo a única credencial validada.
 
 ### 6. Sem revogação de sessão
 

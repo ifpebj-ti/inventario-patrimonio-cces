@@ -2,7 +2,7 @@
 
 Está página documenta a modelagem de ameaças STRIDE do Inventarium e referencia os arquivos importáveis no OWASP Threat Dragon.
 
-O modelo atual cobre a aplicação Web, a API Spring Boot, o PostgreSQL, o login com Google e o envio de planilhas por e-mail. O aplicativo mobile foi tratado como fora do escopo deste modelo porque está descontinuado no momento. A infraestrutura de produção ainda deve receber um diagrama próprio quando WAF, VMs, backups, observabilidade e rede estiverem definidos.
+O modelo atual cobre a aplicação Web, a API Spring Boot, o PostgreSQL, o login com Google e o envio de planilhas por e-mail. O aplicativo mobile foi tratado como fora do escopo deste modelo porque está descontinuado no momento. A infraestrutura de produção na OCI (Nginx, TLS, Portainer, backups e observabilidade) já está definida e suas ameaças estão tabeladas na seção "Ameaças da infraestrutura de produção (OCI)", mais abaixo; elas ainda precisam ser desenhadas em um segundo diagrama do Threat Dragon.
 
 ## Arquivos do Threat Dragon e versionamento
 
@@ -12,7 +12,8 @@ Não se deve sobrescrever uma revisão já publicada. Ao revisar a superfície d
 
 | Revisão | Arquivo | Situação |
 | --- | --- | --- |
-| 2026-09-14 | [inventarium-threat-model-stride-2026-09-14.json](./assets/inventarium-threat-model-stride-2026-09-14.json) | Modelo inicial versionado; revisão atual. |
+| 2026-09-14 | [inventarium-threat-model-stride-2026-09-14.json](./assets/inventarium-threat-model-stride-2026-09-14.json) | Modelo inicial versionado; mantido como evidência histórica. |
+| 2026-10-11 | [inventarium-threat-model-stride-2026-10-11.json](./assets/inventarium-threat-model-stride-2026-10-11.json) | Revisão atual: ameaça 15 (CORS) passa a `Mitigated`. As ameaças de infraestrutura estão na seção abaixo e ainda não fazem parte do diagrama. |
 
 Para abrir:
 
@@ -36,7 +37,7 @@ Elementos modelados:
 
 Fora do escopo deste diagrama:
 
-- infraestrutura final de produção;
+- diagrama da infraestrutura de produção no Threat Dragon (as ameaças estão tabeladas abaixo);
 - pipeline CI/CD e supply chain de imagens;
 - politicas de backup e restauração;
 - operação e observabilidade;
@@ -48,8 +49,9 @@ O modelo possui 21 ameaças registradas:
 
 - 4 críticas abertas;
 - 7 altas abertas;
-- 8 medias abertas;
-- 2 altas mitigadas.
+- 7 medias abertas;
+- 2 altas mitigadas;
+- 1 media mitigada (CORS).
 
 As ameaças críticas abertas estao concentradas em autorização por objeto e exposicao de dados:
 
@@ -76,7 +78,7 @@ As ameaças críticas abertas estao concentradas em autorização por objeto e e
 | 12 | Medium | Open | Denial of service | Planilha XLSX + mensagem | Abuso do servico de e-mail por requisições repetidas |
 | 13 | High | Mitigated | Tampering | REST API + Bearer JWT + uploads | Interceptacao ou alteracao do trafego cliente-API |
 | 14 | Medium | Open | Spoofing | Backend API / Spring Boot | JWT da aplicação sem revogacao ou rotacao de sessão |
-| 15 | Medium | Open | Tampering | Backend API / Spring Boot | CORS permissivo para origens não confiáveis |
+| 15 | Medium | Mitigated | Tampering | Backend API / Spring Boot | CORS permissivo para origens não confiáveis |
 | 16 | Medium | Open | Information disclosure | Backend API / Spring Boot | Enumeracao de IDs por respostas e tempos diferentes |
 | 17 | High | Open | Denial of service | REST API + Bearer JWT + uploads | Upload XLSX malformado ou zip bomb contra o parser |
 | 18 | Medium | Open | Information disclosure | JWT + dados + PDF/XLSX | Formula injection em planilhas exportadas |
@@ -97,6 +99,25 @@ Os itens 14 a 21 foram adicionados ao JSON versionado a partir da leitura do có
 - privilegio excessivo da credencial de runtime no banco;
 - falta de baseline CSP para reduzir impacto de XSS.
 
+## Ameaças da infraestrutura de produção (OCI)
+
+Revisão de 2026-10-11, referente ao ADR 0006 (veja [Architecture Decision Records](./Architecture-Decision-Records)) e ao [runbook de deploy](./Deploy-em-Produção-OCI). Estas ameaças ainda não estão no JSON do Threat Dragon; entrarão em um segundo diagrama da infraestrutura. Cada linha traz o controle já implementado e o risco que continua aberto.
+
+| ID | Ameaça | Controle implementado | Risco residual / ação |
+| --- | --- | --- | --- |
+| I-1 | Quem alcança a UI do Portainer controla o Docker (e, na prática, a VM), pois ele monta `docker.sock` | Portainer escuta só em `127.0.0.1:9443`; o NSG não expõe a 9443; a UI só abre em `portainer.<domínio>` para os IPs de `allowed_admin_cidrs` (Nginx); senha inicial aleatória; versão fixa | Sem MFA no Portainer CE; IP residencial dinâmico pode exigir atualização da allowlist. Avaliar VPN/túnel se o IP de admin não for estável |
+| I-2 | Webhook de redeploy exposto à internet | Só `POST` no caminho `/api/stacks/webhooks/<uuid>`, com rate limit; o UUID funciona como segredo; todo o resto do Portainer exige allowlist | Quem obtiver a URL dispara um redeploy (puxa imagens do GHCR da organização, não código do atacante). Se vazar, recriar o webhook no Portainer |
+| I-3 | Interceptação, downgrade ou conteúdo misto | Redirecionamento 80→443, TLS 1.2/1.3, sem tickets de sessão, HSTS com `includeSubDomains` | HSTS começa com `max-age` curto e deve subir para 1 ano após a validação; `preload` não é usado |
+| I-4 | Certificado expira sem ninguém perceber | Renovação automática 2x ao dia (`inventarium-certbot-renew.timer`) e e-mail de aviso do Let's Encrypt | Falha de renovação é silenciosa até gerar alerta na observabilidade. Acompanhar `systemctl list-timers` |
+| I-5 | SonarQube público (o scanner do GitHub precisa alcançá-lo) | Login obrigatório (`sonar.forceAuthentication`), versão fixa, rate limit no Nginx | Superfície exposta a vulnerabilidades do Sonar; manter a versão atualizada |
+| I-6 | Vazamento de segredos de runtime | Segredos nunca passam pelo Terraform nem pelo user-data: o `.env` vai por `scp`, é lido pelo script e apagado (`shred`); as variáveis ficam na stack do Portainer | Quem acessa o Portainer lê os segredos da stack; o volume `portainer_data` deve ser tratado como sensível |
+| I-7 | Perda ou vazamento de backup do Postgres | Dump diário em bucket privado do Object Storage (criptografado em repouso), enviado por instance principal com permissão restrita a esse bucket, retenção de 30 dias; cópias locais `0600` por 7 dias | Sem criptografia adicional no lado do cliente; o restore drill precisa ser executado e registrado |
+| I-8 | Supply chain: imagem comprometida chega à produção via webhook | Imagens só são publicadas após os scans Trivy do release; imagens do GHCR são da própria organização | Tag `latest` é mutável; rollback por `IMAGE_TAG` fixo. Migrações do Liquibase não são revertidas pelo rollback de imagem |
+| I-9 | IP de cliente forjado para burlar o limite de login | O Nginx sobrescreve `X-Forwarded-For` com o IP real da conexão e o backend usa `FORWARD_HEADERS_STRATEGY=native` | Se um CDN/WAF for colocado à frente, a estratégia precisa ser revista |
+| I-10 | Exposição de endpoints internos (Actuator) | Só `/actuator/health` (e probes) é encaminhado pela API; o resto devolve 404 | — |
+| I-11 | Acesso remoto indevido à VM | SSH só por chave e só para `allowed_ssh_cidrs`; VM de observabilidade sem IP público | Manter a allowlist atualizada |
+| I-12 | XSS no front por política de conteúdo frouxa | CSP publicada em modo `Report-Only` na primeira semana, depois imposta; `frame-ancestors 'none'`, `object-src 'none'`, `base-uri 'self'` | A CSP mantém `'unsafe-inline'` em scripts por causa do Next.js (relacionado à ameaça 21); nonce fica como evolução |
+
 ## Priorizacao sugerida
 
 1. Corrigir autorização por ownership em todas as leituras, escritas, exportacoes, PDFs e envio por e-mail.
@@ -105,7 +126,7 @@ Os itens 14 a 21 foram adicionados ao JSON versionado a partir da leitura do có
 4. Endurecer o processamento de XLSX com limites de tamanho, linhas, colunas, timeout e defesa contra zip bomb.
 5. Reduzir impacto de XSS com CSP e considerar migracao do token para cookie `Secure`, `HttpOnly` e `SameSite`.
 6. Implementar auditoria append-only para operações críticas.
-7. Revisar CORS, credenciais de banco, TLS entre serviços e política de backup.
+7. Revisar credenciais de banco, TLS entre serviços e política de backup. O CORS foi tratado: a API só aceita as origens de `CORS_ALLOWED_ORIGINS` (ameaça 15), sem credenciais, e recusa `*` na inicialização.
 
 ## Critérios de manutenção
 

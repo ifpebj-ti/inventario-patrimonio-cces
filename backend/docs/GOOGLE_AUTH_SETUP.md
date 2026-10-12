@@ -44,16 +44,13 @@ valor aleatório com:
 openssl rand -hex 32
 ```
 
-Isso imprime uma string hexadecimal de 64 caracteres, por exemplo:
-
-```
-cf222d795015b026266ee0cd02ef22cc28ab9f3a2b7fc7525fd704b4a922465d
-```
+Isso imprime uma string hexadecimal de 64 caracteres. Use o valor gerado por você; nunca reutilize
+exemplos copiados de documentação, e use um valor diferente em cada ambiente (local e produção).
 
 Cole no `.env`:
 
 ```
-SECURITY_TOKEN_SECRET=cf222d795015b026266ee0cd02ef22cc28ab9f3a2b7fc7525fd704b4a922465d
+SECURITY_TOKEN_SECRET=<valor-gerado-com-openssl>
 ```
 
 Pontos de atenção:

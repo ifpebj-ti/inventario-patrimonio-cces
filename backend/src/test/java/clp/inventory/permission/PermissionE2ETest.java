@@ -2,6 +2,9 @@ package clp.inventory.permission;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import clp.inventory.model.User;
+import clp.inventory.repository.ProfileRepository;
+import clp.inventory.repository.UserRepository;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import java.time.Duration;
@@ -11,8 +14,9 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.*;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -22,11 +26,13 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
- * Sobe a aplicação inteira (Postgres real via Testcontainers, HTTP real via TestRestTemplate). O
- * JWT é assinado diretamente no teste, mesma abordagem dos demais testes E2E do módulo.
+ * Permissões são somente leitura pela API e exigem ADMIN: não há criar, editar nem excluir (uma
+ * permissão nova entra por migration). O JWT é assinado direto no teste, mesma abordagem dos outros
+ * E2E.
  */
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureTestRestTemplate
 class PermissionE2ETest {
 
   private static final String TEST_SECRET = "test-secret-de-pelo-menos-32-bytes-aqui";
@@ -41,181 +47,150 @@ class PermissionE2ETest {
 
   @Autowired TestRestTemplate restTemplate;
 
-  private String mintToken() {
-    Algorithm algorithm = Algorithm.HMAC256(TEST_SECRET);
-    return JWT.create()
-        .withIssuer("inventory")
-        .withSubject("1")
-        .withExpiresAt(Instant.now().plus(Duration.ofHours(1)))
-        .sign(algorithm);
+  @Autowired UserRepository userRepository;
+
+  @Autowired ProfileRepository profileRepository;
+
+  private long createUserWithProfile(String profileName) {
+    var profile =
+        profileRepository.findAll().stream()
+            .filter(p -> profileName.equals(p.name()))
+            .findFirst()
+            .orElseThrow();
+    User user = new User();
+    user.setName("Test User");
+    user.setEmail(profileName.toLowerCase() + "-" + System.nanoTime() + "@ifpe.edu.br");
+    user.setGoogleId("google-" + profileName + "-" + System.nanoTime());
+    user.setProfile(profile);
+    return userRepository.save(user).getId();
   }
 
-  private HttpHeaders authHeaders() {
+  private HttpHeaders headersFor(long userId) {
+    Algorithm algorithm = Algorithm.HMAC256(TEST_SECRET);
+    String token =
+        JWT.create()
+            .withIssuer("inventory")
+            .withSubject(String.valueOf(userId))
+            .withExpiresAt(Instant.now().plus(Duration.ofHours(1)))
+            .sign(algorithm);
+
     var headers = new HttpHeaders();
     headers.setContentType(MediaType.APPLICATION_JSON);
-    headers.setBearerAuth(mintToken());
+    headers.setBearerAuth(token);
     return headers;
   }
 
-  private Map<String, Object> permissionBody(String name, String description) {
-    var body = new HashMap<String, Object>();
-    body.put("name", name);
-    body.put("description", description);
-    return body;
+  private HttpHeaders adminHeaders() {
+    return headersFor(createUserWithProfile("ADMIN_ORGANIZATION"));
   }
 
-  private ResponseEntity<Map> create(String name, String description) {
-    return restTemplate.postForEntity(
-        "/permissions",
-        new HttpEntity<>(permissionBody(name, description), authHeaders()),
-        Map.class);
-  }
-
-  @Test
-  void create_returnsCreatedPermission() {
-    var response = create("CUSTOM_PERMISSION", "Descricao de teste");
-
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-    assertThat(response.getBody().get("name")).isEqualTo("CUSTOM_PERMISSION");
-    assertThat(response.getBody().get("description")).isEqualTo("Descricao de teste");
-    assertThat(response.getBody().get("id")).isNotNull();
+  @SuppressWarnings("unchecked")
+  private List<Map<String, Object>> listAsAdmin() {
+    var response =
+        restTemplate.exchange(
+            "/permissions", HttpMethod.GET, new HttpEntity<>(adminHeaders()), List.class);
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    return (List<Map<String, Object>>) response.getBody();
   }
 
   @Test
-  void create_duplicateName_returns400() {
-    create("Permissao Duplicada", null);
-    var second = create("Permissao Duplicada", null);
+  void list_asAdmin_returnsTheThreeSeededPermissions() {
+    var permissions = listAsAdmin();
 
-    assertThat(second.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(permissions)
+        .extracting(p -> p.get("name"))
+        .containsExactlyInAnyOrder("ADMIN", "MANAGE_SECTOR", "MANAGE_ITEM");
   }
 
   @Test
-  void create_blankName_returns400() {
-    var response = create("", null);
-
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-  }
-
-  @Test
-  void list_returnsAllPermissions() {
-    create("Permissao Listagem 1", null);
-    create("Permissao Listagem 2", null);
+  void getById_asAdmin_returnsPermission() {
+    var seeded = listAsAdmin().get(0);
+    long id = ((Number) seeded.get("id")).longValue();
 
     var response =
         restTemplate.exchange(
-            "/permissions", HttpMethod.GET, new HttpEntity<>(authHeaders()), List.class);
+            "/permissions/" + id, HttpMethod.GET, new HttpEntity<>(adminHeaders()), Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(response.getBody()).isNotEmpty();
-  }
-
-  @Test
-  void getById_returnsPermission() {
-    var created = create("Permissao Busca", null);
-    long id = ((Number) created.getBody().get("id")).longValue();
-
-    var response =
-        restTemplate.exchange(
-            "/permissions/" + id, HttpMethod.GET, new HttpEntity<>(authHeaders()), Map.class);
-
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(response.getBody().get("name")).isEqualTo("Permissao Busca");
+    assertThat(response.getBody().get("name")).isEqualTo(seeded.get("name"));
   }
 
   @Test
   void getById_notFound_returns404() {
     var response =
         restTemplate.exchange(
-            "/permissions/999999", HttpMethod.GET, new HttpEntity<>(authHeaders()), Map.class);
+            "/permissions/999999", HttpMethod.GET, new HttpEntity<>(adminHeaders()), Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
   }
 
   @Test
-  void update_returnsUpdatedPermission() {
-    var created = create("Permissao Original", null);
-    long id = ((Number) created.getBody().get("id")).longValue();
+  void list_asNonAdmin_returns403() {
+    for (String profileName : List.of("CONSULTA", "GESTOR_SETOR", "OPERADOR_CAMPO")) {
+      var response =
+          restTemplate.exchange(
+              "/permissions",
+              HttpMethod.GET,
+              new HttpEntity<>(headersFor(createUserWithProfile(profileName))),
+              Map.class);
+
+      assertThat(response.getStatusCode()).as(profileName).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+  }
+
+  @Test
+  void getById_asNonAdmin_returns403() {
+    long consultaId = createUserWithProfile("CONSULTA");
+
+    var response =
+        restTemplate.exchange(
+            "/permissions/1", HttpMethod.GET, new HttpEntity<>(headersFor(consultaId)), Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+  }
+
+  @Test
+  void create_isNotAvailable() {
+    var body = new HashMap<String, Object>();
+    body.put("name", "NOVA_PERMISSAO");
+
+    var response =
+        restTemplate.postForEntity(
+            "/permissions", new HttpEntity<>(body, adminHeaders()), Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
+    assertThat(listAsAdmin()).hasSize(3);
+  }
+
+  @Test
+  void update_isNotAvailable_andAdminPermissionCannotBeRenamed() {
+    var admin =
+        listAsAdmin().stream().filter(p -> "ADMIN".equals(p.get("name"))).findFirst().orElseThrow();
+    long id = ((Number) admin.get("id")).longValue();
 
     var response =
         restTemplate.exchange(
             "/permissions/" + id,
             HttpMethod.PUT,
-            new HttpEntity<>(
-                permissionBody("Permissao Atualizada", "Nova descricao"), authHeaders()),
+            new HttpEntity<>(Map.of("name", "OUTRO_NOME"), adminHeaders()),
             Map.class);
 
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(response.getBody().get("name")).isEqualTo("Permissao Atualizada");
-    assertThat(response.getBody().get("description")).isEqualTo("Nova descricao");
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
+    assertThat(listAsAdmin()).extracting(p -> p.get("name")).contains("ADMIN");
   }
 
   @Test
-  void update_duplicateName_returns400() {
-    create("Permissao A", null);
-    var permissionB = create("Permissao B", null);
-    long idB = ((Number) permissionB.getBody().get("id")).longValue();
+  void delete_isNotAvailable_andAdminPermissionCannotBeDeleted() {
+    var admin =
+        listAsAdmin().stream().filter(p -> "ADMIN".equals(p.get("name"))).findFirst().orElseThrow();
+    long id = ((Number) admin.get("id")).longValue();
 
     var response =
         restTemplate.exchange(
-            "/permissions/" + idB,
-            HttpMethod.PUT,
-            new HttpEntity<>(permissionBody("Permissao A", null), authHeaders()),
-            Map.class);
+            "/permissions/" + id, HttpMethod.DELETE, new HttpEntity<>(adminHeaders()), Map.class);
 
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-  }
-
-  @Test
-  void delete_removesPermission() {
-    var created = create("Permissao Para Remover", null);
-    long id = ((Number) created.getBody().get("id")).longValue();
-
-    var deleteResponse =
-        restTemplate.exchange(
-            "/permissions/" + id, HttpMethod.DELETE, new HttpEntity<>(authHeaders()), Void.class);
-    assertThat(deleteResponse.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-
-    var getResponse =
-        restTemplate.exchange(
-            "/permissions/" + id, HttpMethod.GET, new HttpEntity<>(authHeaders()), Map.class);
-    assertThat(getResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-  }
-
-  @Test
-  void delete_notFound_returns404() {
-    var response =
-        restTemplate.exchange(
-            "/permissions/999999", HttpMethod.DELETE, new HttpEntity<>(authHeaders()), Map.class);
-
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-  }
-
-  @Test
-  void delete_permissionInUse_returns409() {
-    var profileBody = new HashMap<String, Object>();
-    profileBody.put("name", "Perfil Com Permissao");
-    var profile =
-        restTemplate.postForEntity(
-            "/profiles", new HttpEntity<>(profileBody, authHeaders()), Map.class);
-    long profileId = ((Number) profile.getBody().get("id")).longValue();
-
-    var permission = create("Permissao Em Uso", null);
-    long permissionId = ((Number) permission.getBody().get("id")).longValue();
-
-    restTemplate.exchange(
-        "/profiles/" + profileId + "/permissions/" + permissionId,
-        HttpMethod.POST,
-        new HttpEntity<>(authHeaders()),
-        Map.class);
-
-    var response =
-        restTemplate.exchange(
-            "/permissions/" + permissionId,
-            HttpMethod.DELETE,
-            new HttpEntity<>(authHeaders()),
-            Map.class);
-
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
+    assertThat(listAsAdmin()).hasSize(3);
   }
 
   @Test

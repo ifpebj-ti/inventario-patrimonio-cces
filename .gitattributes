@@ -1,0 +1,5 @@
+# Scripts e configuracoes que rodam em Linux (VMs da OCI) precisam de LF mesmo em checkouts no
+# Windows com core.autocrlf=true; com CRLF o shebang e o Nginx quebram.
+infra/nginx/** text eol=lf
+infra/scripts/** text eol=lf
+infra/terraform/oci/*.tftpl text eol=lf

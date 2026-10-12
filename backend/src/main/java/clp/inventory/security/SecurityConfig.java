@@ -6,6 +6,8 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 
@@ -19,11 +21,17 @@ public class SecurityConfig {
   }
 
   @Bean
+  PasswordEncoder passwordEncoder() {
+    return new BCryptPasswordEncoder();
+  }
+
+  @Bean
   SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
     http.csrf(AbstractHttpConfigurer::disable)
         .cors(Customizer.withDefaults())
         // Autenticação é só por Bearer: sessão persistida somada a CSRF desabilitado
-        // e origins="*" seria o que abriria espaço para CSRF de verdade.
+        // e CORS aberto a qualquer origem seria o que abriria espaço para CSRF de verdade.
+        // As origens permitidas vêm do bean CorsConfigurationSource (CorsConfig).
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
@@ -36,7 +44,7 @@ public class SecurityConfig {
                   .requestMatchers("/actuator/health/**")
                   .permitAll()
                   // Sem HttpMethod: o preflight OPTIONS precisa casar também.
-                  .requestMatchers("/auth/google")
+                  .requestMatchers("/auth/google", "/auth/login")
                   .permitAll();
               auth.anyRequest().authenticated();
             })

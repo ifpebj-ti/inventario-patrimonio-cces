@@ -1,5 +1,16 @@
 # Inventarium
 
+[![Licença](https://img.shields.io/github/license/ifpebj-ti/inventario-patrimonio-cces?style=flat-square)](LICENSE)
+[![Último commit](https://img.shields.io/github/last-commit/ifpebj-ti/inventario-patrimonio-cces?style=flat-square)](https://github.com/ifpebj-ti/inventario-patrimonio-cces/commits/main)
+[![Tamanho do repositório](https://img.shields.io/github/repo-size/ifpebj-ti/inventario-patrimonio-cces?style=flat-square)](https://github.com/ifpebj-ti/inventario-patrimonio-cces)
+[![Contribuidores](https://img.shields.io/github/contributors/ifpebj-ti/inventario-patrimonio-cces?style=flat-square)](https://github.com/ifpebj-ti/inventario-patrimonio-cces/graphs/contributors)
+[![Issues abertas](https://img.shields.io/github/issues/ifpebj-ti/inventario-patrimonio-cces?style=flat-square)](https://github.com/ifpebj-ti/inventario-patrimonio-cces/issues)
+[![Pull requests abertos](https://img.shields.io/github/issues-pr/ifpebj-ti/inventario-patrimonio-cces?style=flat-square)](https://github.com/ifpebj-ti/inventario-patrimonio-cces/pulls)
+[![Forks](https://img.shields.io/github/forks/ifpebj-ti/inventario-patrimonio-cces?style=flat-square)](https://github.com/ifpebj-ti/inventario-patrimonio-cces/network/members)
+[![Stars](https://img.shields.io/github/stars/ifpebj-ti/inventario-patrimonio-cces?style=flat-square)](https://github.com/ifpebj-ti/inventario-patrimonio-cces/stargazers)
+[![Quality](https://github.com/ifpebj-ti/inventario-patrimonio-cces/actions/workflows/quality.yml/badge.svg?branch=main)](https://github.com/ifpebj-ti/inventario-patrimonio-cces/actions/workflows/quality.yml)
+[![Security scans](https://github.com/ifpebj-ti/inventario-patrimonio-cces/actions/workflows/security-scans.yml/badge.svg?branch=main)](https://github.com/ifpebj-ti/inventario-patrimonio-cces/actions/workflows/security-scans.yml)
+
 Inventarium e um monorepo do projeto academico de gerenciamento de inventário. Ele agrupa a API backend, a aplicação web e a documentação do produto.
 
 ## Estrutura
@@ -124,7 +135,7 @@ O `docker-compose.yml` builda as imagens locais `inventarium-front:local` e `inv
 O guia completo de execução, configuração e operação está em:
 
 ```text
-docs/execução-configuração-operação.md
+docs/execucao-configuracao-operacao.md
 ```
 
 Para rodar apenas o backend fora do Compose, use também o exemplo dentro de `backend` quando necessário.
@@ -216,12 +227,19 @@ Quando encontra uma atualização, o GitHub abre um Pull Request automatico. A p
 
 Os workflows ficam em `.github/workflows`.
 
-Atualmente existe o workflow `Quality`, que roda em pull requests e pushes para `main`.
+O workflow `Quality` roda em todos os pull requests; `Security scans` roda nos pull requests destinados à `main`.
 
-Ele valida:
+O workflow `Quality` valida:
 
 - secrets com Secretlint;
-- mensagens de commit em pull requests com Commitlint.
+- lint do frontend com ESLint;
+- formatação Java com Spotless;
+- testes existentes do backend com Gradle e Testcontainers;
+- mensagens de commit em pull requests humanos com Commitlint.
+
+O workflow `Security scans` executa Semgrep e Trivy antes do merge. O Semgrep e o Trivy geram relatórios SARIF enviados para a aba Security → Code scanning e mantêm artifacts temporários na execução. Durante o pull request, as imagens são apenas construídas e escaneadas em `linux/amd64`; o push para o GHCR só ocorre no workflow `Release`, após o merge em `main`, o gate de segurança e a criação de uma tag de release. A publicação gera uma única tag multi-arquitetura para `linux/amd64` e `linux/arm64`.
+
+Consulte os detalhes, os checks exigidos e os pontos ainda manuais em [Esteira de CI/CD](docs/wiki/Esteira-de-CI-CD.md).
 
 ## Documentação
 
@@ -237,7 +255,7 @@ As decisões arquiteturais relevantes são registradas como ADRs em:
 docs/architecture/adr
 ```
 
-Tags e GitHub Releases seguem o formato `vMAJOR.MINOR.PATCH` e são preparadas pelo workflow `Release`, com base no tipo marcado no pull request. As imagens de produção publicadas no GHCR usam a mesma tag da release.
+Tags e GitHub Releases seguem o formato `vMAJOR.MINOR.PATCH` e são preparadas pelo workflow `Release`, com base no tipo marcado no pull request. O [CHANGELOG.md](CHANGELOG.md) é atualizado manualmente na própria PR antes do merge, para que sua entrada possa ser revisada junto da entrega. As imagens de produção publicadas no GHCR usam a mesma tag da release e atendem hosts `amd64` e `arm64`.
 
 ## Apresentação
 

@@ -32,6 +32,7 @@ public class SecurityFilter extends OncePerRequestFilter {
   @Override
   protected boolean shouldNotFilter(HttpServletRequest request) {
     return request.getServletPath().equals("/auth/google")
+        || request.getServletPath().equals("/auth/login")
         || request.getServletPath().startsWith("/actuator/health");
   }
 

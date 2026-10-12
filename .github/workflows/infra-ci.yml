@@ -1,0 +1,88 @@
+name: Infra CI
+
+# Valida Terraform, Nginx, scripts das VMs da OCI e o compose de producao. So roda quando o PR toca
+# esses arquivos; nada aqui acessa a OCI nem usa segredos.
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+      - "docker-compose.production.yml"
+      - ".github/scripts/**"
+      - ".github/workflows/infra-ci.yml"
+      - ".gitattributes"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
+jobs:
+  script-tests:
+    name: Testes dos scripts (compose de producao e Nginx)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Run script tests
+        run: npm run test:github
+
+  nginx:
+    name: Nginx (nginx -t)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Validate the versioned Nginx configuration
+        run: bash infra/scripts/test-nginx-config.sh
+
+  app-vm-scripts:
+    name: Scripts da VM (shellcheck e Oracle Linux 8)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: ShellCheck
+        run: |
+          set -euo pipefail
+          shellcheck -x -s bash infra/scripts/*.sh infra/scripts/app-vm/*.sh infra/scripts/tests/*.sh
+
+      - name: Run the scripts on Oracle Linux 8
+        run: bash infra/scripts/test-app-vm.sh
+
+  terraform:
+    name: Terraform (fmt e validate)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform/oci
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: "~1.12"
+          terraform_wrapper: false
+
+      - name: Format check
+        run: terraform fmt -check -recursive -diff
+
+      - name: Init (sem backend)
+        run: terraform init -backend=false -input=false
+
+      - name: Validate
+        run: terraform validate

@@ -1,0 +1,90 @@
+# Stack de produção (VM da aplicação na OCI). As imagens vêm prontas do GHCR; nada é construído na VM.
+# O nome do projeto e do volume são fixos para que o banco não dependa do diretório nem do Portainer.
+# As portas do back e do front ficam só em loopback: quem atende a internet é o Nginx do host.
+name: inventarium
+
+services:
+  postgres:
+    container_name: inventarium-postgres
+    image: postgres:15-alpine
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?defina POSTGRES_USER na stack de producao}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD na stack de producao}
+      POSTGRES_DB: ${POSTGRES_DB:?defina POSTGRES_DB na stack de producao}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - inventarium-net
+
+  inventarium-back:
+    container_name: inventarium-back
+    # IMAGE_TAG=latest acompanha a última release; para rollback, fixe IMAGE_TAG=vX.Y.Z.
+    image: ghcr.io/ifpebj-ti/inventarium-back:${IMAGE_TAG:-latest}
+    pull_policy: always
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8080}:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-none}
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:?defina SPRING_MAIL_USERNAME na stack de producao}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:?defina SPRING_MAIL_PASSWORD na stack de producao}
+      SECURITY_TOKEN_SECRET: ${SECURITY_TOKEN_SECRET:?defina SECURITY_TOKEN_SECRET na stack de producao}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:?defina GOOGLE_OAUTH_CLIENT_ID na stack de producao}
+      GOOGLE_ALLOWED_DOMAINS: ${GOOGLE_ALLOWED_DOMAINS:-ifpe.edu.br}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://inventariumifpe.me}
+      SYSTEM_ADMIN_USERNAME: ${SYSTEM_ADMIN_USERNAME:-admin}
+      # Vazio desliga o login por senha; com menos de 12 caracteres a conta não é criada.
+      SYSTEM_ADMIN_PASSWORD: ${SYSTEM_ADMIN_PASSWORD:-}
+      # `native` só é seguro porque o Nginx do host SOBRESCREVE o X-Forwarded-For.
+      FORWARD_HEADERS_STRATEGY: ${FORWARD_HEADERS_STRATEGY:-native}
+      AUTH_LOGIN_IP_MAX_FAILURES: ${AUTH_LOGIN_IP_MAX_FAILURES:-10}
+      AUTH_LOGIN_USER_MAX_FAILURES: ${AUTH_LOGIN_USER_MAX_FAILURES:-5}
+      AUTH_LOGIN_WINDOW: ${AUTH_LOGIN_WINDOW:-15m}
+      AUTH_LOGIN_BLOCK_DURATION: ${AUTH_LOGIN_BLOCK_DURATION:-15m}
+    networks:
+      - inventarium-net
+
+  inventarium-front:
+    container_name: inventarium-front
+    image: ghcr.io/ifpebj-ti/inventarium-front:${IMAGE_TAG:-latest}
+    pull_policy: always
+    restart: unless-stopped
+    depends_on:
+      inventarium-back:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
+    healthcheck:
+      # A imagem é node:alpine sem curl; o wget do busybox basta.
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+    networks:
+      - inventarium-net
+
+networks:
+  inventarium-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+    name: inventarium_postgres-data

@@ -80,8 +80,57 @@ variable "allowed_web_cidrs" {
 }
 
 variable "allowed_admin_cidrs" {
-  description = "CIDRs autorizados a acessar ferramentas administrativas."
+  description = "IPs/CIDRs IPv4 autorizados a abrir as ferramentas administrativas (UI do Portainer e Grafana). A restricao e aplicada pelo Nginx da VM da aplicacao; o NSG nao expoe mais a porta 9443."
   type        = list(string)
+
+  validation {
+    condition     = length(var.allowed_admin_cidrs) > 0 && alltrue([for c in var.allowed_admin_cidrs : can(cidrhost(c, 0))])
+    error_message = "allowed_admin_cidrs precisa ter ao menos um CIDR IPv4 valido (ex.: 203.0.113.10/32)."
+  }
+
+  validation {
+    condition     = !contains(var.allowed_admin_cidrs, "0.0.0.0/0")
+    error_message = "allowed_admin_cidrs nao pode conter 0.0.0.0/0: o Portainer controla o Docker da VM."
+  }
+}
+
+variable "acme_email" {
+  description = "E-mail de contato da conta Let's Encrypt (avisos de expiracao e problemas de emissao)."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.acme_email))
+    error_message = "acme_email precisa ser um endereco de e-mail valido."
+  }
+}
+
+variable "portainer_version" {
+  description = "Tag da imagem portainer/portainer-ce usada na VM da aplicacao (fixa, nunca lts/latest)."
+  type        = string
+  default     = "2.39.5"
+
+  validation {
+    condition     = can(regex("^[0-9]+\\.[0-9]+\\.[0-9]+$", var.portainer_version))
+    error_message = "portainer_version deve ser uma versao fixa no formato X.Y.Z."
+  }
+}
+
+variable "backup_bucket_name" {
+  description = "Nome do bucket privado do Object Storage que recebe os backups do Postgres."
+  type        = string
+  default     = "inventarium-backups"
+}
+
+variable "backup_retention_days" {
+  description = "Dias de retencao dos backups no bucket (lifecycle policy)."
+  type        = number
+  default     = 30
+}
+
+variable "manage_backup_iam" {
+  description = "Cria o dynamic group e as policies IAM que permitem a VM enviar backups e o bucket aplicar a retencao. Exige permissao de IAM na tenancy; use false se o usuario do Terraform nao tiver."
+  type        = bool
+  default     = true
 }
 
 variable "availability_domain_index" {

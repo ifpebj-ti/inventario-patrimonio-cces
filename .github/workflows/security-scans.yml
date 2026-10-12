@@ -1,0 +1,120 @@
+name: Security scans
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: security-scans-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Determine security scan scope
+    runs-on: ubuntu-latest
+    outputs:
+      semgrep: ${{ steps.scope.outputs.semgrep }}
+      images: ${{ steps.scope.outputs.images }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Detect security-relevant changes
+        id: scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          changed_files="$(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}")"
+          semgrep=false
+          images=false
+
+          if echo "${changed_files}" | grep -Eq '^(backend/src/|frontend/src/|\.github/)'; then
+            semgrep=true
+          fi
+
+          if echo "${changed_files}" | grep -Eq '^(frontend/|backend/|docker-compose\.yml|\.env\.example|\.github/workflows/(build-container-images|security-scans)\.yml)'; then
+            images=true
+          fi
+
+          {
+            echo "semgrep=${semgrep}"
+            echo "images=${images}"
+          } >> "${GITHUB_OUTPUT}"
+
+          {
+            echo "## Escopo dos scans de segurança"
+            echo ""
+            echo "| Scan | Executar |"
+            echo "| --- | --- |"
+            echo "| Semgrep | ${semgrep} |"
+            echo "| Mudancas em codigo de imagem (o job de imagens sempre roda e se autolimita) | ${images} |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  semgrep:
+    name: Semgrep SAST baseline
+    needs: changes
+    if: needs.changes.outputs.semgrep == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Run Semgrep baseline
+        id: semgrep
+        continue-on-error: true
+        run: >-
+          semgrep scan
+          --config p/default
+          --metrics off
+          --sarif
+          --output semgrep-report.sarif
+          backend/src frontend/src .github
+
+      - name: Upload Semgrep SARIF to Code Scanning
+        if: always() && hashFiles('semgrep-report.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep-report.sarif
+          category: semgrep
+
+      - name: Upload Semgrep report artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: semgrep-report
+          path: semgrep-report.sarif
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Report baseline result
+        if: steps.semgrep.outcome == 'failure'
+        run: |
+          echo "Semgrep encontrou achados. O relatório SARIF foi anexado a esta execução."
+          echo "O gate bloqueante será ativado depois da triagem da linha de base."
+
+  container-images:
+    name: Trivy container and dependency scans
+    needs: changes
+    # Sem `if:` de proposito. O workflow reutilizavel ja decide sozinho se ha imagem para buildar e,
+    # sem mudancas de frontend/backend, so imprime "No frontend/backend image sources changed" e passa.
+    # Com o `if:` aqui, PRs que so mexem em infra/ ou docs/ nunca reportavam o check obrigatorio
+    # "Trivy container and dependency scans / Container images" e ficavam bloqueados para sempre.
+    uses: ./.github/workflows/build-container-images.yml
+    with:
+      checkout_ref: ${{ github.event.pull_request.head.sha }}
+      publish_images: false
+      frontend_api_url: ${{ vars.NEXT_PUBLIC_API_URL }}
+      frontend_google_client_id: ${{ vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID || vars.GOOGLE_OAUTH_CLIENT_ID }}

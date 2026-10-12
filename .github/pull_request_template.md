@@ -3,12 +3,6 @@
 <!-- Obrigatorio para todo PR humano destinado a main. Nao use para PRs do Dependabot. -->
 Closes #
 
-## Descricao da issue
-
-<!-- issue-summary:start -->
-Esta secao sera preenchida automaticamente quando o PR referenciar uma issue com `Closes #numero`, `Fixes #numero` ou `Resolves #numero`.
-<!-- issue-summary:end -->
-
 ## O que foi feito
 
 -
