@@ -14,7 +14,7 @@ flowchart LR
     sistema["Inventarium\nGestão e conferência patrimonial"]
     google["Google Identity Services\nAutenticação"]
     smtp["Servidor SMTP do Gmail\nEnvio de planilhas"]
-    planilhas["Planilhas XLSX\nEntrada e saída de dados"]
+    planilhas["Planilhas CSV / XLSX\nImportação CSV e exportação XLSX"]
     github["GitHub\nCódigo, CI/CD e publicação da wiki"]
 
     adminOrg -->|"administra estrutura organizacional"| sistema
@@ -40,7 +40,7 @@ flowchart LR
 | --- | --- | --- |
 | Google Identity Services | O frontend obtém um ID token; a API o valida antes de criar ou localizar o usuário local e emitir o JWT próprio. | Login institucional sem senha local. |
 | Gmail SMTP | A API usa o envio de e-mail do Spring para encaminhar uma planilha XLSX como anexo. | Compartilhar o resultado de um inventário. |
-| Planilhas XLSX | Arquivos enviados pelo usuário e arquivos gerados pela API. Não é um serviço remoto. | Carga, validação, exportação e compartilhamento de dados patrimoniais. |
+| Planilhas CSV / XLSX | CSV enviado pelo usuário para validação e importação; XLSX gerado pela API para exportação e e-mail. Não é um serviço remoto. | Carga, validação, exportação e compartilhamento de dados patrimoniais. |
 | GitHub | Repositório, pull requests, validações de CI/CD, releases e sincronização da wiki. | Suportar a engenharia e a publicação da documentação; não participa do fluxo de uso do patrimônio em tempo de execução. |
 
 ## Estado atual e evolução planejada

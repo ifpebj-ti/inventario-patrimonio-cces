@@ -12,6 +12,8 @@ O histórico é atualizado manualmente na própria pull request antes do merge e
 
 ### Added
 
+- Adicionados testes Playwright do fluxo CSV no navegador e execução no workflow Quality, com respostas de API simuladas e cache Next isolado.
+- Adicionada verificação local de códigos vazios/longos, duplicatas no CSV, preço inválido/negativo, aspas e linhas físicas antes da pré-validação remota.
 - Adicionados modelo CSV para download, verificação de extensão/cabeçalho no frontend, parsing CSV no backend, mensagens do fluxo de validação/importação e limpeza dos itens com confirmação na interface.
 - Documentado o fluxo de planilha em duas etapas, a detecção de duplicatas durante a importação sequencial e as pendências de validação prévia, persistência em lote e paralelismo.
 - Adicionado o `docker-compose.production.yml` para a VM de produção, com imagens do GHCR selecionadas por `IMAGE_TAG`, nome de projeto e de volume fixos, portas do backend e do frontend apenas em loopback e healthcheck do frontend.
@@ -24,6 +26,8 @@ O histórico é atualizado manualmente na própria pull request antes do merge e
 
 ### Changed
 
+- A importação no frontend exige aprovação HTTP 200 explícita para o arquivo atual; troca/remoção invalida o resultado, respostas antigas são ignoradas e cliques repetidos não reenviam o arquivo. Erros HTTP, rede, leitura e contratos inesperados bloqueiam Processar sem inferência pelo texto.
+- Relatórios de importação total/parcial ou totalmente recusada preservam contadores atuais/legados e detalhes das falhas. A limpeza confirmada bloqueia ações simultâneas e só atualiza itens/seleção após sucesso.
 - O compose de produção passa a repassar `SYSTEM_ADMIN_*`, `FORWARD_HEADERS_STRATEGY` (padrão `native`), `AUTH_LOGIN_*` e `CORS_ALLOWED_ORIGINS`.
 - Atualizados `.env.example`, `backend/.env.example` e o guia de execução e operação com as variáveis de produção.
 - O NSG da aplicação deixa de expor a porta 9443: o Portainer escuta só em `127.0.0.1` e é publicado pelo Nginx com allowlist de IPs. `allowed_admin_cidrs` passa a recusar `0.0.0.0/0`.

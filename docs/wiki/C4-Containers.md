@@ -16,7 +16,7 @@ flowchart LR
 
     google["Google Identity Services"]
     smtp["Gmail SMTP"]
-    xlsx["Arquivo XLSX"]
+    xlsx["Arquivos CSV de entrada / XLSX de saída"]
 
     usuario -->|"HTTPS / interface web"| web
     web -->|"login Google"| google
@@ -34,7 +34,7 @@ flowchart LR
 | Container | Tecnologia e localização | Responsabilidades implementadas |
 | --- | --- | --- |
 | Aplicação web | Next.js 16.3, React 19, TypeScript e Tailwind CSS; diretório `frontend`. | Exibe login, painel de inventários, detalhes de itens e modais de importação, edição, observações e envio de planilha. Armazena o JWT em cookie e o envia nas chamadas à API. |
-| API REST | Spring Boot 4, Java 21, Spring Security, JPA e Liquibase; diretório `backend`. | Expõe endpoints de autenticação, inventários, itens, usuários, organizações, setores, perfis e permissões. Também processa XLSX, gera PDF de etiquetas legado e encaminha a planilha por e-mail. |
+| API REST | Spring Boot 4, Java 21, Spring Security, JPA e Liquibase; diretório `backend`. | Expõe endpoints de autenticação, inventários, itens, usuários, organizações, setores, perfis e permissões. Valida/importa CSV, exporta XLSX, gera PDF de etiquetas legado e encaminha a planilha por e-mail. |
 | Banco de dados | PostgreSQL 15; serviço `postgres` no `docker-compose.yml`. | Armazena usuários, organização, setor, perfil, permissão, inventário, item e observação. O esquema é criado/evoluído por changelogs Liquibase. |
 
 ## Comunicação entre containers
@@ -42,7 +42,7 @@ flowchart LR
 1. No login, a aplicação web obtém uma credencial do Google e a envia para `POST /auth/google`. A API valida o ID token, encontra ou cria o usuário local e retorna um JWT da aplicação.
 2. Nas demais requisições, o frontend envia `Authorization: Bearer <JWT>` para a API. A API é stateless; não mantém sessão de servidor.
 3. A API usa JPA para ler e gravar no PostgreSQL. O Liquibase é executado na inicialização para aplicar o changelog configurado.
-4. Para importação e validação, o navegador envia XLSX em `multipart/form-data`. Para exportação, a API devolve o arquivo; para compartilhamento, monta o XLSX e o entrega ao SMTP como anexo de forma assíncrona.
+4. Para importação, o navegador verifica o CSV localmente, envia-o em `multipart/form-data` para validação e habilita Processar somente após aprovação remota. A confirmação envia o mesmo arquivo para importar. Para exportação, a API devolve XLSX; para compartilhamento, monta o XLSX e o entrega ao SMTP como anexo de forma assíncrona. O contrato e as limitações estão em [Validação de Planilha](./Validacao-de-Planilha).
 
 ## Operação local e saúde
 
