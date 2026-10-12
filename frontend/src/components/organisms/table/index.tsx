@@ -22,7 +22,6 @@ import { Button } from '@/components/atoms/button'
 import { RiPencilFill } from 'react-icons/ri'
 import { FaEnvelope, FaFileExcel, FaTrash } from 'react-icons/fa'
 import { IoIosArrowBack, IoIosArrowForward } from 'react-icons/io'
-import { MdChecklist } from 'react-icons/md'
 import { Eye, EyeOff } from 'lucide-react'
 import { InventoryResponse } from '@/services/inventory'
 
@@ -61,6 +60,9 @@ export const Table = ({
   onRowSelect,
   onRowDoubleClick,
   showExportButtons = false,
+  onClearInventory,
+  disableClear = false,
+  onDeleteSelected,
   onExportSelected,
   onExportSheet,
   onSendEmailSheet,
@@ -390,7 +392,6 @@ export const Table = ({
             className="m-0"
           />
         </div>
-        {/* Botões de exportação, sempre em linha horizontal sem quebrar e sem scroll indesejado */}
         {showExportButtons && (
           <div className="flex flex-row items-center justify-start sm:justify-end gap-2 shrink-0">
             <Button
@@ -404,18 +405,23 @@ export const Table = ({
             />
             <Button
               type="button"
-              variant={selectedRows.length > 0 ? 6 : 4}
-              onClick={selectedRows.length > 0 ? onExportSelected : undefined}
-              icon={<MdChecklist />}
+              variant={content.length > 0 && !disableClear ? 6 : 4}
+              disabled={content.length === 0 || disableClear}
+              onClick={
+                content.length > 0
+                  ? onClearInventory || onDeleteSelected || onExportSelected
+                  : undefined
+              }
+              icon={<FaTrash />}
               tooltip={
-                selectedRows.length > 0
-                  ? 'Exportar etiquetas dos itens selecionados'
-                  : 'Selecione ao menos um item para exportar'
+                content.length > 0
+                  ? 'Limpar todos os itens do inventário'
+                  : 'Inventário já está vazio'
               }
               aria-label={
-                selectedRows.length > 0
-                  ? 'Exportar etiquetas dos itens selecionados'
-                  : 'Selecione ao menos um item para exportar'
+                content.length > 0
+                  ? 'Limpar todos os itens do inventário'
+                  : 'Inventário já está vazio'
               }
               width="w-auto"
             />

@@ -1,189 +1,193 @@
 'use client'
 
-import { errorSheet } from '@/app/(authenticated)/inventory/[id]/page'
+import type { SpreadsheetState } from '@/commons/models/spreadsheet'
 import { Button } from '@/components/atoms/button'
 import { ModalErrorsSheet } from '@/components/organisms/modalErrors'
-import React, { useRef, useState } from 'react'
-import { TbFileUpload } from 'react-icons/tb'
+import { CsvTemplateModal } from '@/components/organisms/csvTemplateModal'
+import { useRef, useState } from 'react'
+import { TbFileUpload, TbInfoCircle, TbX } from 'react-icons/tb'
 
-// Define as propriedades que o componente de upload de arquivo espera receber.
 type FileUploadComponentProps = {
-  onFileSelect: (file: File) => void // Função chamada para o processamento final do arquivo.
-  onValidateFile?: (file: File) => void // Função opcional para validar o arquivo antes do processamento.
-  validationErrors: errorSheet[] | null // Array de erros de validação recebido do componente pai.
+  state: SpreadsheetState
+  onSelect: (file: File) => Promise<void>
+  onRemove: () => void
+  onProcess: () => Promise<void>
+  disabled?: boolean
 }
 
-// Componente Card 3: Importação de Planilha via Drag-and-Drop ou Seleção
 export const FileUploadComponent = ({
-  onFileSelect,
-  onValidateFile,
-  validationErrors,
+  state,
+  onSelect,
+  onRemove,
+  onProcess,
+  disabled = false,
 }: FileUploadComponentProps) => {
   const [isDragOver, setIsDragOver] = useState(false)
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [showErrorModal, setShowErrorModal] = useState(false)
-
-  const openModal = () => setShowErrorModal(true)
-  const closeModal = () => setShowErrorModal(false)
+  const [showTemplateModal, setShowTemplateModal] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const importing = state.status === 'importing'
+  const locked = disabled || importing
+  const canProcess = state.status === 'valid' && !!state.file && !locked
 
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    setIsDragOver(true)
-  }
-
-  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    setIsDragOver(false)
-  }
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    setIsDragOver(false)
-
-    const files = e.dataTransfer.files
-    if (files.length > 0) {
-      handleFileUpload(files[0])
-    }
-  }
-
-  const handleFileUpload = (file: File) => {
-    setUploadedFile(file)
-    if (file) {
-      onValidateFile?.(file)
-    }
-  }
-
-  const handleButtonClick = () => {
-    fileInputRef.current?.click()
-  }
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      handleFileUpload(file)
-    }
-  }
-
-  const resetUpload = () => {
-    setUploadedFile(null)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
+  const remove = () => {
+    if (locked) return
+    onRemove()
+    setShowErrorModal(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-md p-6 border border-slate-200/80 w-full h-full min-h-[290px] flex flex-col justify-between">
-      {/* Topo do Card com Título e Tag de Formatos */}
+    <div className="bg-white rounded-2xl shadow-md p-6 border border-slate-200/80 w-full h-full min-h-[290px] flex flex-col justify-between gap-3">
       <div className="flex items-center justify-between border-b border-slate-100 pb-3">
         <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-xl bg-blue-50 text-blue-500 shrink-0">
+          <div className="p-2 rounded-xl bg-blue-50 text-blue-500">
             <TbFileUpload className="w-5 h-5" />
           </div>
-          <div>
-            <h2 className="font-['Linden_Hill',serif] text-xl sm:text-2xl font-bold text-slate-800">
-              Importação
-            </h2>
-            {/* <p className="text-[11px] text-slate-400">
-              Planilhas .xlsx, .xls ou .csv
-            </p> */}
-          </div>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-800">
+            Importação
+          </h2>
         </div>
-        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-          Excel / CSV
+        <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">
+          Apenas CSV
         </span>
       </div>
 
-      {/* Renderização condicional da área central: Dropzone ou Confirmação do Arquivo */}
-      {!uploadedFile ? (
-        <div
-          className={`my-auto p-4 text-center rounded-xl border-2 border-dashed transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-2 ${
-            isDragOver
-              ? 'border-blue-400 bg-blue-50'
-              : 'border-slate-200 bg-slate-50/50 hover:border-slate-300'
-          }`}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onClick={handleButtonClick}
-        >
-          <TbFileUpload className="w-8 h-8 sm:w-10 sm:h-10 text-slate-400" />
-          <p className="text-slate-500 text-xs max-w-xs leading-relaxed">
-            Arraste aqui a planilha ou clique para selecionar do computador.
+      <button
+        type="button"
+        disabled={locked}
+        aria-label="Selecionar ou soltar planilha CSV"
+        className={`p-4 text-center rounded-xl border-2 border-dashed flex flex-col items-center gap-2 disabled:opacity-50 ${isDragOver ? 'border-blue-400 bg-blue-50' : 'border-slate-200 bg-slate-50'}`}
+        onClick={() => fileInputRef.current?.click()}
+        onDragOver={(event) => {
+          event.preventDefault()
+          if (!locked) setIsDragOver(true)
+        }}
+        onDragLeave={() => setIsDragOver(false)}
+        onDrop={(event) => {
+          event.preventDefault()
+          setIsDragOver(false)
+          if (!locked && event.dataTransfer.files[0]) {
+            setShowErrorModal(false)
+            onSelect(event.dataTransfer.files[0])
+          }
+        }}
+      >
+        <TbFileUpload className="w-8 h-8 text-slate-400" />
+        <span className="text-xs text-slate-600">
+          Arraste a planilha .csv ou clique para selecionar.
+        </span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setShowTemplateModal(true)}
+        className="text-blue-600 text-xs flex items-center justify-center gap-1"
+      >
+        <TbInfoCircle /> Colunas esperadas
+      </button>
+
+      {state.file && (
+        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-col gap-3">
+          <p
+            className="text-xs font-semibold text-slate-900 break-all"
+            title={state.file.name}
+          >
+            {state.file.name}
           </p>
-        </div>
-      ) : (
-        <div className="my-auto p-3 text-center rounded-xl bg-slate-50 border border-slate-200 flex flex-col items-center justify-center gap-2">
-          <TbFileUpload
-            className={`w-8 h-8 ${
-              validationErrors && validationErrors.length > 0
-                ? 'text-red-500'
-                : 'text-emerald-500'
-            }`}
-          />
-          <h3 className="text-xs font-semibold text-slate-900 truncate max-w-[240px]">
-            {uploadedFile.name}
-          </h3>
-          <div className="flex gap-2 justify-center">
+          <p
+            role={state.status === 'invalid' ? 'alert' : 'status'}
+            className={`text-xs ${state.status === 'invalid' ? 'text-red-700' : 'text-slate-700'}`}
+          >
+            {state.message}
+          </p>
+          {state.report && (
+            <p className="text-xs text-slate-700" data-testid="import-counters">
+              Total processado: {state.report.totalProcessed} · Importados:{' '}
+              {state.report.successes} · Falhas: {state.report.failures}
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2 justify-center">
             <button
               type="button"
-              onClick={resetUpload}
-              className="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+              disabled={locked}
+              onClick={remove}
+              className="flex items-center gap-1 px-3 py-1 bg-slate-200 rounded-lg text-xs disabled:opacity-50"
             >
-              Trocar
+              <TbX /> Remover
             </button>
+            {state.errors.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowErrorModal(true)}
+                className="px-3 py-1 bg-red-100 text-red-700 rounded-lg text-xs"
+              >
+                Ver erros ({state.errors.length})
+              </button>
+            )}
+            {state.status === 'invalid' && (
+              <button
+                type="button"
+                disabled={locked}
+                onClick={() => state.file && onSelect(state.file)}
+                className="px-3 py-1 bg-slate-200 rounded-lg text-xs disabled:opacity-50"
+              >
+                Validar novamente
+              </button>
+            )}
             <button
               type="button"
-              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                validationErrors && validationErrors.length > 0
-                  ? 'bg-red-100 hover:bg-red-200 text-red-700'
-                  : 'bg-blue-500 hover:bg-blue-600 text-white'
-              }`}
-              onClick={() => {
-                if (validationErrors && validationErrors.length > 0) {
-                  openModal()
-                } else {
-                  onFileSelect(uploadedFile)
-                  setUploadedFile(null)
-                }
-              }}
+              disabled={!canProcess}
+              onClick={() => canProcess && onProcess()}
+              className="px-3 py-1 bg-blue-500 text-white rounded-lg text-xs disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {validationErrors && validationErrors.length > 0
-                ? 'Ver erros'
-                : 'Processar'}
+              {importing ? 'Processando...' : 'Processar'}
             </button>
           </div>
         </div>
       )}
 
-      {/* Botão de Ação Padronizado */}
       <div className="flex justify-center pt-3 border-t border-slate-100">
         <Button
-          text="Importar Planilha"
+          text="Importar Planilha CSV"
           variant={3}
           type="button"
-          onClick={handleButtonClick}
+          disabled={locked}
+          onClick={() => fileInputRef.current?.click()}
           width="w-full sm:w-64"
         />
       </div>
-
-      {/* Input oculto acionado programaticamente */}
       <input
         ref={fileInputRef}
         type="file"
+        aria-label="Arquivo CSV"
         className="hidden"
-        onChange={handleFileSelect}
-        accept=".xlsx,.xls,.csv"
+        disabled={locked}
+        accept=".csv"
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          event.target.value = ''
+          if (file && !locked) {
+            setShowErrorModal(false)
+            onSelect(file)
+          }
+        }}
       />
-
-      {/* Modal de Erros */}
       {showErrorModal && (
         <ModalErrorsSheet
-          onClose={closeModal}
-          errors={validationErrors}
-          title={'Erros encontrados na planilha'}
+          onClose={() => setShowErrorModal(false)}
+          errors={state.errors}
+          title={
+            state.report
+              ? 'Falhas da importação'
+              : 'Erros encontrados na planilha'
+          }
         />
       )}
+      <CsvTemplateModal
+        isOpen={showTemplateModal}
+        onClose={() => setShowTemplateModal(false)}
+      />
     </div>
   )
 }

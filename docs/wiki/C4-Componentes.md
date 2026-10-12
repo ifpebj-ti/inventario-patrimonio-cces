@@ -16,7 +16,7 @@ flowchart LR
         auth["AuthenticationService\nGoogleTokenProvider e JWTProvider"]
         patrimonio["InventoryService e ItemService\nInventários, itens, observações e validação"]
         estrutura["UserService, OrganizationService,\nSectorService, ProfileService e PermissionService"]
-        planilhas["SheetBuilderService\nImportação, validação e exportação XLSX"]
+        planilhas["Processamento de planilhas\nValidação/importação CSV e exportação XLSX"]
         entrega["EmailService\nEnvio de XLSX por SMTP"]
         legado["ItemPdfService, PDFBuilderService\ne QRCodeGeneratorService\nFuncionalidade legada"]
         repos["Repositórios Spring Data JPA"]
@@ -63,7 +63,7 @@ flowchart LR
 | Autenticação | `AuthenticationService` coordena a validação do ID token Google e a emissão do JWT próprio; os providers isolam cada protocolo. | Pacotes `service/auth` e `providers`. |
 | Serviços patrimoniais | `InventoryService` e `ItemService` executam criação, edição, remoção, importação, consulta, observações e validação de itens. Inventários pertencem a um usuário no modelo atual. | Pacote `service` e entidades `Inventory`, `Item` e `Observation`. |
 | Serviços da estrutura organizacional | Mantêm organização, setor, perfil, permissão e o vínculo de setor/perfil ao usuário. Setor pode ter setor pai; perfil possui permissões em relação muitos-para-muitos. | `OrganizationService`, `SectorService`, `ProfileService`, `PermissionService` e `UserService`. |
-| Processamento de planilhas | Monta XLSX para exportação e e-mail, importa itens e valida planilhas enviadas. | `SheetBuilderService` e rotas de `InventoryController`/`ItemController`. |
+| Processamento de planilhas | Monta XLSX para exportação e e-mail; `InventoryController` valida/importa CSV com persistência sequencial. O frontend exige aprovação do arquivo atual e apresenta erros/contadores. | `SheetBuilderService`, rotas de `InventoryController`/`ItemController` e `useSpreadsheetImport` no frontend. |
 | Entrega por e-mail | Envia planilha gerada como anexo via `JavaMailSender`. | `EmailService` e `POST /item/send-email-sheet`. |
 | Persistência e migrações | Repositórios JPA abstraem as consultas; Liquibase aplica o changelog XML na partida. | Pacotes `repository` e `resources/db/changelog`. |
 | Etiquetas e QR Code legados | Gera PDF de etiquetas e mantém um QR Code no item. | Serviços de PDF/QR e rotas `/item/pdf` e `/item/all-items-pdf`. A existência no código não o torna escopo ativo. |

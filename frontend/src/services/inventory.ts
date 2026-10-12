@@ -1,6 +1,12 @@
 import { api } from './api'
 import { z } from 'zod'
 import inventory from '@/validations/inventory'
+import {
+  readImportResponse,
+  readValidationResponse,
+  SpreadsheetRequestError,
+} from '@/commons/utils/spreadsheet'
+import axios from 'axios'
 
 // TIPOS PARA REQUEST
 export type CreateInventoryRequest = z.infer<typeof inventory>
@@ -67,13 +73,52 @@ export const addItemsBySheet = async (data: File, inventoryId: number) => {
   formData.append('file', data)
   formData.append('inventoryId', String(inventoryId))
 
-  const response = await api.post('/inventory/add-items', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  })
-
-  return response.data
+  try {
+    const response = await api.post('/inventory/add-items', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    if (response.status !== 201 && response.status !== 206) {
+      throw new SpreadsheetRequestError(
+        'O servidor não confirmou a importação. Confira o inventário.',
+      )
+    }
+    const report = readImportResponse(response.data)
+    if (report.successes === 0) {
+      throw new SpreadsheetRequestError(
+        'Nenhum item foi importado. Consulte o relatório.',
+        report.errors,
+        report,
+      )
+    }
+    if (
+      (response.status === 201 && report.failures > 0) ||
+      (response.status === 206 && report.failures === 0)
+    ) {
+      throw new SpreadsheetRequestError(
+        'Resposta de importação inconsistente. Confira o inventário.',
+        report.errors,
+        report,
+      )
+    }
+    return report
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 400) {
+      const data = error.response.data
+      if (
+        data &&
+        typeof data === 'object' &&
+        ('failedItems' in data || 'failedItems\n' in data)
+      ) {
+        const report = readImportResponse(data)
+        throw new SpreadsheetRequestError(
+          'Nenhum item foi importado. Consulte o relatório.',
+          report.errors,
+          report,
+        )
+      }
+    }
+    throw error
+  }
 }
 
 // Deleta um item específico enviando os IDs como query params.
@@ -91,8 +136,11 @@ export const deleteItemFromInventory = async (
   return response.data
 }
 
-// Valida a planilha. 'validateStatus' faz o Axios tratar respostas de erro (ex: 400) como sucesso.
-export const validateSpreadsheetData = async (data: File) => {
+// HTTP de erro continua sendo rejeitado pelo Axios; o corpo nunca substitui o status.
+export const validateSpreadsheetData = async (
+  data: File,
+  signal?: AbortSignal,
+) => {
   const formData = new FormData()
   formData.append('file', data)
 
@@ -100,8 +148,18 @@ export const validateSpreadsheetData = async (data: File) => {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
-    validateStatus: () => true,
+    signal,
   })
 
+  readValidationResponse(response.status, response.data)
+}
+
+// Limpa todos os itens do inventário de uma vez só
+export const clearInventoryItemsRequest = async (inventoryId: number) => {
+  const response = await api.delete('/inventory/clear-items', {
+    params: {
+      inventoryId,
+    },
+  })
   return response.data
 }

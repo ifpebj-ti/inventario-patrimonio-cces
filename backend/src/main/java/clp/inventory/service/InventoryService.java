@@ -107,6 +107,19 @@ public class InventoryService {
     return true;
   }
 
+  @Transactional
+  public boolean clearInventoryItems(long inventoryId) {
+    Inventory inventory =
+        inventoryRepository
+            .findById(inventoryId)
+            .orElseThrow(() -> new RuntimeException("Inventory not found with id: " + inventoryId));
+
+    inventory.items().clear();
+    inventoryRepository.save(inventory);
+
+    return true;
+  }
+
   public List<Inventory> getUserInventories(long userId) {
     return inventoryRepository.findByUser_Id(userId);
   }

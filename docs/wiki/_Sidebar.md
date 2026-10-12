@@ -9,6 +9,7 @@
 - [Análise de Concorrência](./Análise-de-Concorrência)
 - [Documento de Modelagem de Dados](./Documento-de-Modelagem-de-Dados)
 - [Requisitos do Sistema](./Requisitos-do-Sistema)
+- [Validação de Planilha](./Validacao-de-Planilha)
 - [Architecture Decision Records](./Architecture-Decision-Records)
 - [Guia de Execução, Configuração e Operação](./Guia-de-Execução-Configuração-e-Operação)
 - [Deploy em Produção na OCI](./Deploy-em-Produção-OCI)
