@@ -633,7 +633,7 @@
                   "id": "78349b03-a484-43c8-b3c8-a667c547d221",
                   "threatId": "78349b03-a484-43c8-b3c8-a667c547d221",
                   "title": "CORS permissivo para origens nao confiaveis",
-                  "status": "Mitigated",
+                  "status": "Open",
                   "severity": "Medium",
                   "type": "Tampering",
                   "description": "Controllers expostos com @CrossOrigin(origins = \"*\") permitem que qualquer origem web tente interagir com a API. Embora o Bearer token nao seja enviado automaticamente como cookie, a configuracao amplia a superficie caso o token seja obtido por XSS, extensao maliciosa ou uso indevido do cliente.",

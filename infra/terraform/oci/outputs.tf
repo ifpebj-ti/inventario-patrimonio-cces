@@ -39,8 +39,13 @@ output "terraform_state_bucket_name" {
 }
 
 output "app_public_ip" {
-  description = "IP publico da VM de aplicacao."
-  value       = oci_core_instance.app.public_ip
+  description = "IP publico RESERVADO da VM de aplicacao. Use este valor nos registros A do DNS."
+  value       = oci_core_public_ip.app.ip_address
+}
+
+output "backup_bucket_name" {
+  description = "Bucket privado que recebe os backups do Postgres."
+  value       = oci_objectstorage_bucket.backups.name
 }
 
 output "app_private_ip" {

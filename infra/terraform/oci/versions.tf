@@ -1,5 +1,6 @@
 terraform {
-  required_version = ">= 1.6.0"
+  # O backend "oci" nativo do Terraform exige a versao 1.12 ou superior.
+  required_version = ">= 1.12.0"
 
   backend "oci" {}
 

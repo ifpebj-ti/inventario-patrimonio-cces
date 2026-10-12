@@ -19,9 +19,23 @@ ssh_public_key = "ssh-ed25519 AAAA... usuario@maquina"
 
 # Network access allowlists.
 # Use /32 when allowing a single public IP.
-allowed_ssh_cidrs   = ["203.0.113.10/32"]
-allowed_web_cidrs   = ["203.0.113.10/32"]
+allowed_ssh_cidrs = ["203.0.113.10/32"]
+
+# O site e publico e o Let's Encrypt (HTTP-01) valida pela porta 80 a partir da internet:
+# 80/443 precisam estar abertos para 0.0.0.0/0. Restringir aqui impede a emissao do certificado.
+allowed_web_cidrs = ["0.0.0.0/0"]
+
+# IPs que podem abrir a UI do Portainer e o Grafana (aplicado pelo Nginx). Nunca 0.0.0.0/0.
 allowed_admin_cidrs = ["203.0.113.10/32"]
+
+# E-mail de contato da conta Let's Encrypt (avisos de expiracao).
+acme_email = "voce@exemplo.com"
+
+# Backups do Postgres (Object Storage). Use manage_backup_iam = false se o usuario do Terraform nao
+# puder criar dynamic groups/policies; nesse caso crie-os manualmente (veja o runbook).
+# backup_bucket_name    = "inventarium-backups"
+# backup_retention_days = 30
+# manage_backup_iam     = true
 
 # Compute
 app_instance_shape      = "VM.Standard.E5.Flex"

@@ -40,6 +40,7 @@ Um ADR não deve ser reescrito para esconder uma decisao antiga. Caso a decisao 
 | [0003](./0003-adotar-postgresql-com-liquibase.md) | Adotar PostgreSQL com Liquibase para persistência relacional | Accepted |
 | [0004](./0004-versionar-documentação-na-wiki.md) | Versionar documentação da wiki no repositório | Accepted |
 | [0005](./0005-adotar-api-rest-stateless.md) | Adotar API REST stateless com Bearer JWT | Accepted |
+| [0006](./0006-publicar-na-oci-com-nginx-tls-e-portainer.md) | Publicar o Inventarium na OCI com Nginx, TLS Let's Encrypt e Portainer | Accepted |
 
 ## Template
 

@@ -44,22 +44,8 @@ resource "oci_core_network_security_group_security_rule" "app_web_ingress" {
   }
 }
 
-resource "oci_core_network_security_group_security_rule" "app_admin_ingress" {
-  for_each = { for rule in local.app_admin_ingress_rules : "${rule.cidr}:${rule.port}" => rule }
-
-  network_security_group_id = oci_core_network_security_group.app.id
-  direction                 = "INGRESS"
-  protocol                  = "6"
-  source                    = each.value.cidr
-  source_type               = "CIDR_BLOCK"
-
-  tcp_options {
-    destination_port_range {
-      min = each.value.port
-      max = each.value.port
-    }
-  }
-}
+# Sem regra para a porta 9443: o Portainer escuta so em 127.0.0.1 e a UI e publicada pelo Nginx em
+# portainer.<dominio>, com allowlist de IPs (allowed_admin_cidrs).
 
 resource "oci_core_network_security_group_security_rule" "app_egress" {
   network_security_group_id = oci_core_network_security_group.app.id

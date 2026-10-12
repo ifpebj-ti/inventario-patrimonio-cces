@@ -58,7 +58,7 @@ jobs:
             echo "| Scan | Executar |"
             echo "| --- | --- |"
             echo "| Semgrep | ${semgrep} |"
-            echo "| Trivy e imagens | ${images} |"
+            echo "| Mudancas em codigo de imagem (o job de imagens sempre roda e se autolimita) | ${images} |"
           } >> "${GITHUB_STEP_SUMMARY}"
 
   semgrep:
@@ -108,7 +108,10 @@ jobs:
   container-images:
     name: Trivy container and dependency scans
     needs: changes
-    if: needs.changes.outputs.images == 'true'
+    # Sem `if:` de proposito. O workflow reutilizavel ja decide sozinho se ha imagem para buildar e,
+    # sem mudancas de frontend/backend, so imprime "No frontend/backend image sources changed" e passa.
+    # Com o `if:` aqui, PRs que so mexem em infra/ ou docs/ nunca reportavam o check obrigatorio
+    # "Trivy container and dependency scans / Container images" e ficavam bloqueados para sempre.
     uses: ./.github/workflows/build-container-images.yml
     with:
       checkout_ref: ${{ github.event.pull_request.head.sha }}
