@@ -11,6 +11,7 @@
 - [Requisitos do Sistema](./Requisitos-do-Sistema)
 - [Architecture Decision Records](./Architecture-Decision-Records)
 - [Guia de Execução, Configuração e Operação](./Guia-de-Execução-Configuração-e-Operação)
+- [Deploy em Produção na OCI](./Deploy-em-Produção-OCI)
 - [Guia de Boas Práticas de Desenvolvimento Seguro](./Guia-de-Boas-Praticas-de-Desenvolvimento-Seguro)
 - [Esteira de CI/CD](./Esteira-de-CI-CD)
 - [Modelagem de Ameaças](./Modelagem-de-Ameaças)

@@ -75,6 +75,10 @@ Exemplo para gerar `SECURITY_TOKEN_SECRET`:
 openssl rand -hex 32
 ```
 
+## Deploy em Produção na OCI
+
+O passo a passo do go-live (domínio, DNS, Terraform, Nginx com TLS, Portainer, backup e restauração), a operação do dia a dia e a solução de problemas estão em [Deploy em Produção na OCI](./Deploy-em-Produção-OCI) (arquivo `docs/wiki/Deploy-em-Producao-OCI.md`).
+
 ## Imagens Publicadas No GHCR
 
 A pipeline pública imagens no GitHub Container Registry, mas não injeta secrets de runtime dentro das imagens. Esse comportamento e intencional:

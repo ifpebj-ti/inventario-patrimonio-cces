@@ -40,6 +40,7 @@ Este mapa serve para saber rapidamente onde cada artefato está. Ele não substi
 | --- | --- | --- |
 | Aplicação conteinerizada | `docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile` | Compose sobe PostgreSQL, backend e frontend. |
 | Execução, configuração e operação | [Guia de Execução, Configuração e Operação](./Guia-de-Execução-Configuração-e-Operação) | Explica ambiente local, variáveis, GHCR, logs, validação e troubleshooting. |
+| Deploy em produção | [Deploy em Produção na OCI](./Deploy-em-Produção-OCI) | Runbook de go-live, deploy, rollback, certificados, backup e restauração na OCI. |
 | Esteira de CI/CD | [Esteira de CI/CD](./Esteira-de-CI-CD) | Mostra o que existe hoje e o que ainda depende de evolucao para deploy, smoke tests e observabilidade. |
 
 ## O Que Ainda Nao Está Fechado
