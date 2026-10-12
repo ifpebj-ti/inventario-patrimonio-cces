@@ -1,0 +1,11 @@
+[Unit]
+Description=Backup diario do Postgres do Inventarium
+
+[Timer]
+# 03:00 UTC (00:00 em Brasilia), com atraso aleatorio curto.
+OnCalendar=*-*-* 03:00:00
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

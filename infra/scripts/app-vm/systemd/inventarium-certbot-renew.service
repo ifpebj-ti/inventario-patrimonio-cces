@@ -1,0 +1,8 @@
+[Unit]
+Description=Renovacao dos certificados Let's Encrypt do Inventarium
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/inventarium-app/bin/renew-certificates.sh

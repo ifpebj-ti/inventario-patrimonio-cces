@@ -1,0 +1,9 @@
+[Unit]
+Description=Backup logico do Postgres do Inventarium
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/inventarium/edge.env
+ExecStart=/opt/inventarium-app/bin/backup-postgres.sh
