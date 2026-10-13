@@ -60,7 +60,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-liquibase'
 
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
-    runtimeOnly 'org.postgresql:postgresql:42.7.13'
+    runtimeOnly 'org.postgresql:postgresql:42.7.14'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     // No Boot 4 o TestRestTemplate saiu do starter-test e vive neste módulo.
     testImplementation 'org.springframework.boot:spring-boot-resttestclient'
