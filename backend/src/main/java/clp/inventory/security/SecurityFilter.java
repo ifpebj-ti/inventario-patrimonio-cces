@@ -1,6 +1,7 @@
 package clp.inventory.security;
 
 import clp.inventory.providers.JWTProvider;
+import clp.inventory.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,9 +17,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class SecurityFilter extends OncePerRequestFilter {
 
   private final JWTProvider jwtProvider;
+  private final UserRepository userRepository;
 
-  public SecurityFilter(JWTProvider jwtProvider) {
+  public SecurityFilter(JWTProvider jwtProvider, UserRepository userRepository) {
     this.jwtProvider = jwtProvider;
+    this.userRepository = userRepository;
   }
 
   /**
@@ -36,6 +39,17 @@ public class SecurityFilter extends OncePerRequestFilter {
         || request.getServletPath().startsWith("/actuator/health");
   }
 
+  private boolean isDeactivated(String subject) {
+    try {
+      return userRepository
+          .findById(Long.parseLong(subject))
+          .map(user -> !user.isActive())
+          .orElse(false);
+    } catch (NumberFormatException e) {
+      return false;
+    }
+  }
+
   @Override
   protected void doFilterInternal(
       HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -49,6 +63,12 @@ public class SecurityFilter extends OncePerRequestFilter {
         response.setContentType("application/json");
         response.setHeader("WWW-Authenticate", "Bearer error=\"invalid_token\"");
         response.getWriter().write("{\"error\":\"Token inválido\"}");
+        return;
+      } else if (isDeactivated(subjectToken)) {
+        // Desativar a conta derruba as sessões já abertas, não só novos logins.
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json");
+        response.getWriter().write("{\"error\":\"Conta desativada\"}");
         return;
       } else {
         request.setAttribute("id_user", subjectToken);
