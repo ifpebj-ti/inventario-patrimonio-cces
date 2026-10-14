@@ -6,6 +6,7 @@ import clp.inventory.dto.LoginDto;
 import clp.inventory.model.User;
 import clp.inventory.providers.GoogleTokenProvider;
 import clp.inventory.repository.UserRepository;
+import clp.inventory.service.AuthenticatedUserService;
 import clp.inventory.service.UserService;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
@@ -24,6 +25,7 @@ public class AuthenticationService {
   private String secretKey;
 
   private final UserService userService;
+  private final AuthenticatedUserService authenticatedUserService;
   private final GoogleTokenProvider googleTokenProvider;
   private final UserRepository userRepository;
   private final PasswordEncoder passwordEncoder;
@@ -31,10 +33,12 @@ public class AuthenticationService {
 
   public AuthenticationService(
       UserService userService,
+      AuthenticatedUserService authenticatedUserService,
       GoogleTokenProvider googleTokenProvider,
       UserRepository userRepository,
       PasswordEncoder passwordEncoder) {
     this.userService = userService;
+    this.authenticatedUserService = authenticatedUserService;
     this.googleTokenProvider = googleTokenProvider;
     this.userRepository = userRepository;
     this.passwordEncoder = passwordEncoder;
@@ -61,7 +65,7 @@ public class AuthenticationService {
       throw new AuthenticationException("Invalid credentials");
     }
 
-    return new AuthResponseDTO(issueToken(user), user);
+    return new AuthResponseDTO(issueToken(user), authenticatedUserService.getById(user.getId()));
   }
 
   public AuthResponseDTO authenticateWithGoogle(GoogleAuthDto googleAuthDto)
@@ -69,7 +73,7 @@ public class AuthenticationService {
     var googleUser = googleTokenProvider.verify(googleAuthDto.credential());
     var user = userService.findOrCreateGoogleUser(googleUser);
 
-    return new AuthResponseDTO(issueToken(user), user);
+    return new AuthResponseDTO(issueToken(user), authenticatedUserService.getById(user.getId()));
   }
 
   /**
