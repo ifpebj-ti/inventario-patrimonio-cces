@@ -1,22 +1,33 @@
 'use client'
 
+import { Button as UiButton } from '@/components/ui/button'
+import { Card as UiCard } from '@/components/ui/card'
+import { Label as UiLabel } from '@/components/ui/label'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
+import { Textarea as UiTextarea } from '@/components/ui/textarea'
+
+import { ConfirmationModal } from '@/components/organisms/modalConfirmation'
+
 import React, { useState, useEffect } from 'react'
 import { Item, Observation } from '@/commons/models/item'
 import {
   X,
   CheckCircle2,
   Clock,
-  MapPin,
-  User,
   Plus,
   Trash2,
   Barcode,
-  Camera,
   Save,
 } from 'lucide-react'
-import { AnimatePresence, motion } from 'framer-motion'
 import { updateItemRequest, updateItemNotesRequest } from '@/services/item'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 
 interface ItemDetailDrawerProps {
   isOpen: boolean
@@ -32,10 +43,9 @@ export const ItemDetailDrawer: React.FC<ItemDetailDrawerProps> = ({
   onClose,
   item,
   onItemUpdated,
-  onScanNext,
-  isResponsibleLocked = true,
 }) => {
   const [formData, setFormData] = useState<Item | null>(null)
+  const [deleteIndex, setDeleteIndex] = React.useState<number | null>(null)
   const [observations, setObservations] = useState<Observation[]>([])
   const [newNoteText, setNewNoteText] = useState('')
   const [isSaving, setIsSaving] = useState(false)
@@ -46,10 +56,11 @@ export const ItemDetailDrawer: React.FC<ItemDetailDrawerProps> = ({
       setFormData({ ...item })
       setObservations(item.observations ? [...item.observations] : [])
       setNewNoteText('')
+      setDeleteIndex(null)
     }
   }, [item, isOpen])
 
-  if (!isOpen || !formData) return null
+  if (!formData) return null
 
   // Alterna o status de validação (Válido / Pendente)
   const toggleValidationStatus = () => {
@@ -73,8 +84,8 @@ export const ItemDetailDrawer: React.FC<ItemDetailDrawerProps> = ({
   }
 
   // Salva no backend
-  const handleSave = async (shouldScanNext = false) => {
-    if (!formData) return
+  const handleSave = async () => {
+    if (!formData || isSaving) return
 
     try {
       setIsSaving(true)
@@ -89,7 +100,9 @@ export const ItemDetailDrawer: React.FC<ItemDetailDrawerProps> = ({
       // 2. Atualiza observações se houver alterações
       const finalItem = await updateItemNotesRequest(
         updatedItem.id,
-        observations,
+        newNoteText.trim()
+          ? [...observations, { id: null, content: newNoteText.trim() }]
+          : observations,
       )
 
       // Garante que o status isValid modificado pelo usuário seja mantido
@@ -101,11 +114,7 @@ export const ItemDetailDrawer: React.FC<ItemDetailDrawerProps> = ({
       onItemUpdated(itemToEmit)
       toast.success(`Patrimônio ${itemToEmit.code} atualizado!`)
 
-      if (shouldScanNext && onScanNext) {
-        onScanNext()
-      } else {
-        onClose()
-      }
+      onClose()
     } catch (error) {
       console.error('Erro ao salvar item:', error)
       toast.error('Não foi possível salvar as alterações do item.')
@@ -115,249 +124,211 @@ export const ItemDetailDrawer: React.FC<ItemDetailDrawerProps> = ({
   }
 
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-50 overflow-hidden font-['Montserrat',sans-serif]">
-        {/* Backdrop com desfoque */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={onClose}
-          aria-hidden="true"
-          className="absolute inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
-        />
-
-        {/* Painel Lateral Deslizante */}
-        <div className="fixed inset-y-0 right-0 max-w-full flex pl-6 sm:pl-10">
-          <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 26, stiffness: 220 }}
-            className="w-screen max-w-md bg-white shadow-2xl flex flex-col justify-between"
-          >
-            {/* Topo / Header */}
-            <div className="px-5 sm:px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="p-2 rounded-xl bg-blue-50 text-blue-500 shrink-0">
-                  <Barcode className="w-5 h-5" />
-                </div>
-                <div className="truncate">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                    Item Auditado
-                  </span>
-                  <h2 className="font-['Linden_Hill',serif] text-2xl sm:text-3xl font-bold text-slate-900 truncate">
-                    {formData.code}
-                  </h2>
-                </div>
+    <>
+      <Sheet
+        open={isOpen}
+        onOpenChange={(open) => {
+          if (!open && !isSaving) onClose()
+        }}
+      >
+        <SheetContent
+          side="right"
+          showCloseButton={false}
+          className="w-screen gap-0 sm:max-w-md"
+        >
+          {/* Topo / Header */}
+          <SheetHeader className="flex-row items-center justify-between border-b bg-muted/50 px-5 py-4 sm:px-6">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <div className="shrink-0 rounded-lg bg-primary/10 p-2 text-primary">
+                <Barcode className="size-5" />
               </div>
-
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Fechar gaveta"
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Corpo / Conteúdo com Scroll */}
-            <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-5 space-y-5">
-              {/* Toggle de Status: Verificado vs Pendente */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <span className="text-xs font-semibold text-slate-700 block">
-                    Status de Verificação
-                  </span>
-                  <span className="text-[11px] text-slate-500 leading-tight block">
-                    {formData.isValid
-                      ? 'Item conferido fisicamente no local.'
-                      : 'Pendente de conferência ou ausente.'}
-                  </span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={toggleValidationStatus}
-                  className={`min-h-[44px] px-3.5 py-1.5 rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer shrink-0 active:scale-95 ${
-                    formData.isValid
-                      ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                      : 'bg-amber-500 hover:bg-amber-600 text-white'
-                  }`}
-                >
-                  {formData.isValid ? (
-                    <>
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Verificado</span>
-                    </>
-                  ) : (
-                    <>
-                      <Clock className="w-4 h-4" />
-                      <span>Pendente</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Informações Básicas do Item */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  Descrição
-                </label>
-                <textarea
-                  rows={2}
-                  value={formData.description || ''}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
-                  className="w-full p-3 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 focus:border-blue-400 outline-none transition-all resize-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Sala / Local
-                  </label>
-                  <div className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200">
-                    <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
-                    <input
-                      type="text"
-                      value={formData.locale || ''}
-                      onChange={(e) =>
-                        setFormData({ ...formData, locale: e.target.value })
-                      }
-                      className="w-full text-xs text-slate-800 outline-none bg-transparent"
-                      placeholder="Ex: Sala 102"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
-                      Carga (Responsável)
-                    </label>
-                  </div>
-                  <div
-                    className={`flex items-center gap-2 p-2.5 rounded-xl border ${
-                      isResponsibleLocked
-                        ? 'border-slate-200 bg-slate-100/80 text-slate-500 cursor-not-allowed'
-                        : 'border-slate-200 bg-white text-slate-800'
-                    }`}
-                  >
-                    <User className="w-4 h-4 text-slate-400 shrink-0" />
-                    <input
-                      type="text"
-                      readOnly={isResponsibleLocked}
-                      disabled={isResponsibleLocked}
-                      value={formData.responsible || ''}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          responsible: e.target.value,
-                        })
-                      }
-                      className={`w-full text-xs outline-none bg-transparent ${
-                        isResponsibleLocked
-                          ? 'cursor-not-allowed text-slate-600 font-medium'
-                          : 'text-slate-800'
-                      }`}
-                      placeholder="Nome do servidor"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Observações de Campo */}
-              <div className="space-y-3 pt-3 border-t border-slate-100">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                    Observações de Campo ({observations.length})
-                  </label>
-                </div>
-
-                {/* Input de Nova Observação */}
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={newNoteText}
-                    onChange={(e) => setNewNoteText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        handleAddObservation()
-                      }
-                    }}
-                    placeholder="Adicionar nota de campo..."
-                    className="flex-1 p-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:border-blue-400 outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddObservation}
-                    aria-label="Adicionar observação"
-                    className="min-h-[40px] px-3 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors font-medium text-xs flex items-center justify-center cursor-pointer shrink-0"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
-
-                {/* Lista de Observações */}
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                  {observations.length === 0 ? (
-                    <p className="text-xs text-slate-400 italic py-2">
-                      Nenhuma observação registrada para este item.
-                    </p>
-                  ) : (
-                    observations.map((obs, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-start justify-between gap-2 p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-xs text-slate-700"
-                      >
-                        <span className="leading-relaxed">{obs.content}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteObservation(idx)}
-                          aria-label="Deletar observação"
-                          className="text-slate-400 hover:text-red-500 p-1 rounded-md transition-colors cursor-pointer shrink-0"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
+              <div className="truncate">
+                <SheetDescription className="block text-[11px] font-bold tracking-wider uppercase">
+                  Item Auditado
+                </SheetDescription>
+                <SheetTitle className="truncate text-2xl font-bold sm:text-3xl">
+                  {formData.code}
+                </SheetTitle>
               </div>
             </div>
 
-            {/* Rodapé de Ações Finais */}
-            <div className="p-5 border-t border-slate-100 bg-slate-50/70 flex flex-col gap-2">
-              <button
+            <UiButton
+              variant="ghost"
+              size="icon-lg"
+              type="button"
+              onClick={() => {
+                if (!isSaving) onClose()
+              }}
+              aria-label="Fechar gaveta"
+              className="text-muted-foreground"
+            >
+              <X className="size-5" />
+            </UiButton>
+          </SheetHeader>
+
+          {/* Corpo / Conteúdo com Scroll */}
+          <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
+            {/* Toggle de Status: Verificado vs Pendente */}
+            <UiCard className="flex-row items-center justify-between gap-3 bg-muted p-4 shadow-none">
+              <div className="min-w-0">
+                <span className="block text-xs font-semibold text-foreground">
+                  Status de Verificação
+                </span>
+                <span className="block text-[11px] leading-tight text-muted-foreground">
+                  {formData.isValid
+                    ? 'Item conferido fisicamente no local.'
+                    : 'Pendente de conferência ou ausente.'}
+                </span>
+              </div>
+
+              <UiButton
+                variant={formData.isValid ? 'success' : 'default'}
                 type="button"
-                onClick={() => handleSave(false)}
                 disabled={isSaving}
-                className="w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-blue-400 hover:bg-blue-500 active:bg-blue-600 text-white font-semibold text-xs sm:text-sm shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                onClick={toggleValidationStatus}
+                className={
+                  formData.isValid
+                    ? 'shrink-0'
+                    : 'shrink-0 bg-warning text-white hover:bg-warning/90'
+                }
               >
-                <Save className="w-4 h-4" />
-                <span>{isSaving ? 'Salvando...' : 'Salvar Alterações'}</span>
-              </button>
+                {formData.isValid ? (
+                  <>
+                    <CheckCircle2 />
+                    <span>Verificado</span>
+                  </>
+                ) : (
+                  <>
+                    <Clock />
+                    <span>Pendente</span>
+                  </>
+                )}
+              </UiButton>
+            </UiCard>
 
-              {onScanNext && (
-                <button
-                  type="button"
-                  onClick={() => handleSave(true)}
-                  disabled={isSaving}
-                  className="w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            <UiCard
+              role="region"
+              aria-label="Dados cadastrais do item"
+              className="gap-3 p-4 shadow-none"
+            >
+              <h3 className="text-sm font-semibold text-foreground">
+                Dados do patrimônio
+              </h3>
+              <dl className="space-y-3 text-sm">
+                {[
+                  ['Descrição', formData.description],
+                  ['Carga (responsável)', formData.responsible],
+                  ['Sala cadastrada', formData.locale],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <dt className="font-medium text-muted-foreground">
+                      {label}
+                    </dt>
+                    <dd className="mt-1 break-words text-foreground">
+                      {value || 'Não informado'}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </UiCard>
+
+            {/* Observações de Campo */}
+            <div className="space-y-3 border-t pt-3">
+              <UiLabel className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
+                Observações de Campo ({observations.length})
+              </UiLabel>
+
+              <UiCard className="gap-3 border-primary/25 bg-primary/10 p-4 shadow-none">
+                <UiLabel
+                  htmlFor="audit-new-observation"
+                  className="text-sm font-semibold text-foreground"
                 >
-                  <Camera className="w-4 h-4 text-blue-500" />
-                  <span>Salvar e Escanear Próximo</span>
-                </button>
-              )}
+                  Nova observação
+                </UiLabel>
+                <p className="text-xs text-muted-foreground">
+                  O item está em outra sala? Informe aqui a sala em que foi
+                  encontrado e outras diferenças identificadas.
+                </p>
+                <UiTextarea
+                  id="audit-new-observation"
+                  rows={3}
+                  value={newNoteText}
+                  disabled={isSaving}
+                  onChange={(event) => setNewNoteText(event.target.value)}
+                  placeholder="Ex.: Encontrado na sala 203, diferente da sala cadastrada."
+                  className="bg-card"
+                />
+                <UiButton
+                  type="button"
+                  onClick={handleAddObservation}
+                  disabled={isSaving || !newNoteText.trim()}
+                  className="w-full"
+                >
+                  <Plus /> Adicionar observação à lista
+                </UiButton>
+                <p className="text-xs text-muted-foreground">
+                  Ao terminar, clique em Salvar. O texto digitado também será
+                  incluído ao salvar.
+                </p>
+              </UiCard>
+
+              {/* Lista de Observações */}
+              <div className="max-h-48 space-y-2 overflow-y-auto pr-1">
+                {observations.length === 0 ? (
+                  <p className="py-2 text-xs text-muted-foreground italic">
+                    Nenhuma observação registrada para este item.
+                  </p>
+                ) : (
+                  observations.map((obs, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-start justify-between gap-2 rounded-lg border bg-muted p-2.5 text-xs text-foreground"
+                    >
+                      <span className="leading-relaxed">{obs.content}</span>
+                      <UiButton
+                        variant="ghost"
+                        size="icon-xs"
+                        type="button"
+                        disabled={isSaving}
+                        onClick={() => setDeleteIndex(idx)}
+                        aria-label="Deletar observação"
+                        className="shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Trash2 />
+                      </UiButton>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
-          </motion.div>
-        </div>
-      </div>
-    </AnimatePresence>
+          </div>
+
+          {/* Rodapé de Ações Finais */}
+          <SheetFooter className="border-t bg-muted/50 p-5">
+            <UiButton
+              size="lg"
+              type="button"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="w-full"
+            >
+              <Save />
+              <span>{isSaving ? 'Salvando...' : 'Salvar'}</span>
+            </UiButton>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+      <ConfirmationModal
+        isOpen={deleteIndex !== null}
+        onClose={() => setDeleteIndex(null)}
+        onConfirm={() => {
+          if (deleteIndex !== null) handleDeleteObservation(deleteIndex)
+          setDeleteIndex(null)
+        }}
+        title="Excluir observação"
+        message="Deseja excluir esta observação? A remoção será gravada quando você salvar as alterações."
+        confirmButtonText="Excluir observação"
+      />
+    </>
   )
 }
