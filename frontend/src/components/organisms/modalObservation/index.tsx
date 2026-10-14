@@ -1,15 +1,23 @@
 'use client'
 
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button as UiButton } from '@/components/ui/button'
+import { Card as UiCard } from '@/components/ui/card'
+import { Label as UiLabel } from '@/components/ui/label'
+import { Textarea as UiTextarea } from '@/components/ui/textarea'
+
+import { ConfirmationModal } from '@/components/organisms/modalConfirmation'
+
 import React from 'react'
-import { Button } from '@/components/atoms/button'
-import { FaPlus, FaPencilAlt, FaTrashAlt } from 'react-icons/fa'
+import { Plus, X } from 'lucide-react'
 import { Observation } from '@/commons/models/item'
 
 // Define as propriedades que o modal de observações espera receber.
 interface ObservationModalProps {
   isOpen: boolean
   onClose: () => void
-  onSave: (updatedNotes: Observation[]) => void
+  onSave: (updatedNotes: Observation[]) => void | Promise<void>
   currentNotes: Observation[]
 }
 
@@ -21,13 +29,15 @@ export const ObservationModal: React.FC<ObservationModalProps> = ({
   onSave,
 }) => {
   // Estado interno para manipular as observações sem afetar o estado pai até que 'Concluir' seja clicado.
+  const [deleteIndex, setDeleteIndex] = React.useState<number | null>(null)
   const [observations, setObservations] = React.useState<Observation[]>([])
   // Estado para o campo de texto de uma nova observação.
   const [newObservationText, setNewObservationText] = React.useState<string>('')
   // Estado para controlar qual observação está sendo editada no momento (pelo seu índice no array).
   const [editingIndex, setEditingIndex] = React.useState<number | null>(null)
-  // Estado para o texto da observação que está sendo editada.
-  const [editingText, setEditingText] = React.useState<string>('')
+
+  const [busy, setBusy] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
 
   // Efeito que inicializa ou reseta o estado do modal sempre que ele é aberto.
   React.useEffect(() => {
@@ -36,8 +46,10 @@ export const ObservationModal: React.FC<ObservationModalProps> = ({
       // Carrega as observações atuais (vindas do componente pai) no estado local.
       setObservations(currentNotes ?? [])
       // Reseta os campos de texto e o modo de edição.
+      setError(null)
       setNewObservationText('')
       setEditingIndex(null)
+      setDeleteIndex(null)
     }
   }, [isOpen, currentNotes])
 
@@ -55,7 +67,6 @@ export const ObservationModal: React.FC<ObservationModalProps> = ({
       }
       setObservations((prev) => [...prev, newObservation])
       setNewObservationText('')
-      setEditingIndex(null)
     }
   }
 
@@ -67,7 +78,6 @@ export const ObservationModal: React.FC<ObservationModalProps> = ({
     // Lógica para ajustar o índice de edição caso um item seja removido.
     if (editingIndex === indexToDelete) {
       setEditingIndex(null)
-      setEditingText('')
     } else if (editingIndex !== null && editingIndex > indexToDelete) {
       setEditingIndex((prev) => (prev !== null ? prev - 1 : null))
     }
@@ -76,154 +86,206 @@ export const ObservationModal: React.FC<ObservationModalProps> = ({
   // Prepara o estado para entrar no modo de edição de uma observação específica.
   const handleStartEdit = (index: number) => {
     setEditingIndex(index)
-    setEditingText(observations[index].content)
-  }
-
-  // Salva a alteração de uma observação que estava sendo editada.
-  const handleSaveIndividualEdit = (indexToSave: number) => {
-    // Se o texto editado ficar vazio, deleta a observação.
-    if (editingText.trim() === '') {
-      handleDeleteObservation(indexToSave)
-      setEditingIndex(null)
-      setEditingText('')
-      return
-    }
-    // Atualiza o conteúdo da observação específica no array.
-    setObservations((prev) =>
-      prev.map((obs, index) =>
-        index === indexToSave ? { ...obs, content: editingText.trim() } : obs,
-      ),
-    )
-    setEditingIndex(null)
-    setEditingText('')
-  }
-
-  // Cancela o modo de edição de uma observação.
-  const handleCancelIndividualEdit = () => {
-    setEditingIndex(null)
-    setEditingText('')
   }
 
   // Função final chamada pelo botão "Concluir".
-  const handleConclude = () => {
-    // Garante que observações vazias não sejam salvas.
-    const finalObservations = observations.filter(
-      (obs) => obs.content.trim() !== '',
-    )
-    // Envia a lista final de observações de volta para o componente pai.
-    onSave(finalObservations)
-    // Fecha o modal.
-    onClose()
+  const handleConclude = async () => {
+    if (busy) return
+    const finalObservations = observations
+      .filter((note) => note.content.trim() !== '')
+      .map((note) => ({ ...note, content: note.content.trim() }))
+    if (newObservationText.trim())
+      finalObservations.push({ id: null, content: newObservationText.trim() })
+    setBusy(true)
+    setError(null)
+    try {
+      await onSave(finalObservations)
+      onClose()
+    } catch {
+      setError('Não foi possível salvar as observações. Tente novamente.')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
-    // Container do modal com fundo escuro (backdrop).
-    <div className="fixed inset-0 bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      {/* Painel branco principal do modal. */}
-      <div className="bg-white relative rounded-2xl shadow-xl p-5 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-        {/* Botão para fechar o modal no canto superior direito. */}
-        <button
-          className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 text-2xl font-bold transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl"
-          onClick={onClose}
-          aria-label="Fechar modal"
+    <>
+      <Dialog
+        open
+        onOpenChange={(open) => {
+          if (!open && !busy) onClose()
+        }}
+      >
+        <DialogContent
+          showCloseButton={false}
+          className="flex max-h-[90vh] flex-col overflow-y-auto rounded-xl gap-0 p-6 sm:max-w-lg sm:p-8"
         >
-          &times;
-        </button>
-
-        <h2 className="text-xl font-bold text-blue-600 mb-4 text-center">
-          Editar Observações
-        </h2>
-
-        {/* Área de listagem das observações com rolagem interna. */}
-        <div className="max-h-60 overflow-y-auto mb-4 border border-gray-200 rounded-xl p-2 divide-y divide-gray-100">
-          {observations.length === 0 && editingIndex === null ? (
-            <p className="text-gray-500 text-sm italic text-center py-4">
-              Nenhuma observação ainda.
-            </p>
-          ) : (
-            // Mapeia o array de observações para renderizar cada uma.
-            observations.map((obs, index) => (
-              <div
-                key={index}
-                className="flex items-center justify-between bg-gray-50 p-2 rounded-lg mb-1.5 gap-2"
+          <DialogTitle className="sr-only">Editar observações</DialogTitle>
+          <h2 className="text-xl font-bold text-foreground pr-8">
+            Editar observações
+          </h2>
+          <UiButton
+            variant="ghost"
+            size="icon-sm"
+            type="button"
+            disabled={busy}
+            onClick={onClose}
+            aria-label="Fechar modal"
+            className="absolute top-4 right-4 text-muted-foreground"
+          >
+            <X />
+          </UiButton>
+          <p className="text-sm text-muted-foreground mt-2 mb-6">
+            Adicione, edite ou exclua notas. Ao terminar, clique em Salvar
+            observações para gravar as mudanças.
+          </p>
+          <fieldset disabled={busy} className="space-y-6">
+            <UiCard
+              role="region"
+              aria-label="Adicionar nova observação"
+              className="gap-0 border-primary/25 bg-primary/10 p-4 shadow-none"
+            >
+              <UiLabel
+                htmlFor="new-observation"
+                className="text-sm font-semibold text-foreground mb-2"
               >
-                {/* Renderização condicional: mostra um input se estiver em modo de edição, senão mostra o texto. */}
-                {editingIndex === index ? (
-                  <input
-                    type="text"
-                    value={editingText}
-                    onChange={(e) => setEditingText(e.target.value)}
-                    onBlur={() => handleSaveIndividualEdit(index)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleSaveIndividualEdit(index)
-                      if (e.key === 'Escape') handleCancelIndividualEdit()
-                    }}
-                    className="flex-grow border-b border-gray-400 p-1 mr-2 text-sm"
-                    autoFocus
-                  />
-                ) : (
-                  <span className="text-gray-800 text-sm flex-1 break-words">
-                    {obs.content}
-                  </span>
-                )}
-
-                {/* Ícones de ação para editar e deletar cada observação com touch target adequado */}
-                <div className="flex items-center gap-1 shrink-0">
-                  {editingIndex !== index && (
-                    <button
-                      type="button"
-                      onClick={() => handleStartEdit(index)}
-                      className="min-h-[44px] min-w-[44px] p-2 text-gray-500 hover:text-blue-500 flex items-center justify-center cursor-pointer rounded-lg"
-                      aria-label="Editar observação"
-                    >
-                      <FaPencilAlt size={16} />
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteObservation(index)}
-                    className="min-h-[44px] min-w-[44px] p-2 text-red-500 hover:text-red-600 flex items-center justify-center cursor-pointer rounded-lg"
-                    aria-label="Deletar observação"
-                  >
-                    <FaTrashAlt size={16} />
-                  </button>
-                </div>
+                Nova observação
+              </UiLabel>
+              <UiTextarea
+                id="new-observation"
+                rows={3}
+                value={newObservationText}
+                onChange={(event) => setNewObservationText(event.target.value)}
+                placeholder="Nova observação"
+                className="resize-y bg-card"
+              />
+              <div className="flex justify-end mt-3">
+                <UiButton
+                  variant="default"
+                  className="w-full sm:w-auto"
+                  type="button"
+                  disabled={!newObservationText.trim()}
+                  onClick={handleAddObservation}
+                >
+                  <Plus /> Adicionar à lista
+                </UiButton>
               </div>
-            ))
+              <p className="text-xs text-muted-foreground mt-2">
+                A nota entra na lista abaixo. Você também pode salvar
+                diretamente para incluir o texto digitado.
+              </p>
+            </UiCard>
+            <section aria-label="Lista de observações" className="space-y-3">
+              <h3 className="text-sm font-semibold text-foreground">
+                Observações ({observations.length})
+              </h3>
+              {observations.length === 0 ? (
+                <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                  Nenhuma observação. Escreva sua primeira nota acima.
+                </p>
+              ) : (
+                observations.map((note, index) => (
+                  <UiCard
+                    key={index}
+                    className="gap-0 bg-muted p-4 shadow-none"
+                  >
+                    <p className="text-xs font-medium text-muted-foreground mb-2">
+                      Observação {index + 1}
+                    </p>
+                    {editingIndex === index ? (
+                      <UiLabel className="flex-col items-stretch gap-1 text-sm text-foreground">
+                        Texto da observação
+                        <UiTextarea
+                          autoFocus
+                          rows={3}
+                          className="bg-card"
+                          value={note.content}
+                          onChange={(event) =>
+                            setObservations((previous) =>
+                              previous.map((entry, position) =>
+                                position === index
+                                  ? { ...entry, content: event.target.value }
+                                  : entry,
+                              ),
+                            )
+                          }
+                        />
+                      </UiLabel>
+                    ) : (
+                      <p className="text-sm text-foreground whitespace-pre-wrap break-words">
+                        {note.content}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap justify-end gap-3 mt-3">
+                      <UiButton
+                        variant="ghost"
+                        type="button"
+                        onClick={() =>
+                          editingIndex === index
+                            ? setEditingIndex(null)
+                            : handleStartEdit(index)
+                        }
+                        className="text-primary hover:bg-primary/10 hover:text-primary"
+                      >
+                        {editingIndex === index ? 'Concluir edição' : 'Editar'}
+                      </UiButton>
+                      <UiButton
+                        variant="ghost"
+                        type="button"
+                        onClick={() => setDeleteIndex(index)}
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        Excluir
+                      </UiButton>
+                    </div>
+                  </UiCard>
+                ))
+              )}
+            </section>
+          </fieldset>
+          {error && (
+            <Alert
+              variant="destructive"
+              className="mt-4 border-destructive/25 bg-destructive/10"
+            >
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
-        </div>
-
-        {/* Seção para adicionar uma nova observação. */}
-        <div className="flex items-center gap-2 mb-4">
-          <input
-            type="text"
-            value={newObservationText}
-            onChange={(e) => setNewObservationText(e.target.value)}
-            placeholder="Nova observação"
-            className="flex-grow border border-gray-300 rounded p-2"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleAddObservation()
-            }}
-          />
-          <Button
-            text=""
-            type="button"
-            onClick={handleAddObservation}
-            icon={<FaPlus size={20} />}
-            className="min-w-0 px-3 py-2"
-          />
-        </div>
-
-        {/* Botão final para salvar todas as alterações e fechar o modal. */}
-        <div className="flex justify-end mt-6">
-          <Button
-            text="Concluir"
-            type="button"
-            onClick={handleConclude}
-            width="w-full"
-          />
-        </div>
-      </div>
-    </div>
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 mt-6 pt-4 border-t">
+            <UiButton
+              variant={'outline'}
+              className="w-full sm:w-auto"
+              type="button"
+              disabled={busy}
+              onClick={onClose}
+            >
+              Cancelar
+            </UiButton>
+            <UiButton
+              variant="default"
+              className="w-full sm:w-auto"
+              type="button"
+              disabled={
+                busy || observations.some((note) => !note.content.trim())
+              }
+              onClick={handleConclude}
+            >
+              {busy ? 'Salvando...' : 'Salvar observações'}
+            </UiButton>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <ConfirmationModal
+        isOpen={deleteIndex !== null}
+        onClose={() => setDeleteIndex(null)}
+        onConfirm={() => {
+          if (deleteIndex !== null) handleDeleteObservation(deleteIndex)
+          setDeleteIndex(null)
+        }}
+        title="Excluir observação"
+        message="Deseja excluir esta observação? A remoção será gravada quando você salvar as alterações."
+        confirmButtonText="Excluir observação"
+      />
+    </>
   )
 }
