@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Armazena o prazo usado para validar a criação e classificar atrasos. -->
+    <changeSet id="20261013-01" author="inventarium">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="im_inventory" columnName="planned_end_date"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="im_inventory">
+            <column name="planned_end_date" type="DATE"/>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

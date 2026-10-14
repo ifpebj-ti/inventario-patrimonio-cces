@@ -57,7 +57,9 @@ public class InventoryController {
       Inventory newInventory =
           inventoryService.createInventory(inventoryDto, Long.parseLong(userId));
 
-      return ResponseEntity.status(HttpStatus.CREATED).body(InventoryDto.from(newInventory));
+      // Retorna o DTO enriquecido com status, setor e total de itens.
+      return ResponseEntity.status(HttpStatus.CREATED)
+          .body(inventoryService.toDto(newInventory));
     } catch (RuntimeException e) {
       return ResponseEntity.status(HttpStatus.BAD_REQUEST)
           .body("Error creating inventory: " + e.getMessage());
@@ -85,7 +87,8 @@ public class InventoryController {
     try {
       Inventory updatedInventory =
           inventoryService.updateInventory(inventoryId, inventoryDto, Long.parseLong(userId));
-      return ResponseEntity.status(HttpStatus.OK).body(InventoryDto.from(updatedInventory));
+      return ResponseEntity.status(HttpStatus.OK)
+          .body(inventoryService.toDto(updatedInventory));
     } catch (RuntimeException e) {
       return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
     }
@@ -167,8 +170,7 @@ public class InventoryController {
         return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT).body(response);
       }
     } catch (IllegalArgumentException e) {
-      return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-          .body(Map.of("message", e.getMessage()));
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", e.getMessage()));
     } catch (Exception e) {
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body(Map.of("message", "Erro ao processar o arquivo CSV: " + e.getMessage()));
@@ -247,8 +249,11 @@ public class InventoryController {
       String userId = request.getAttribute("id_user").toString();
       List<Inventory> inventories = inventoryService.getUserInventories(Long.parseLong(userId));
 
+      // A listagem devolve os dados necessários para filtros, ordenação e indicadores sem expor a entidade.
       List<InventoryDto> inventoryDtos =
-          inventories.stream().map(InventoryDto::from).collect(Collectors.toList());
+          inventories.stream()
+              .map(inventoryService::toDto)
+              .collect(Collectors.toList());
 
       return ResponseEntity.status(HttpStatus.OK).body(inventoryDtos);
     } catch (RuntimeException e) {
@@ -357,7 +362,10 @@ public class InventoryController {
             && (h.contains("resp") || h.contains("carga") || h.contains("detentor"))) {
           colResp = i;
         } else if (colPrice == -1
-            && (h.contains("val") || h.contains("prec") || h.contains("price") || h.contains("custo"))) {
+            && (h.contains("val")
+                || h.contains("prec")
+                || h.contains("price")
+                || h.contains("custo"))) {
           colPrice = i;
         } else if (colLocale == -1
             && (h.contains("sala")

@@ -1,6 +1,7 @@
 package clp.inventory.model;
 
 import jakarta.persistence.*;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,9 +31,18 @@ public class Inventory {
   @Column(nullable = false)
   private LocalDateTime updatedAt;
 
+  // Prazo escolhido pelo usuário; é usado para identificar inventários atrasados.
+  @Column(name = "planned_end_date")
+  private LocalDate plannedEndDate;
+
   @ManyToOne
   @JoinColumn(name = "id_user", nullable = false)
   private User user;
+
+  // Setor responsável pelo inventário, utilizado nos filtros e indicadores do dashboard.
+  @ManyToOne
+  @JoinColumn(name = "id_sector")
+  private Sector sector;
 
   @OneToMany(
       mappedBy = "inventory",
@@ -47,10 +57,13 @@ public class Inventory {
     return user;
   }
 
-  public Inventory(String name, String description, User user) {
+  public Inventory(
+      String name, String description, LocalDate plannedEndDate, User user, Sector sector) {
     this.name = name;
     this.description = description;
+    this.plannedEndDate = plannedEndDate;
     this.user = user;
+    this.sector = sector;
   }
 
   public Long id() {
@@ -75,6 +88,23 @@ public class Inventory {
 
   public LocalDateTime createdAt() {
     return createdAt;
+  }
+
+  // Data de alteração exposta para permitir ordenação na lista de inventários.
+  public LocalDateTime updatedAt() {
+    return updatedAt;
+  }
+
+  public LocalDate plannedEndDate() {
+    return plannedEndDate;
+  }
+
+  public void setPlannedEndDate(LocalDate plannedEndDate) {
+    this.plannedEndDate = plannedEndDate;
+  }
+
+  public Sector sector() {
+    return sector;
   }
 
   public List<Item> items() {
