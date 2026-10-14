@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+    <changeSet id="20261013-05" author="inventarium">
+        <addColumn tableName="im_user">
+            <column name="pending_google_login" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <sql>
+            ALTER TABLE im_user DROP CONSTRAINT ck_user_system_google;
+            ALTER TABLE im_user ADD CONSTRAINT ck_user_system_google CHECK (
+                (is_system_user = true AND google_id IS NULL AND pending_google_login = false)
+                OR (is_system_user = false AND google_id IS NOT NULL AND pending_google_login = false)
+                OR (is_system_user = false AND google_id IS NULL AND pending_google_login = true));
+            CREATE UNIQUE INDEX uk_user_email_case_insensitive ON im_user (lower(email));
+        </sql>
+    </changeSet>
+</databaseChangeLog>
