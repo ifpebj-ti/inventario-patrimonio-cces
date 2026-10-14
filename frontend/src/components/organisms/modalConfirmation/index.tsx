@@ -1,96 +1,54 @@
 'use client'
-
-import React from 'react'
-
-// Define as propriedades (props) que o componente ConfirmationModal pode receber.
-// Isso cria um "contrato" claro de como usar este componente.
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+} from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
 interface ConfirmationModalProps {
-  isOpen: boolean // Controla se o modal está visível ou não.
-  onClose: () => void // Função a ser chamada para fechar o modal.
-  onConfirm: () => void // Função a ser chamada quando a ação principal é confirmada.
-  title: string // O título exibido no modal.
-  message: string // A mensagem ou pergunta de confirmação.
-  confirmButtonText?: string // Texto opcional para o botão de confirmação.
-  cancelButtonText?: string // Texto opcional para o botão de cancelar.
+  isOpen: boolean
+  onClose: () => void
+  onConfirm: () => void
+  title: string
+  message: string
+  confirmButtonText?: string
+  cancelButtonText?: string
   busy?: boolean
 }
-
-// Componente de modal genérico e reutilizável para ações de confirmação (ex: deletar).
-export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
+export function ConfirmationModal({
   isOpen,
   onClose,
   onConfirm,
   title,
   message,
-  confirmButtonText = 'Confirmar', // Define 'Confirmar' como texto padrão.
-  cancelButtonText = 'Cancelar', // Define 'Cancelar' como texto padrão.
+  confirmButtonText = 'Confirmar',
+  cancelButtonText = 'Cancelar',
   busy = false,
-}) => {
-  // Se a prop 'isOpen' for falsa, o componente não renderiza nada no DOM.
-  if (!isOpen) return null
-
-  // Função para fechar o modal se o usuário clicar no fundo escuro (backdrop).
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    // Verifica se o clique foi no próprio elemento de backdrop, e não em um de seus filhos (o painel do modal).
-    if (!busy && e.target === e.currentTarget) {
-      onClose()
-    }
-  }
-
+}: ConfirmationModalProps) {
   return (
-    <>
-      {/* Backdrop: o fundo escuro e com blur que cobre a página. */}
-      <div
-        className="fixed inset-0 bg-opacity-30 backdrop-blur-sm z-50"
-        onClick={handleBackdropClick}
-      />
-      {/* Contêiner que usa Flexbox para centralizar o modal na tela. */}
-      <div className="fixed inset-0 flex justify-center items-center z-50 p-4">
-        {/* Painel branco principal do modal. */}
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={title}
-          aria-busy={busy}
-          className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 relative w-full max-w-lg"
-        >
-          {/* Botão de fechar (X) no canto superior direito. */}
-          <button
-            className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 text-3xl font-bold transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl"
-            onClick={onClose}
-            disabled={busy}
-            aria-label="Fechar modal"
-          >
-            &times;
-          </button>
-          {/* Título e mensagem do modal, preenchidos dinamicamente via props. */}
-          <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mb-3">
-            {title}
-          </h2>
-          <p className="text-slate-600 text-sm sm:text-base leading-relaxed">
-            {message}
-          </p>
-          {/* Contêiner para os botões de ação, alinhados à direita. */}
-          <div className="mt-6 sm:mt-8 flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4">
-            {/* Botão de Cancelar, que chama a função onClose. */}
-            <button
-              onClick={onClose}
-              disabled={busy}
-              className="w-full sm:w-auto px-6 py-2.5 min-h-[44px] rounded-xl bg-slate-200 hover:bg-slate-300 font-semibold text-slate-800 transition-colors cursor-pointer flex items-center justify-center"
-            >
-              {cancelButtonText}
-            </button>
-            {/* Botão de Confirmar, que chama a função onConfirm. */}
-            <button
-              onClick={onConfirm}
-              disabled={busy}
-              className="w-full sm:w-auto px-6 py-2.5 min-h-[44px] rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 transition-colors cursor-pointer flex items-center justify-center"
-            >
-              {busy ? 'Aguarde...' : confirmButtonText}
-            </button>
-          </div>
-        </div>
-      </div>
-    </>
+    <AlertDialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open && !busy) onClose()
+      }}
+    >
+      <AlertDialogContent role="dialog" aria-label={title} aria-busy={busy}>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{message}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <Button variant="outline" disabled={busy} onClick={onClose}>
+            {cancelButtonText}
+          </Button>
+          <Button variant="destructive" disabled={busy} onClick={onConfirm}>
+            {busy ? 'Aguarde...' : confirmButtonText}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
