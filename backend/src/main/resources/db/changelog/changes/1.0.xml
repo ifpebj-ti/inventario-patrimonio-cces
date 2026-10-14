@@ -16,4 +16,16 @@
             <column name="planned_end_date" type="DATE"/>
         </addColumn>
     </changeSet>
+    <changeSet id="20261013-03" author="inventarium">
+        <addColumn tableName="im_inventory">
+            <column name="completed_at" type="TIMESTAMP"/>
+            <column name="status" type="VARCHAR(20)" defaultValue="EM_ANDAMENTO">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <sql>ALTER TABLE im_inventory ADD CONSTRAINT ck_inventory_completion
+            CHECK ((status = 'EM_ANDAMENTO' AND completed_at IS NULL)
+                OR (status = 'CONCLUIDO' AND completed_at IS NOT NULL))</sql>
+    </changeSet>
+
 </databaseChangeLog>
