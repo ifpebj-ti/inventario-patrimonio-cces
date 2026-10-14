@@ -14,7 +14,8 @@ public class SectorService {
   private final SectorRepository sectorRepository;
   private final AuthorizationService authorizationService;
 
-  public SectorService(SectorRepository sectorRepository, AuthorizationService authorizationService) {
+  public SectorService(
+      SectorRepository sectorRepository, AuthorizationService authorizationService) {
     this.sectorRepository = sectorRepository;
     this.authorizationService = authorizationService;
   }
@@ -59,14 +60,23 @@ public class SectorService {
     return sectorRepository.save(sector);
   }
 
+  /** Leitura de um setor: admin ou qualquer usuário alocado a ele. */
   public Sector findSectorById(long id, long actingUserId) {
-    authorizationService.requireAnyPermission(actingUserId, "ADMIN", "MANAGE_SECTOR");
+    authorizationService.requireViewSector(actingUserId, id);
     return findSectorByIdInternal(id);
   }
 
+  /** Dados de gestão do setor (como a lista de membros): admin ou gestor do setor. */
+  public Sector findSectorForManagement(long id, long actingUserId) {
+    authorizationService.requireSectorPermission(actingUserId, id);
+    return findSectorByIdInternal(id);
+  }
+
+  /** Admin vê todos os setores; os demais perfis veem os setores a que estão alocados. */
   public List<Sector> listAllSectors(long actingUserId) {
-    authorizationService.requireAnyPermission(actingUserId, "ADMIN", "MANAGE_SECTOR");
-    return sectorRepository.findAll();
+    return authorizationService.isAdmin(actingUserId)
+        ? sectorRepository.findAll()
+        : sectorRepository.findAllocatedToUser(actingUserId);
   }
 
   private Sector findSectorByIdInternal(long id) {
