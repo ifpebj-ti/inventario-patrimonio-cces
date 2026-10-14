@@ -11,12 +11,14 @@ public record InventoryDto(
     String createdAt,
     String updatedAt,
     String plannedEndDate,
+    String completedAt,
     String status,
     Long sectorId,
     String sectorName,
     long itemCount) {
 
-  // Centraliza a conversão para manter datas, setor, status e total de itens consistentes nas respostas.
+  // Centraliza a conversão para manter datas, setor, status e total de itens consistentes nas
+  // respostas.
   public static InventoryDto from(Inventory inventory, String status, long itemCount) {
 
     DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -31,6 +33,7 @@ public record InventoryDto(
         formattedDate,
         inventory.updatedAt() != null ? inventory.updatedAt().format(formatter) : null,
         inventory.plannedEndDate() != null ? inventory.plannedEndDate().toString() : null,
+        inventory.completedAt() != null ? inventory.completedAt().toString() : null,
         status,
         inventory.sector() != null ? inventory.sector().id() : null,
         inventory.sector() != null ? inventory.sector().name() : null,
