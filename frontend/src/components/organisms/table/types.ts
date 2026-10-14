@@ -1,16 +1,21 @@
 import { InventoryResponse } from '@/services/inventory'
 import { Item } from '@/commons/models/item'
+import type { ReactNode } from 'react'
 
 // Cria interface que aqui serve basicamente como tipagem permitindo usar métodos e atributos
 export interface TableProps {
   header: { key: string; headerText: string }[]
   content?: (Item | InventoryResponse)[]
+  filterToolbar?: ReactNode
+  appearance?: 'default' | 'inventory'
 
   selectable?: boolean
   selectedRows?: number[]
   showExportButtons?: boolean
   onClearInventory?: () => void
   disableClear?: boolean
+  // Esconde o botão de limpar todos os itens (perfis que não gerenciam o inventário).
+  hideClear?: boolean
   onDeleteSelected?: () => void
   onExportSelected?: () => void
   onExportSheet?: () => void
