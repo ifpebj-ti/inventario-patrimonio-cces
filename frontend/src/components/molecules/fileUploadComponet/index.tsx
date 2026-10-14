@@ -1,11 +1,18 @@
 'use client'
 
+import { badgeVariant } from '@/lib/tone'
+import { Badge as UiBadge } from '@/components/ui/badge'
+import { Card as UiCard } from '@/components/ui/card'
+
+import { Button as UiButton } from '@/components/ui/button'
+import { Input as UiInput } from '@/components/ui/input'
+
 import type { SpreadsheetState } from '@/commons/models/spreadsheet'
-import { Button } from '@/components/atoms/button'
 import { ModalErrorsSheet } from '@/components/organisms/modalErrors'
 import { CsvTemplateModal } from '@/components/organisms/csvTemplateModal'
 import { useRef, useState } from 'react'
-import { TbFileUpload, TbInfoCircle, TbX } from 'react-icons/tb'
+import { cn } from '@/lib/utils'
+import { FileUp, Info, X } from 'lucide-react'
 
 type FileUploadComponentProps = {
   state: SpreadsheetState
@@ -13,6 +20,7 @@ type FileUploadComponentProps = {
   onRemove: () => void
   onProcess: () => Promise<void>
   disabled?: boolean
+  blockedMessage?: string
 }
 
 export const FileUploadComponent = ({
@@ -21,6 +29,7 @@ export const FileUploadComponent = ({
   onRemove,
   onProcess,
   disabled = false,
+  blockedMessage,
 }: FileUploadComponentProps) => {
   const [isDragOver, setIsDragOver] = useState(false)
   const [showErrorModal, setShowErrorModal] = useState(false)
@@ -38,26 +47,35 @@ export const FileUploadComponent = ({
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-md p-6 border border-slate-200/80 w-full h-full min-h-[290px] flex flex-col justify-between gap-3">
-      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+    <UiCard className="w-full h-full min-h-60 justify-between gap-3 p-5">
+      <div className="flex items-center justify-between border-b pb-3">
         <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-xl bg-blue-50 text-blue-500">
-            <TbFileUpload className="w-5 h-5" />
+          <div className="p-2 rounded-xl bg-primary/10 text-primary">
+            <FileUp className="size-5" />
           </div>
-          <h2 className="text-xl sm:text-2xl font-bold text-slate-800">
+          <h2 className="text-xl sm:text-2xl font-bold text-foreground">
             Importação
           </h2>
         </div>
-        <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">
+        <UiBadge
+          variant={badgeVariant.success}
+          className="rounded-md font-semibold"
+        >
           Apenas CSV
-        </span>
+        </UiBadge>
       </div>
 
-      <button
+      <UiButton
+        variant="outline"
         type="button"
         disabled={locked}
         aria-label="Selecionar ou soltar planilha CSV"
-        className={`p-4 text-center rounded-xl border-2 border-dashed flex flex-col items-center gap-2 disabled:opacity-50 ${isDragOver ? 'border-blue-400 bg-blue-50' : 'border-slate-200 bg-slate-50'}`}
+        className={cn(
+          'h-auto min-h-20 w-full flex-col whitespace-normal border-2 border-dashed p-4 text-center',
+          isDragOver
+            ? 'border-primary bg-primary/10'
+            : 'bg-muted hover:border-primary/25 hover:bg-primary/10',
+        )}
         onClick={() => fileInputRef.current?.click()}
         onDragOver={(event) => {
           event.preventDefault()
@@ -73,91 +91,109 @@ export const FileUploadComponent = ({
           }
         }}
       >
-        <TbFileUpload className="w-8 h-8 text-slate-400" />
-        <span className="text-xs text-slate-600">
+        <FileUp className="size-8 text-muted-foreground" />
+        <span className="text-xs font-normal text-muted-foreground">
           Arraste a planilha .csv ou clique para selecionar.
         </span>
-      </button>
+      </UiButton>
 
-      <button
+      <UiButton
+        variant="ghost"
         type="button"
         onClick={() => setShowTemplateModal(true)}
-        className="text-blue-600 text-xs flex items-center justify-center gap-1"
+        className="text-xs text-primary hover:text-primary"
       >
-        <TbInfoCircle /> Colunas esperadas
-      </button>
+        <Info /> Colunas esperadas
+      </UiButton>
 
       {state.file && (
-        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-col gap-3">
+        <div className="p-3 rounded-lg bg-muted border flex flex-col gap-3">
           <p
-            className="text-xs font-semibold text-slate-900 break-all"
+            className="text-xs font-semibold text-foreground break-all"
             title={state.file.name}
           >
             {state.file.name}
           </p>
           <p
             role={state.status === 'invalid' ? 'alert' : 'status'}
-            className={`text-xs ${state.status === 'invalid' ? 'text-red-700' : 'text-slate-700'}`}
+            className={`text-xs ${state.status === 'invalid' ? 'text-destructive' : 'text-muted-foreground'}`}
           >
             {state.message}
           </p>
           {state.report && (
-            <p className="text-xs text-slate-700" data-testid="import-counters">
+            <p
+              className="text-xs text-muted-foreground"
+              data-testid="import-counters"
+            >
               Total processado: {state.report.totalProcessed} · Importados:{' '}
               {state.report.successes} · Falhas: {state.report.failures}
             </p>
           )}
           <div className="flex flex-wrap gap-2 justify-center">
-            <button
+            <UiButton
+              variant="outline"
+              size="sm"
               type="button"
               disabled={locked}
               onClick={remove}
-              className="flex items-center gap-1 px-3 py-1 bg-slate-200 rounded-lg text-xs disabled:opacity-50"
             >
-              <TbX /> Remover
-            </button>
+              <X /> Remover
+            </UiButton>
             {state.errors.length > 0 && (
-              <button
+              <UiButton
+                variant="destructive"
+                size="sm"
                 type="button"
                 onClick={() => setShowErrorModal(true)}
-                className="px-3 py-1 bg-red-100 text-red-700 rounded-lg text-xs"
               >
                 Ver erros ({state.errors.length})
-              </button>
+              </UiButton>
             )}
             {state.status === 'invalid' && (
-              <button
+              <UiButton
+                variant="outline"
+                size="sm"
                 type="button"
                 disabled={locked}
                 onClick={() => state.file && onSelect(state.file)}
-                className="px-3 py-1 bg-slate-200 rounded-lg text-xs disabled:opacity-50"
               >
                 Validar novamente
-              </button>
+              </UiButton>
             )}
-            <button
+            <UiButton
+              size="sm"
               type="button"
               disabled={!canProcess}
               onClick={() => canProcess && onProcess()}
-              className="px-3 py-1 bg-blue-500 text-white rounded-lg text-xs disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {importing ? 'Processando...' : 'Processar'}
-            </button>
+            </UiButton>
           </div>
         </div>
       )}
 
-      <div className="flex justify-center pt-3 border-t border-slate-100">
-        <Button
-          text="Importar Planilha CSV"
-          variant={3}
+      {blockedMessage && (
+        <p
+          role="status"
+          className="flex items-start gap-1.5 text-xs text-muted-foreground"
+        >
+          <Info className="mt-0.5 size-3.5 shrink-0" />
+          {blockedMessage}
+        </p>
+      )}
+
+      <div className="flex justify-center pt-3 border-t">
+        <UiButton
+          variant={'default'}
+          className="w-full sm:w-64"
           type="button"
           disabled={locked}
           onClick={() => fileInputRef.current?.click()}
-          width="w-full sm:w-64"
-        />
+        >
+          Importar Planilha CSV
+        </UiButton>
       </div>
-      <input
+      <UiInput
         ref={fileInputRef}
         type="file"
         aria-label="Arquivo CSV"
@@ -188,6 +224,6 @@ export const FileUploadComponent = ({
         isOpen={showTemplateModal}
         onClose={() => setShowTemplateModal(false)}
       />
-    </div>
+    </UiCard>
   )
 }
