@@ -17,15 +17,44 @@ export type InventoryResponse = {
   name: string
   description: string
   createdAt: string
+  updatedAt: string | null
+  plannedEndDate: string | null
+  completedAt: string | null
+  status: 'CONCLUIDO' | 'EM_ANDAMENTO' | 'VENCIDO'
+  sectorId: number | null
+  sectorName: string | null
+  itemCount: number
 }
 
 // tipo para atualizar inventario
 export type UpdateInventory = {
   name: string
   description: string
+  plannedEndDate: string
+  sectorId: number
 }
 
 // FUNÇÕES DO SERVICE
+export type InventoryDetails = {
+  inventory: InventoryResponse
+  canFinalize: boolean
+}
+
+export const getInventoryRequest = async (
+  inventoryId: number,
+  signal?: AbortSignal,
+): Promise<InventoryDetails> => {
+  const response = await api.get(`/inventory/${inventoryId}`, { signal })
+  return response.data
+}
+
+export const finalizeInventoryRequest = async (
+  inventoryId: number,
+): Promise<InventoryResponse> => {
+  const response = await api.post(`/inventory/${inventoryId}/finalize`)
+  return response.data
+}
+
 export const getUserInventoriesRequest = async () => {
   const response = await api.get('/inventory/user-inventories')
   return response.data
