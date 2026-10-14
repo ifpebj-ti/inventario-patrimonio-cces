@@ -35,6 +35,37 @@ public class Inventory {
   @Column(name = "planned_end_date")
   private LocalDate plannedEndDate;
 
+  public enum Status {
+    EM_ANDAMENTO,
+    CONCLUIDO
+  }
+
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false, length = 20)
+  private Status status = Status.EM_ANDAMENTO;
+
+  @Column(name = "completed_at")
+  private LocalDateTime completedAt;
+
+  public Status status() {
+    return status;
+  }
+
+  public LocalDateTime completedAt() {
+    return completedAt;
+  }
+
+  public void finish(LocalDateTime completedAt) {
+    if (status == Status.CONCLUIDO) {
+      throw new IllegalStateException("O inventário já foi finalizado.");
+    }
+    if (completedAt == null || (createdAt != null && completedAt.isBefore(createdAt))) {
+      throw new IllegalArgumentException("Data de finalização inválida.");
+    }
+    this.completedAt = completedAt;
+    this.status = Status.CONCLUIDO;
+  }
+
   @ManyToOne
   @JoinColumn(name = "id_user", nullable = false)
   private User user;
@@ -105,6 +136,10 @@ public class Inventory {
 
   public Sector sector() {
     return sector;
+  }
+
+  public void setSector(Sector sector) {
+    this.sector = sector;
   }
 
   public List<Item> items() {
