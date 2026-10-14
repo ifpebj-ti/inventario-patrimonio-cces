@@ -2,6 +2,7 @@ package clp.inventory.controller;
 
 import clp.inventory.dto.GoogleAuthDto;
 import clp.inventory.dto.LoginDto;
+import clp.inventory.service.AuthenticatedUserService;
 import clp.inventory.service.UserService;
 import clp.inventory.service.auth.AuthenticationService;
 import clp.inventory.service.auth.LoginAttemptLimiter;
@@ -19,14 +20,17 @@ public class AuthController {
 
   private final AuthenticationService authenticationService;
   private final UserService userService;
+  private final AuthenticatedUserService authenticatedUserService;
   private final LoginAttemptLimiter loginAttemptLimiter;
 
   public AuthController(
       AuthenticationService authenticationService,
       UserService userService,
+      AuthenticatedUserService authenticatedUserService,
       LoginAttemptLimiter loginAttemptLimiter) {
     this.authenticationService = authenticationService;
     this.userService = userService;
+    this.authenticatedUserService = authenticatedUserService;
     this.loginAttemptLimiter = loginAttemptLimiter;
   }
 
@@ -90,7 +94,7 @@ public class AuthController {
 
     try {
       var user = userService.getCurrentUser(authHeader);
-      return ResponseEntity.ok().body(user);
+      return ResponseEntity.ok().body(authenticatedUserService.getById(user.getId()));
     } catch (RuntimeException e) {
       return ResponseEntity.badRequest().body("Invalid authorization header");
     }
