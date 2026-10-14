@@ -5,8 +5,11 @@ Contrato de autenticação abaixo. Setor, usuário, perfil e permissão estão d
 
 # - Autenticação
 
-O login com Google é o jeito de entrar de todos os usuários. Não existe cadastro próprio,
-verificação de e-mail nem recuperação de senha. A única exceção é a **conta de sistema** (admin),
+O login com Google é o jeito de entrar dos usuários comuns. Admins e gestores de setor podem
+pré-cadastrar usuários por e-mail, com perfil e setores, em `POST /users` (o gestor, apenas Operador
+de Campo e Consulta nos seus próprios setores). Quem entra pela primeira vez sem pré-cadastro nasce
+como Consulta, e uma conta desativada não consegue entrar (nem manter a sessão aberta). Não há senha local para esses usuários,
+verificação de e-mail própria nem recuperação de senha. A exceção é a **conta de sistema** (admin),
 que entra por usuário e senha — veja "Conta de sistema" abaixo.
 
 O backend recebe o **ID token** que o Google Identity Services entrega ao frontend, valida a
@@ -65,21 +68,24 @@ A mensagem de 401 é única de propósito: distinguir os motivos revelaria quais
 qual verificação falhou. O frontend classifica pelo status, nunca pelo texto do corpo — e trata
 o 500 como "serviço indisponível", não como conta recusada.
 
-`GET /auth/me` devolve o usuário do token: `{ id, name, email }`.
+`GET /auth/me` devolve o DTO de sessão do token: `{ id, name, email, profileId, sectorIds,
+permissions }`. Ele não serializa a entidade `User` nem expõe campos internos de autenticação.
 
 ## Criação de conta
 
-Quem entra pela primeira vez tem a conta criada na hora, desde que o domínio do e-mail esteja
-permitido. Não há cadastro, aprovação nem confirmação por e-mail: o Google já provou a posse da
-caixa, e o `GoogleTokenProvider` recusa qualquer token com `email_verified: false`.
+Quem entra pela primeira vez sem pré-cadastro tem a conta criada na hora, desde que o domínio
+do e-mail esteja permitido. O admin também pode pré-cadastrar o e-mail, definindo perfil e setores
+antes do primeiro acesso. O Google prova a posse da caixa: o `GoogleTokenProvider` recusa qualquer
+token com `email_verified: false`. O pré-cadastro por ADMIN é uma autorização explícita e pode
+incluir domínios fora da lista de criação automática.
 
-Nos acessos seguintes o usuário é localizado pelo e-mail, normalizado em minúsculas — o Google
-devolve o e-mail canonicalizado, mas o índice único do Postgres é case-sensitive, e sem normalizar
-o mesmo dono viraria duas contas.
+O usuário é localizado pelo e-mail normalizado em minúsculas. A migration `3.0.xml` acrescenta
+um índice único sobre `lower(email)`, impedindo duplicidade por diferença entre maiúsculas e minúsculas.
 
-A coluna `google_id` guarda o `sub` do Google e **não é consultada para autenticar** — quem
-autentica é a assinatura do ID token. Ela só é nula na conta de sistema (veja abaixo); o banco
-garante isso: `google_id` nulo se e somente se `is_system_user` verdadeiro.
+A coluna `google_id` guarda o `sub` verificado do Google. No primeiro acesso de um pré-cadastro,
+esse valor é vinculado à conta e `pending_google_login` passa a falso, preservando ID, nome,
+perfil e setores. Nos acessos posteriores, o `sub` precisa coincidir com o registrado.
+O banco permite `google_id` nulo apenas para contas de sistema ou pré-cadastros pendentes.
 
 ## Conta de sistema
 
@@ -98,8 +104,9 @@ Uma conta (`admin` por padrão) que entra por usuário e senha, sem Google, com 
   pode ser renomeado, excluído nem perder a permissão `ADMIN` pela API (409), e `/permissions` é
   somente leitura. Assim ninguém, nem outro admin, consegue deixar o sistema sem acesso
   administrativo pela API. Qualquer outro usuário pode ter o perfil trocado por um admin.
-- `/profiles`, `/permissions` e `PATCH /users/{id}/profile` exigem `ADMIN`. Uma permissão nova não se
-  cria pela API: entra por migration do Liquibase.
+- `/profiles` e `/permissions` (somente leitura) exigem `ADMIN` ou `MANAGE_SECTOR`, e
+  `PATCH /users/{id}/profile` também: o gestor só atribui perfis sem permissão de gestão a usuários dos
+  seus setores. Uma permissão nova não se cria pela API: entra por migration do Liquibase.
 
 `POST /auth/login` — sem autenticação.
 
