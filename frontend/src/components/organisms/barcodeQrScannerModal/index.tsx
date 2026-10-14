@@ -1,9 +1,14 @@
 'use client'
 
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Button as UiButton } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
+import { Label as UiLabel } from '@/components/ui/label'
+import { Input as UiInput } from '@/components/ui/input'
+
 import React, { useEffect, useRef, useState } from 'react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
-import { X, Camera, AlertCircle, RefreshCw } from 'lucide-react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { X, Camera, AlertCircle } from 'lucide-react'
 
 interface BarcodeQrScannerModalProps {
   isOpen: boolean
@@ -47,9 +52,12 @@ export const BarcodeQrScannerModal: React.FC<BarcodeQrScannerModalProps> = ({
   onClose,
   onScanSuccess,
 }) => {
+  const [manualCode, setManualCode] = useState('')
+  const [isSubmittingCode, setIsSubmittingCode] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [hasDetected, setHasDetected] = useState(false)
   const [isInitializing, setIsInitializing] = useState(true)
+  const [targetEl, setTargetEl] = useState<HTMLDivElement | null>(null)
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const isStoppingRef = useRef(false)
   const isDetectedRef = useRef(false)
@@ -82,9 +90,17 @@ export const BarcodeQrScannerModal: React.FC<BarcodeQrScannerModalProps> = ({
     }
 
     isDetectedRef.current = false
+    setManualCode('')
+    setIsSubmittingCode(false)
     setIsInitializing(true)
     setErrorMessage(null)
     setHasDetected(false)
+  }, [isOpen])
+
+  // A câmera só inicia quando o elemento alvo já existe no DOM: o conteúdo do
+  // Dialog é renderizado em um portal, depois do primeiro commit.
+  useEffect(() => {
+    if (!isOpen || !targetEl) return
 
     const scannerElementId = 'barcode-qr-reader-target'
 
@@ -165,133 +181,161 @@ export const BarcodeQrScannerModal: React.FC<BarcodeQrScannerModalProps> = ({
         console.error('Erro na inicialização da câmera:', err)
         setIsInitializing(false)
         setErrorMessage(
-          'Não foi possível inicializar a câmera. Verifique se o navegador possui permissão de acesso à câmera e se a conexão é segura (HTTPS ou localhost).',
+          'Não foi possível inicializar a câmera. Você pode digitar o código patrimonial no campo abaixo para buscar o item.',
         )
       })
 
     return () => {
       stopScanner()
     }
-  }, [isOpen])
+  }, [isOpen, targetEl])
 
   if (!isOpen) return null
 
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 select-none font-['Montserrat',sans-serif]">
-        {/* Backdrop com desfoque */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={onClose}
-          aria-hidden="true"
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm"
-        />
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !false) onClose()
+      }}
+    >
+      <DialogContent
+        showCloseButton={false}
+        className="flex max-h-[90vh] flex-col overflow-y-auto rounded-xl gap-0 overflow-hidden p-0 sm:max-w-md"
+      >
+        <DialogTitle className="sr-only">
+          Scanner de código de barras e QR Code
+        </DialogTitle>
+        {/* Topo do Scanner */}
+        <div className="flex items-center justify-between px-5 py-4 border-b text-foreground">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-primary/10 text-primary">
+              <Camera className="size-5" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-sm">Leitor de Patrimônio</h3>
+              <p className="text-[11px] text-muted-foreground">
+                Aponte para a etiqueta patrimonial para validar.
+              </p>
+            </div>
+          </div>
 
-        {/* Modal Card */}
-        <motion.div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Scanner de código de barras e QR Code"
-          initial={{ opacity: 0, scale: 0.95, y: 12 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 12 }}
-          transition={{ duration: 0.2 }}
-          className="relative w-full max-w-md bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-800 z-10 flex flex-col"
-        >
-          {/* Topo do Scanner */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800 bg-slate-900/95 text-white">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-blue-500/20 text-blue-400">
-                <Camera className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-sm">Leitor de Patrimônio</h3>
-                <p className="text-[11px] text-slate-400">
-                  Aponte para o código ou etiqueta
-                </p>
+          <UiButton
+            variant="ghost"
+            size="icon-lg"
+            onClick={onClose}
+            aria-label="Fechar scanner"
+            className="text-muted-foreground"
+          >
+            <X className="size-5" />
+          </UiButton>
+        </div>
+
+        {/* Área de Visualização da Câmera */}
+        <div className="relative w-full aspect-[4/3] bg-muted flex items-center justify-center overflow-hidden">
+          {/* Elemento de renderização do html5-qrcode */}
+          <div
+            ref={setTargetEl}
+            id="barcode-qr-reader-target"
+            className="w-full h-full object-cover"
+          />
+
+          {/* Spinner de Inicialização */}
+          {isInitializing && !errorMessage && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted gap-3 text-foreground">
+              <Spinner className="size-8 text-primary" />
+              <span className="text-xs font-medium text-muted-foreground">
+                Acessando câmera...
+              </span>
+            </div>
+          )}
+
+          {/* Overlay com Retículo de Mira & Scanline */}
+          {!isInitializing && !errorMessage && (
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-6">
+              <div
+                className={`relative w-full max-w-[280px] h-36 rounded-2xl border-2 transition-all duration-300 ${
+                  hasDetected
+                    ? 'border-success shadow-lg shadow-success/40 bg-success/20'
+                    : 'border-primary shadow-lg shadow-primary/40'
+                }`}
+              >
+                {/* Linha de varredura animada */}
+                {!hasDetected && (
+                  <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent shadow-sm shadow-primary animate-pulse mt-16" />
+                )}
+
+                {/* Cantoneiras estilizadas de foco */}
+                <div className="absolute -top-1 -left-1 w-4 h-4 border-t-4 border-l-4 border-white rounded-tl" />
+                <div className="absolute -top-1 -right-1 w-4 h-4 border-t-4 border-r-4 border-white rounded-tr" />
+                <div className="absolute -bottom-1 -left-1 w-4 h-4 border-b-4 border-l-4 border-white rounded-bl" />
+                <div className="absolute -bottom-1 -right-1 w-4 h-4 border-b-4 border-r-4 border-white rounded-br" />
               </div>
             </div>
+          )}
 
-            <button
-              onClick={onClose}
-              aria-label="Fechar scanner"
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+          {/* Alerta de Erro de Permissão */}
+          {errorMessage && (
+            <div className="absolute inset-0 bg-destructive/10 flex flex-col items-center justify-center p-6 text-center gap-3">
+              <AlertCircle className="size-10 text-destructive" />
+              <p className="text-xs sm:text-sm text-destructive leading-relaxed font-medium">
+                {errorMessage}
+              </p>
+              <UiButton
+                variant="outline"
+                size="sm"
+                type="button"
+                onClick={onClose}
+                className="mt-2"
+              >
+                Fechar
+              </UiButton>
+            </div>
+          )}
+        </div>
+
+        <div className="p-5 border-t">
+          <p className="text-xs text-muted-foreground mb-4">
+            Ou informe o código patrimonial abaixo e clique em Buscar item.
+          </p>
+          <form
+            onSubmit={async (event) => {
+              event.preventDefault()
+              const code = manualCode.trim()
+              if (!code || isSubmittingCode || isDetectedRef.current) return
+              isDetectedRef.current = true
+              setIsSubmittingCode(true)
+              await stopScanner()
+              onScanSuccess(code)
+              onClose()
+            }}
+            className="space-y-3"
+          >
+            <UiLabel
+              htmlFor="manual-patrimony-code"
+              className="text-sm font-medium text-foreground"
             >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Área de Visualização da Câmera */}
-          <div className="relative w-full aspect-square bg-black flex items-center justify-center overflow-hidden">
-            {/* Elemento de renderização do html5-qrcode */}
-            <div
-              id="barcode-qr-reader-target"
-              className="w-full h-full object-cover"
+              Código patrimonial
+            </UiLabel>
+            <UiInput
+              id="manual-patrimony-code"
+              value={manualCode}
+              onChange={(event) => setManualCode(event.target.value)}
+              placeholder="Digite o código da etiqueta"
+              autoComplete="off"
+              disabled={isSubmittingCode || hasDetected}
             />
-
-            {/* Spinner de Inicialização */}
-            {isInitializing && !errorMessage && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 gap-3 text-white">
-                <RefreshCw className="w-8 h-8 text-blue-400 animate-spin" />
-                <span className="text-xs font-medium text-slate-300">
-                  Acessando câmera...
-                </span>
-              </div>
-            )}
-
-            {/* Overlay com Retículo de Mira & Scanline */}
-            {!isInitializing && !errorMessage && (
-              <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-6">
-                <div
-                  className={`relative w-full max-w-[280px] h-36 rounded-2xl border-2 transition-all duration-300 ${
-                    hasDetected
-                      ? 'border-emerald-400 shadow-[0_0_30px_rgba(52,211,153,0.8)] bg-emerald-500/20'
-                      : 'border-blue-400 shadow-[0_0_15px_rgba(96,165,250,0.4)]'
-                  }`}
-                >
-                  {/* Linha de varredura animada */}
-                  {!hasDetected && (
-                    <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-blue-400 to-transparent shadow-[0_0_8px_#60a5fa] animate-pulse mt-16" />
-                  )}
-
-                  {/* Cantoneiras estilizadas de foco */}
-                  <div className="absolute -top-1 -left-1 w-4 h-4 border-t-4 border-l-4 border-white rounded-tl" />
-                  <div className="absolute -top-1 -right-1 w-4 h-4 border-t-4 border-r-4 border-white rounded-tr" />
-                  <div className="absolute -bottom-1 -left-1 w-4 h-4 border-b-4 border-l-4 border-white rounded-bl" />
-                  <div className="absolute -bottom-1 -right-1 w-4 h-4 border-b-4 border-r-4 border-white rounded-br" />
-                </div>
-              </div>
-            )}
-
-            {/* Alerta de Erro de Permissão */}
-            {errorMessage && (
-              <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center p-6 text-center gap-3">
-                <AlertCircle className="w-10 h-10 text-red-400" />
-                <p className="text-xs sm:text-sm text-red-200 leading-relaxed font-medium">
-                  {errorMessage}
-                </p>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="mt-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold cursor-pointer"
-                >
-                  Fechar
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Dica de Rodapé */}
-          <div className="p-4 bg-slate-900 border-t border-slate-800 text-center">
-            <p className="text-xs text-slate-400">
-              Posicione a etiqueta patrimonial dentro da moldura para leitura
-              automática.
-            </p>
-          </div>
-        </motion.div>
-      </div>
-    </AnimatePresence>
+            <UiButton
+              variant="default"
+              className="w-full"
+              type="submit"
+              disabled={!manualCode.trim() || isSubmittingCode || hasDetected}
+            >
+              {isSubmittingCode ? 'Buscando...' : 'Buscar item'}
+            </UiButton>
+          </form>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
