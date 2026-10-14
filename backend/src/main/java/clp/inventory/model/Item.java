@@ -150,6 +150,10 @@ public class Item {
     this.validatedAt = validatedAt;
   }
 
+  public Inventory inventory() {
+    return inventory;
+  }
+
   public void setInventory(Inventory inventory) {
     this.inventory = inventory;
   }
