@@ -15,8 +15,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Criar, editar, ativar e desativar setor exige a permissão ADMIN; listar e buscar por id exige
- * ADMIN ou MANAGE_SECTOR (ver AuthorizationService e
- * docs/wiki/Proposta-de-Modelagem-Organizacoes-Setores-e-Permissoes.md).
+ * ADMIN ou MANAGE_SECTOR com vínculo ao setor; gestores só listam seus setores (ver
+ * AuthorizationService e docs/wiki/Proposta-de-Modelagem-Organizacoes-Setores-e-Permissoes.md).
  */
 @RestController
 @RequestMapping("/sectors")
@@ -44,9 +44,7 @@ public class SectorController {
   @GetMapping
   public ResponseEntity<List<SectorDto>> list(HttpServletRequest request) {
     List<SectorDto> dtos =
-        sectorService.listAllSectors(actingUserId(request)).stream()
-            .map(SectorDto::from)
-            .toList();
+        sectorService.listAllSectors(actingUserId(request)).stream().map(SectorDto::from).toList();
     return ResponseEntity.ok(dtos);
   }
 
@@ -98,7 +96,7 @@ public class SectorController {
       @PathVariable long id, HttpServletRequest request) {
     try {
       long actingUserId = actingUserId(request);
-      sectorService.findSectorById(id, actingUserId);
+      sectorService.findSectorForManagement(id, actingUserId);
       List<UserDto> dtos =
           sectorAllocationService.usersAllocatedToSector(id).stream()
               .map(u -> UserDto.from(u, sectorAllocationService.sectorIdsOf(u.getId())))
