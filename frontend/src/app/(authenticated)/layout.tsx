@@ -1,11 +1,11 @@
 import type { Metadata } from 'next'
 import '../globals.css'
-import { Toaster } from 'react-hot-toast'
 import AuthenticatedOnlyFeatureWrapper from '@/components/template/authenticated'
 import { Header } from '@/components/molecules/header'
 import { SidebarProvider } from '@/contexts/SidebarContext'
 import { InventoryProvider } from '@/contexts/InventoryContext'
 import { Sidebar } from '@/components/organisms/sidebar'
+import { AdministrationAccessProvider } from '@/contexts/AdministrationAccess'
 
 export const metadata: Metadata = {
   title: 'Inventarium',
@@ -21,18 +21,19 @@ export default function RootLayout({
   return (
     // Somente pessoas autenticadas podem acessar as páginas dentro de (authenticated)
     <AuthenticatedOnlyFeatureWrapper>
-      <InventoryProvider>
-        <SidebarProvider>
-          <div className="flex min-h-screen w-full bg-gray-50">
-            <Sidebar />
-            <div className="flex-1 min-w-0 flex flex-col w-full">
-              <Header />
-              <main className="flex-1 w-full">{children}</main>
+      <AdministrationAccessProvider>
+        <InventoryProvider>
+          <SidebarProvider>
+            <div className="flex min-h-screen w-full bg-background">
+              <Sidebar />
+              <div className="flex-1 min-w-0 flex flex-col w-full">
+                <Header />
+                <main className="flex-1 w-full">{children}</main>
+              </div>
             </div>
-            <Toaster position="top-right" />
-          </div>
-        </SidebarProvider>
-      </InventoryProvider>
+          </SidebarProvider>
+        </InventoryProvider>
+      </AdministrationAccessProvider>
     </AuthenticatedOnlyFeatureWrapper>
   )
 }
