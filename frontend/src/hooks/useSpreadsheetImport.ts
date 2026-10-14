@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import type { SpreadsheetState } from '@/commons/models/spreadsheet'
 import {
   getSpreadsheetFailure,
@@ -49,6 +49,18 @@ export const useSpreadsheetImport = (
     validation.current?.abort()
     update(initialState)
   }
+
+  useEffect(() => {
+    if (state.status !== 'completed' || state.report?.failures !== 0) return
+    const completedVersion = version.current
+    const timer = window.setTimeout(() => {
+      if (version.current !== completedVersion || importing.current) return
+      version.current++
+      current.current = initialState
+      setState(initialState)
+    }, 8000)
+    return () => window.clearTimeout(timer)
+  }, [state])
 
   const select = async (file: File) => {
     if (importing.current) return
