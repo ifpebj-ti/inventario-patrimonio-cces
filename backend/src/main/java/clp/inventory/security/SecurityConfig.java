@@ -2,7 +2,6 @@ package clp.inventory.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -10,14 +9,18 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 @Configuration
 public class SecurityConfig {
 
   private final SecurityFilter securityFilter;
+  private final CorsConfigurationSource corsConfigurationSource;
 
-  public SecurityConfig(SecurityFilter securityFilter) {
+  public SecurityConfig(
+      SecurityFilter securityFilter, CorsConfigurationSource corsConfigurationSource) {
     this.securityFilter = securityFilter;
+    this.corsConfigurationSource = corsConfigurationSource;
   }
 
   @Bean
@@ -28,7 +31,7 @@ public class SecurityConfig {
   @Bean
   SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
     http.csrf(AbstractHttpConfigurer::disable)
-        .cors(Customizer.withDefaults())
+        .cors(cors -> cors.configurationSource(corsConfigurationSource))
         // Autenticação é só por Bearer: sessão persistida somada a CSRF desabilitado
         // e CORS aberto a qualquer origem seria o que abriria espaço para CSRF de verdade.
         // As origens permitidas vêm do bean CorsConfigurationSource (CorsConfig).
