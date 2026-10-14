@@ -1,13 +1,15 @@
 'use client'
 
+import { Input as UiInput } from '@/components/ui/input'
+import { Button as UiButton } from '@/components/ui/button'
+import { Label as UiLabel } from '@/components/ui/label'
+
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 
-import { Input } from '@/components/atoms/input'
-import { Button } from '@/components/atoms/button'
 import { useAuth } from '@/hooks/useAuth'
 import { AuthError, AuthErrorKind } from '@/commons/exceptions/AuthError'
 import loginSchema from '@/validations/login'
@@ -80,57 +82,63 @@ export const PasswordLoginForm = () => {
       noValidate
     >
       <div>
-        <label
+        <UiLabel
           htmlFor="username"
-          className="block text-sm font-medium text-slate-700 mb-1"
+          className="block text-sm font-medium text-foreground mb-1"
         >
           Usuário
-        </label>
-        <Input
+        </UiLabel>
+        <UiInput
+          className="w-full"
           id="username"
           type="text"
           autoComplete="username"
           placeholder="Usuário"
           {...register('username')}
-          width="w-full"
         />
         {errors.username && (
-          <p className="text-red-500 text-sm mt-1">{errors.username.message}</p>
+          <p className="text-destructive text-sm mt-1">
+            {errors.username.message}
+          </p>
         )}
       </div>
 
       <div>
-        <label
+        <UiLabel
           htmlFor="password"
-          className="block text-sm font-medium text-slate-700 mb-1"
+          className="block text-sm font-medium text-foreground mb-1"
         >
           Senha
-        </label>
-        <Input
+        </UiLabel>
+        <UiInput
+          className="w-full"
           id="password"
           type="password"
           autoComplete="current-password"
           placeholder="Senha"
           {...register('password')}
-          width="w-full"
         />
         {errors.password && (
-          <p className="text-red-500 text-sm mt-1">{errors.password.message}</p>
+          <p className="text-destructive text-sm mt-1">
+            {errors.password.message}
+          </p>
         )}
       </div>
 
       {error && (
-        <p role="alert" className="text-red-500 text-[14px] text-center">
+        <p role="alert" className="text-destructive text-[14px] text-center">
           {error}
         </p>
       )}
 
-      <Button
+      <UiButton
+        variant="default"
+        className="w-full"
         type="submit"
-        text={isSubmitting ? 'Entrando...' : 'Entrar'}
         disabled={isSubmitting}
-        width="w-full"
-      />
+      >
+        {isSubmitting ? 'Entrando...' : 'Entrar'}
+      </UiButton>
     </form>
   )
 }
