@@ -31,9 +31,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * Sobe a aplicação inteira (Postgres real via Testcontainers, HTTP real via TestRestTemplate).
- * Setor agora exige permissão de verdade (ADMIN para escrita, ADMIN ou MANAGE_SECTOR para
- * leitura), então os testes precisam de usuários reais com um dos perfis seedados
- * (ADMIN_ORGANIZATION, GESTOR_SETOR, OPERADOR_CAMPO, CONSULTA) em vez de um JWT genérico.
+ * Setor agora exige permissão de verdade (ADMIN para escrita, ADMIN ou MANAGE_SECTOR para leitura),
+ * então os testes precisam de usuários reais com um dos perfis seedados (ADMIN_ORGANIZATION,
+ * GESTOR_SETOR, OPERADOR_CAMPO, CONSULTA) em vez de um JWT genérico.
  */
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -97,7 +97,8 @@ class SectorE2ETest {
   }
 
   private long adminUserId() {
-    return createUserWithProfile("admin-" + System.nanoTime() + "@ifpe.edu.br", "ADMIN_ORGANIZATION");
+    return createUserWithProfile(
+        "admin-" + System.nanoTime() + "@ifpe.edu.br", "ADMIN_ORGANIZATION");
   }
 
   private Map<String, Object> sectorBody(String name, String code) {
@@ -109,7 +110,9 @@ class SectorE2ETest {
 
   private ResponseEntity<Map> create(String name, String code, long actingUserId) {
     return restTemplate.postForEntity(
-        "/sectors", new HttpEntity<>(sectorBody(name, code), authHeadersFor(actingUserId)), Map.class);
+        "/sectors",
+        new HttpEntity<>(sectorBody(name, code), authHeadersFor(actingUserId)),
+        Map.class);
   }
 
   private ResponseEntity<Map> createAsAdmin(String name, String code) {
@@ -167,7 +170,7 @@ class SectorE2ETest {
   }
 
   @Test
-  void list_asGestorSetor_returnsAllSectors() {
+  void list_asGestorWithoutAllocation_returnsEmptyList() {
     long gestorId = createUserWithProfile("gestor-listagem@ifpe.edu.br", "GESTOR_SETOR");
 
     var response =
@@ -175,17 +178,89 @@ class SectorE2ETest {
             "/sectors", HttpMethod.GET, new HttpEntity<>(authHeadersFor(gestorId)), List.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(response.getBody()).isEmpty();
   }
 
   @Test
-  void list_asUserWithoutPermission_returns403() {
+  void managerSeesOnlyAllocatedSectorsIncludingMultipleAndInactive() {
+    long adminId = adminUserId();
+    long first =
+        ((Number) create("Setor Gestor Vinculado 1", null, adminId).getBody().get("id"))
+            .longValue();
+    long second =
+        ((Number) create("Setor Gestor Vinculado 2", null, adminId).getBody().get("id"))
+            .longValue();
+    create("Setor Gestor Sem Vinculo", null, adminId);
+    long managerId = createUserWithProfile("gestor-vinculado@ifpe.edu.br", "GESTOR_SETOR");
+    allocateSectorDirectly(managerId, first);
+    allocateSectorDirectly(managerId, second);
+    Sector inactive = sectorRepository.findById(second).orElseThrow();
+    inactive.setActive(false);
+    sectorRepository.save(inactive);
+    var response =
+        restTemplate.exchange(
+            "/sectors",
+            HttpMethod.GET,
+            new HttpEntity<>(authHeadersFor(managerId)),
+            clp.inventory.dto.SectorDto[].class);
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(response.getBody())
+        .extracting(clp.inventory.dto.SectorDto::id)
+        .containsExactlyInAnyOrder(first, second);
+  }
+
+  @Test
+  void managerCannotReadUnallocatedSectorOrItsUsersByDirectUrl() {
+    long adminId = adminUserId();
+    long sectorId =
+        ((Number) create("Setor Acesso Direto Restrito", null, adminId).getBody().get("id"))
+            .longValue();
+    long managerId = createUserWithProfile("gestor-acesso-direto@ifpe.edu.br", "GESTOR_SETOR");
+    for (String suffix : List.of("", "/users")) {
+      var response =
+          restTemplate.exchange(
+              "/sectors/" + sectorId + suffix,
+              HttpMethod.GET,
+              new HttpEntity<>(authHeadersFor(managerId)),
+              String.class);
+      assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+    allocateSectorDirectly(managerId, sectorId);
+    assertThat(
+            restTemplate
+                .exchange(
+                    "/sectors/" + sectorId,
+                    HttpMethod.GET,
+                    new HttpEntity<>(authHeadersFor(managerId)),
+                    Map.class)
+                .getStatusCode())
+        .isEqualTo(HttpStatus.OK);
+    sectorAllocationRepository.deleteAll(sectorAllocationRepository.findByUser_Id(managerId));
+    assertThat(
+            restTemplate
+                .exchange(
+                    "/sectors/" + sectorId,
+                    HttpMethod.GET,
+                    new HttpEntity<>(authHeadersFor(managerId)),
+                    String.class)
+                .getStatusCode())
+        .isEqualTo(HttpStatus.FORBIDDEN);
+  }
+
+  @Test
+  void list_asConsultaWithoutAllocation_returnsEmptyList() {
     long consultaId = createUserWithProfile("consulta-listagem@ifpe.edu.br", "CONSULTA");
 
     var response =
         restTemplate.exchange(
-            "/sectors", HttpMethod.GET, new HttpEntity<>(authHeadersFor(consultaId)), Map.class);
+            "/sectors",
+            HttpMethod.GET,
+            new HttpEntity<>(authHeadersFor(consultaId)),
+            java.util.List.class);
 
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    // Todo perfil lê os setores a que está alocado; sem alocação, a lista vem vazia.
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(response.getBody()).isEmpty();
   }
 
   @Test
@@ -279,7 +354,8 @@ class SectorE2ETest {
         restTemplate.exchange(
             "/sectors/" + id,
             HttpMethod.PUT,
-            new HttpEntity<>(sectorBody("Setor Editado Sem Permissao", null), authHeadersFor(nonAdminId)),
+            new HttpEntity<>(
+                sectorBody("Setor Editado Sem Permissao", null), authHeadersFor(nonAdminId)),
             Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
@@ -411,6 +487,7 @@ class SectorE2ETest {
     var created = create("Setor Usuarios Gestor", null, adminId);
     long sectorId = ((Number) created.getBody().get("id")).longValue();
     long gestorId = createUserWithProfile("gestor-usuarios@ifpe.edu.br", "GESTOR_SETOR");
+    allocateSectorDirectly(gestorId, sectorId);
 
     var response =
         restTemplate.exchange(
