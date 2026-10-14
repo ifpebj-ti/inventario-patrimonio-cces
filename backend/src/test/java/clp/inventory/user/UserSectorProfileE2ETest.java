@@ -125,11 +125,8 @@ class UserSectorProfileE2ETest {
   }
 
   private long createProfile(String name) {
-    var body = new HashMap<String, Object>();
-    body.put("name", name);
-    var response =
-        restTemplate.postForEntity("/profiles", new HttpEntity<>(body, authHeaders()), Map.class);
-    return ((Number) response.getBody().get("id")).longValue();
+    // Fixture inserida diretamente: o catálogo de produção não oferece criação via API.
+    return profileRepository.save(new clp.inventory.model.Profile(name, "Perfil de teste")).id();
   }
 
   private ResponseEntity<Map> allocate(long userId, long sectorId, long actingUserId) {
@@ -394,7 +391,7 @@ class UserSectorProfileE2ETest {
   }
 
   @Test
-  void assignProfile_nullProfileId_unassigns() {
+  void assignProfile_nullProfileId_isRejectedAndKeepsProfile() {
     long profileId = createProfile("Perfil Desvincular");
     long userId = createUser("desvincular-perfil@ifpe.edu.br");
 
@@ -413,8 +410,9 @@ class UserSectorProfileE2ETest {
             new HttpEntity<>(body, authHeaders()),
             Map.class);
 
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(response.getBody().get("profileId")).isNull();
+    // Não existe "sem perfil": todo usuário mantém um perfil.
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(userRepository.findById(userId).orElseThrow().getProfileId()).isEqualTo(profileId);
   }
 
   @Test
@@ -613,10 +611,12 @@ class UserSectorProfileE2ETest {
     long actingAdminId = adminUserId();
     long otherAdminId = adminUserId();
 
-    var response = patchProfile(otherAdminId, null, actingAdminId);
+    long demotedProfileId = createProfile("Perfil Para Rebaixar Admin");
+    var response = patchProfile(otherAdminId, demotedProfileId, actingAdminId);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(userRepository.findById(otherAdminId).orElseThrow().getProfile()).isNull();
+    assertThat(userRepository.findById(otherAdminId).orElseThrow().getProfileId())
+        .isEqualTo(demotedProfileId);
   }
 
   @Test
