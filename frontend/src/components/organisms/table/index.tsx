@@ -1,8 +1,26 @@
 'use client'
 
-import { TableCell } from '@/components/atoms/tableCell'
-import { TableHeaderCell } from '@/components/atoms/tableHeaderCell'
-import { TableRow } from '@/components/molecules/tableRow'
+import { StatusBadge, inventoryStatusView } from '@/components/ui/status-badge'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import { Checkbox } from '@/components/ui/checkbox'
+
+import { Card as UiCard } from '@/components/ui/card'
+
+import { Button as UiButton } from '@/components/ui/button'
+import {
+  TableCell as UiTableCell,
+  TableHead as UiTableHead,
+  TableRow as UiTableRow,
+  Table as UiTable,
+  TableHeader as UiTableHeader,
+  TableBody as UiTableBody,
+} from '@/components/ui/table'
+import { Input as UiInput } from '@/components/ui/input'
+
 import { TableProps } from './types'
 import {
   ColumnDef,
@@ -15,17 +33,31 @@ import {
   SortingState,
   useReactTable,
 } from '@tanstack/react-table'
-import Input from '@/components/atoms/input'
 import { useState } from 'react'
 import { Item } from '@/commons/models/item'
-import { Button } from '@/components/atoms/button'
-import { RiPencilFill } from 'react-icons/ri'
-import { FaEnvelope, FaFileExcel, FaTrash } from 'react-icons/fa'
-import { IoIosArrowBack, IoIosArrowForward } from 'react-icons/io'
-import { Eye, EyeOff } from 'lucide-react'
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+} from '@/components/ui/pagination'
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  ChevronsUpDown,
+  CheckCircle2,
+  Clock3,
+  Eye,
+  EyeOff,
+  FileSpreadsheet,
+  Mail,
+  Pencil,
+  Trash2,
+} from 'lucide-react'
 import { InventoryResponse } from '@/services/inventory'
 
-// Botão de Ação com ícone de olho que alterna entre aberto e fechado no hover
+// O ícone inicia fechado e abre enquanto a ação de visualização está em foco.
 const ViewActionEyeButton = ({
   onClick,
   title,
@@ -36,17 +68,19 @@ const ViewActionEyeButton = ({
   const [isHovered, setIsHovered] = useState(false)
 
   return (
-    <button
+    <UiButton
+      variant="ghost"
+      size="icon"
       type="button"
       onClick={onClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-500 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-colors cursor-pointer"
+      className="text-muted-foreground"
       title={title}
       aria-label={title}
     >
-      {isHovered ? <EyeOff size={18} /> : <Eye size={18} />}
-    </button>
+      {isHovered ? <Eye /> : <EyeOff />}
+    </UiButton>
   )
 }
 
@@ -55,6 +89,8 @@ const ViewActionEyeButton = ({
 export const Table = ({
   header,
   content = [],
+  filterToolbar,
+  appearance = 'default',
   selectable,
   selectedRows = [],
   onRowSelect,
@@ -62,6 +98,7 @@ export const Table = ({
   showExportButtons = false,
   onClearInventory,
   disableClear = false,
+  hideClear = false,
   onDeleteSelected,
   onExportSelected,
   onExportSheet,
@@ -118,15 +155,10 @@ export const Table = ({
             // 'header' define o que é renderizado no cabeçalho da coluna.
             header: () => (
               <div className="w-10 text-center mx-auto">
-                <input
-                  type="checkbox"
-                  checked={isAllSelected}
+                <Checkbox
+                  checked={isIndeterminate ? 'indeterminate' : isAllSelected}
                   // 'ref' é usado aqui para controlar o estado "indeterminado" do checkbox.
-                  ref={(ref) => {
-                    if (ref) ref.indeterminate = isIndeterminate
-                  }}
-                  onChange={toggleAllSelection}
-                  className="form-checkbox h-4 w-4 cursor-pointer"
+                  onCheckedChange={toggleAllSelection}
                   aria-label="Selecionar todos os itens"
                 />
               </div>
@@ -134,11 +166,9 @@ export const Table = ({
             // 'cell' define o que é renderizado em cada célula do corpo da tabela para esta coluna.
             cell: ({ row }: { row: Row<Item> }) => (
               <div className="w-10 text-center mx-auto">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={selectedRows.includes(row.original.id)}
-                  onChange={() => toggleRowSelection(row.original.id)}
-                  className="form-checkbox h-4 w-4 cursor-pointer"
+                  onCheckedChange={() => toggleRowSelection(row.original.id)}
                   aria-label={`Selecionar linha ${row.original.id}`}
                 />
               </div>
@@ -162,7 +192,7 @@ export const Table = ({
             <div className="w-24 shrink-0">
               <span
                 className={`font-semibold whitespace-nowrap ${
-                  row.original.isValid ? 'text-emerald-600' : 'text-red-500'
+                  row.original.isValid ? 'text-success' : 'text-destructive'
                 }`}
               >
                 {row.original.code}
@@ -177,13 +207,13 @@ export const Table = ({
         return {
           accessorKey: item.key,
           header: () => (
-            <div className="min-w-[200px] max-w-xs text-left font-semibold">
+            <div className="max-w-48 text-left font-semibold">
               {item.headerText}
             </div>
           ),
           cell: ({ row }: { row: Row<Item | InventoryResponse> }) => (
             <div
-              className="min-w-[200px] max-w-xs truncate text-slate-700"
+              className="max-w-48 truncate text-muted-foreground"
               title={row.original.description}
             >
               {row.original.description}
@@ -203,7 +233,7 @@ export const Table = ({
           ),
           cell: ({ row }: { row: Row<Item> }) => (
             <div
-              className="max-w-[160px] truncate text-slate-700"
+              className="max-w-[160px] truncate text-muted-foreground"
               title={row.original.responsible}
             >
               {row.original.responsible || '-'}
@@ -212,7 +242,28 @@ export const Table = ({
         }
       }
 
-      // Status de Validação do Item
+      if (item.key === 'status' && 'status' in (content[0] || {})) {
+        return {
+          accessorKey: item.key,
+          header: () => (
+            <div className="w-36 text-center font-semibold">
+              {item.headerText}
+            </div>
+          ),
+          cell: ({ row }: { row: Row<InventoryResponse> }) => {
+            const view = inventoryStatusView[row.original.status]
+            return (
+              <div className="flex justify-center">
+                <StatusBadge tone={view.tone} icon={<Clock3 />}>
+                  {view.label}
+                </StatusBadge>
+              </div>
+            )
+          },
+        }
+      }
+
+      // Status de validação do item
       if (item.key === 'status' || item.key === 'isValid') {
         return {
           accessorKey: item.key,
@@ -221,19 +272,26 @@ export const Table = ({
               {item.headerText}
             </div>
           ),
-          cell: ({ row }: { row: Row<Item> }) => {
+          cell: ({ row }: { row: Row<Item | InventoryResponse> }) => {
+            if ('status' in row.original) {
+              const view = inventoryStatusView[row.original.status]
+              return (
+                <div className="flex justify-center">
+                  <StatusBadge tone={view.tone} icon={<Clock3 />}>
+                    {view.label}
+                  </StatusBadge>
+                </div>
+              )
+            }
             const isValid = Boolean(row.original.isValid)
             return (
-              <div className="w-28 text-center">
-                <span
-                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                    isValid
-                      ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                      : 'bg-red-50 text-red-600 border border-red-200'
-                  }`}
+              <div className="flex justify-center">
+                <StatusBadge
+                  tone={isValid ? 'success' : 'danger'}
+                  icon={isValid ? <CheckCircle2 /> : <Clock3 />}
                 >
                   {isValid ? 'Verificado' : 'Pendente'}
-                </span>
+                </StatusBadge>
               </div>
             )
           },
@@ -261,7 +319,7 @@ export const Table = ({
               formatted = val
             }
             return (
-              <div className="w-24 whitespace-nowrap text-right text-slate-700">
+              <div className="w-24 whitespace-nowrap text-right text-muted-foreground">
                 {formatted}
               </div>
             )
@@ -280,7 +338,7 @@ export const Table = ({
           ),
           cell: ({ row }: { row: Row<Item> }) => (
             <div
-              className="max-w-[140px] truncate text-slate-700"
+              className="max-w-[140px] truncate text-muted-foreground"
               title={row.original.locale}
             >
               {row.original.locale || '-'}
@@ -290,9 +348,56 @@ export const Table = ({
       }
 
       // Para todas as outras colunas, usa a configuração padrão.
+      if (
+        appearance === 'inventory' &&
+        ['createdAt', 'updatedAt', 'plannedEndDate', 'completedAt'].includes(
+          item.key,
+        )
+      ) {
+        return {
+          accessorKey: item.key,
+          header: () => (
+            <div className="text-center font-semibold whitespace-nowrap">
+              {item.headerText}
+            </div>
+          ),
+          cell: ({ getValue }: { getValue: () => unknown }) => {
+            const value = getValue()
+            if (typeof value !== 'string' || !value)
+              return (
+                <span className="block text-center whitespace-nowrap text-muted-foreground">
+                  {item.key === 'plannedEndDate' ? 'Não informada' : '—'}
+                </span>
+              )
+            const iso = value.slice(0, 10)
+            const formatted = /^\d{4}-\d{2}-\d{2}$/.test(iso)
+              ? iso.split('-').reverse().join('/')
+              : value
+            return (
+              <span className="block text-center whitespace-nowrap tabular-nums">
+                {formatted}
+              </span>
+            )
+          },
+        }
+      }
+      // Colunas de texto padrão (nome, setor etc.): largura limitada com reticências
+      // para um texto longo nunca invadir a célula vizinha.
       return {
         accessorKey: item.key,
         header: item.headerText,
+        cell: ({ getValue }: { getValue: () => unknown }) => {
+          const value = getValue()
+          const text =
+            value === null || value === undefined || value === ''
+              ? '—'
+              : String(value)
+          return (
+            <div className="max-w-40 truncate" title={text}>
+              {text}
+            </div>
+          )
+        },
       }
     }),
 
@@ -312,34 +417,38 @@ export const Table = ({
 
               return (
                 <div className="w-24 shrink-0 flex justify-center items-center gap-1 mx-auto whitespace-nowrap">
-                  {/* Botão de Visualizar/Editar (Olho), ao lado da lixeira */}
+                  {/* Botão de Visualizar (Olho), ao lado da lixeira */}
                   {onRowDoubleClick && (
                     <ViewActionEyeButton
                       onClick={() => handleRowDoubleClick(item)}
-                      title={`Visualizar e editar ${displayName}`}
+                      title={`Visualizar ${displayName}`}
                     />
                   )}
                   {/* Botão de Editar, renderizado apenas se 'onEditItem' for passado. */}
                   {onEditItem && (
-                    <button
+                    <UiButton
+                      variant="ghost"
+                      size="icon"
                       onClick={() => onEditItem(item as InventoryResponse)}
-                      className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-500 rounded-full hover:bg-blue-100 hover:text-blue-600 transition-colors cursor-pointer"
+                      className="text-muted-foreground"
                       title={`Editar ${displayName}`}
                       aria-label={`Editar ${displayName}`}
                     >
-                      <RiPencilFill size={18} />
-                    </button>
+                      <Pencil />
+                    </UiButton>
                   )}
                   {/* Botão de Deletar, renderizado apenas se 'onDeleteItem' for passado. */}
                   {onDeleteItem && (
-                    <button
+                    <UiButton
+                      variant="ghost"
+                      size="icon"
                       onClick={() => onDeleteItem(item)}
-                      className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-500 rounded-full hover:bg-red-100 hover:text-red-600 transition-colors cursor-pointer"
+                      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                       title={`Deletar ${displayName}`}
                       aria-label={`Deletar ${displayName}`}
                     >
-                      <FaTrash size={16} />
-                    </button>
+                      <Trash2 />
+                    </UiButton>
                   )}
                 </div>
               )
@@ -378,72 +487,102 @@ export const Table = ({
   }
 
   return (
-    <div className="w-full">
+    <div
+      className={`w-full ${appearance === 'inventory' ? 'inventory-table-card' : ''}`}
+    >
       {/* Barra de ferramentas acima da tabela: filtro + botões de exportação rigorosamente em linha horizontal */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-3 sm:px-4 py-2.5 border border-slate-200 rounded-t-2xl w-full bg-white">
+      <UiCard className="flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-3 sm:px-4 py-2.5 rounded-b-none shadow-none w-full">
         {/* Input para o filtro global */}
-        <div className="flex-1 max-w-full sm:max-w-xs md:max-w-sm">
-          <Input
-            variant={2}
-            placeholder="Filtrar..."
-            value={globalFilter}
-            onChange={(e) => setGlobalFilter(e.target.value)}
-            width="w-full"
-            className="m-0"
-          />
-        </div>
-        {showExportButtons && (
-          <div className="flex flex-row items-center justify-start sm:justify-end gap-2 shrink-0">
-            <Button
-              type="button"
-              variant={5}
-              onClick={onExportSheet}
-              icon={<FaFileExcel />}
-              tooltip="Exportar planilha Excel"
-              aria-label="Exportar planilha Excel"
-              width="w-auto"
-            />
-            <Button
-              type="button"
-              variant={content.length > 0 && !disableClear ? 6 : 4}
-              disabled={content.length === 0 || disableClear}
-              onClick={
-                content.length > 0
-                  ? onClearInventory || onDeleteSelected || onExportSelected
-                  : undefined
-              }
-              icon={<FaTrash />}
-              tooltip={
-                content.length > 0
-                  ? 'Limpar todos os itens do inventário'
-                  : 'Inventário já está vazio'
-              }
-              aria-label={
-                content.length > 0
-                  ? 'Limpar todos os itens do inventário'
-                  : 'Inventário já está vazio'
-              }
-              width="w-auto"
-            />
-            <Button
-              type="button"
-              variant={7}
-              onClick={onSendEmailSheet}
-              icon={<FaEnvelope />}
-              tooltip="Enviar planilha por e-mail"
-              aria-label="Enviar planilha por e-mail"
-              width="w-auto"
+        {filterToolbar ? (
+          <div className="w-full">{filterToolbar}</div>
+        ) : (
+          <div className="flex-1 max-w-full sm:max-w-xs md:max-w-sm">
+            <UiInput
+              className="w-full m-0"
+              placeholder="Filtrar..."
+              value={globalFilter}
+              onChange={(e) => setGlobalFilter(e.target.value)}
             />
           </div>
         )}
-      </div>
+        {showExportButtons && (
+          <div className="flex flex-row items-center justify-start sm:justify-end gap-2 shrink-0">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <UiButton
+                  variant={'success'}
+                  size="icon"
+                  className="size-10 shrink-0"
+                  type="button"
+                  onClick={onExportSheet}
+                  aria-label="Exportar planilha Excel"
+                >
+                  <FileSpreadsheet />
+                </UiButton>
+              </TooltipTrigger>
+              <TooltipContent>Exportar planilha Excel</TooltipContent>
+            </Tooltip>
+            {!hideClear && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <UiButton
+                    variant={
+                      content.length > 0 && !disableClear
+                        ? 'destructive'
+                        : 'secondary'
+                    }
+                    size="icon"
+                    className="size-10 shrink-0"
+                    type="button"
+                    disabled={content.length === 0 || disableClear}
+                    onClick={
+                      content.length > 0
+                        ? onClearInventory ||
+                          onDeleteSelected ||
+                          onExportSelected
+                        : undefined
+                    }
+                    aria-label={
+                      content.length > 0
+                        ? 'Limpar todos os itens do inventário'
+                        : 'Inventário já está vazio'
+                    }
+                  >
+                    <Trash2 />
+                  </UiButton>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {content.length > 0
+                    ? 'Limpar todos os itens do inventário'
+                    : 'Inventário já está vazio'}
+                </TooltipContent>
+              </Tooltip>
+            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <UiButton
+                  variant={'default'}
+                  size="icon"
+                  className="size-10 shrink-0"
+                  type="button"
+                  onClick={onSendEmailSheet}
+                  aria-label="Enviar planilha por e-mail"
+                >
+                  <Mail />
+                </UiButton>
+              </TooltipTrigger>
+              <TooltipContent>Enviar planilha por e-mail</TooltipContent>
+            </Tooltip>
+          </div>
+        )}
+      </UiCard>
 
       {/* Container principal da tabela/cards com sombra e bordas. */}
-      <div className="shadow-xl rounded-b-2xl overflow-hidden border-x border-b border-slate-200 w-full bg-white">
+      <UiCard className="gap-0 py-0 rounded-t-none border-t-0 overflow-hidden w-full">
         {/* 1. VISUALIZAÇÃO MOBILE (< 640px): Cards Acessíveis */}
-        <div className="sm:hidden flex flex-col divide-y divide-slate-100 bg-white">
+        <div className="sm:hidden flex flex-col divide-y">
           {table.getRowModel().rows.length === 0 ? (
-            <div className="p-8 text-center text-slate-500 text-sm">
+            <div className="p-8 text-center text-muted-foreground text-sm">
               Nenhum registro encontrado.
             </div>
           ) : (
@@ -461,23 +600,22 @@ export const Table = ({
                 <div
                   key={item.id}
                   className={`p-4 flex flex-col gap-2.5 transition-colors ${
-                    isSelected ? 'bg-blue-50/60' : 'hover:bg-slate-50'
+                    isSelected ? 'bg-primary/10' : 'hover:bg-muted/50'
                   }`}
                 >
                   {/* Topo do Card: Checkbox + Código/Nome com Badge + Ações */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-2.5 flex-1 min-w-0">
                       {selectable && (
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={isSelected}
-                          onChange={() => toggleRowSelection(item.id)}
-                          className="w-5 h-5 rounded text-blue-500 focus:ring-blue-400 shrink-0 cursor-pointer"
+                          onCheckedChange={() => toggleRowSelection(item.id)}
+                          className="size-5 shrink-0"
                           aria-label={`Selecionar item ${displayName}`}
                         />
                       )}
                       <div
-                        className="flex items-center gap-2 truncate cursor-pointer"
+                        className="flex min-w-0 items-center gap-2 cursor-pointer"
                         onClick={() => handleRowDoubleClick(item)}
                       >
                         {isEquipment ? (
@@ -486,28 +624,31 @@ export const Table = ({
                               className={`font-bold text-base truncate ${
                                 'isValid' in item && item.isValid !== undefined
                                   ? item.isValid
-                                    ? 'text-emerald-600'
-                                    : 'text-red-500'
-                                  : 'text-slate-800'
+                                    ? 'text-success'
+                                    : 'text-destructive'
+                                  : 'text-foreground'
                               }`}
                             >
                               {item.code}
                             </span>
                             {'isValid' in item &&
                               item.isValid !== undefined && (
-                                <span
-                                  className={`text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
-                                    item.isValid
-                                      ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                                      : 'bg-red-50 text-red-600 border border-red-200'
-                                  }`}
+                                <StatusBadge
+                                  tone={item.isValid ? 'success' : 'danger'}
+                                  icon={
+                                    item.isValid ? <CheckCircle2 /> : <Clock3 />
+                                  }
+                                  className="shrink-0"
                                 >
                                   {item.isValid ? 'Verificado' : 'Pendente'}
-                                </span>
+                                </StatusBadge>
                               )}
                           </>
                         ) : (
-                          <span className="font-bold text-base text-slate-800 truncate">
+                          <span
+                            className="min-w-0 truncate text-base font-bold text-foreground"
+                            title={'name' in item ? item.name : undefined}
+                          >
                             {'name' in item ? item.name : `#${item.id}`}
                           </span>
                         )}
@@ -523,26 +664,30 @@ export const Table = ({
                         />
                       )}
                       {onEditItem && 'name' in item && (
-                        <button
+                        <UiButton
+                          variant="ghost"
+                          size="icon"
                           type="button"
                           onClick={() => onEditItem(item as InventoryResponse)}
-                          className="min-h-[44px] min-w-[44px] p-2 text-slate-500 rounded-xl hover:bg-blue-50 hover:text-blue-500 transition-colors flex items-center justify-center cursor-pointer"
+                          className="text-muted-foreground"
                           title={`Editar ${displayName}`}
                           aria-label={`Editar ${displayName}`}
                         >
-                          <RiPencilFill size={18} />
-                        </button>
+                          <Pencil />
+                        </UiButton>
                       )}
                       {onDeleteItem && (
-                        <button
+                        <UiButton
+                          variant="ghost"
+                          size="icon"
                           type="button"
                           onClick={() => onDeleteItem(item)}
-                          className="min-h-[44px] min-w-[44px] p-2 text-slate-500 rounded-xl hover:bg-red-50 hover:text-red-500 transition-colors flex items-center justify-center cursor-pointer"
+                          className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                           title={`Deletar ${displayName}`}
                           aria-label={`Deletar ${displayName}`}
                         >
-                          <FaTrash size={16} />
-                        </button>
+                          <Trash2 />
+                        </UiButton>
                       )}
                     </div>
                   </div>
@@ -550,7 +695,7 @@ export const Table = ({
                   {/* Descrição do Item */}
                   {'description' in item && item.description && (
                     <p
-                      className="text-xs text-slate-700 line-clamp-3 leading-relaxed cursor-pointer"
+                      className="text-xs text-muted-foreground line-clamp-3 leading-relaxed cursor-pointer"
                       onClick={() => handleRowDoubleClick(item)}
                     >
                       {item.description}
@@ -559,7 +704,7 @@ export const Table = ({
 
                   {/* Campos secundários organizados em chave-valor */}
                   <div
-                    className="grid grid-cols-1 gap-1 text-xs text-slate-600 cursor-pointer pt-1"
+                    className="grid grid-cols-1 gap-1 text-xs text-muted-foreground cursor-pointer pt-1"
                     onClick={() => handleRowDoubleClick(item)}
                   >
                     {header.map((col) => {
@@ -585,12 +730,12 @@ export const Table = ({
                       return (
                         <div
                           key={col.key}
-                          className="flex items-baseline justify-between gap-2 border-b border-slate-50 py-1"
+                          className="flex items-baseline justify-between gap-2 border-b border-border/50 py-1"
                         >
-                          <span className="font-semibold text-slate-500 shrink-0">
+                          <span className="font-semibold text-muted-foreground shrink-0">
                             {col.headerText}:
                           </span>
-                          <span className="text-slate-800 text-right truncate max-w-[220px]">
+                          <span className="text-foreground text-right truncate max-w-[220px]">
                             {formattedVal}
                           </span>
                         </div>
@@ -600,14 +745,14 @@ export const Table = ({
 
                   {/* Botão de navegação tátil rápida "Ver detalhes" */}
                   {onRowDoubleClick && (
-                    <button
+                    <UiButton
                       type="button"
                       onClick={() => handleRowDoubleClick(item)}
-                      className="mt-1 w-full min-h-[44px] py-2 px-3 text-xs font-semibold text-blue-500 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="mt-1 w-full text-xs"
                     >
                       <span>Ver detalhes</span>
-                      <IoIosArrowForward className="w-3.5 h-3.5" />
-                    </button>
+                      <ChevronRight />
+                    </UiButton>
                   )}
                 </div>
               )
@@ -617,81 +762,105 @@ export const Table = ({
 
         {/* 2. VISUALIZAÇÃO TABLET E DESKTOP (>= 640px): Tabela Tradicional com overflow horizontal se necessário */}
         <div className="hidden sm:block w-full overflow-x-auto">
-          <table className="table-auto w-full bg-white">
-            <thead className="border-b border-slate-200 bg-slate-50/50">
-              <TableRow key={'headerRow'}>
+          <UiTable className="table-auto">
+            <UiTableHeader className="bg-muted/50">
+              <UiTableRow key={'headerRow'}>
                 {table.getHeaderGroups()[0].headers.map((item) => {
-                  const canSort = item.column.getCanSort()
-
                   return (
-                    <TableHeaderCell
-                      text={flexRender(
-                        item.column.columnDef.header,
-                        item.getContext(),
-                      )}
+                    <UiTableHead
                       key={item.id}
-                      onClick={
-                        canSort ? () => item.column.toggleSorting() : undefined
-                      }
-                      canSort={item.column.getCanSort()}
-                    />
+                      scope="col"
+                      className="px-2 py-3 text-center text-xs font-semibold whitespace-nowrap text-foreground sm:px-3 sm:text-sm"
+                    >
+                      {item.column.getCanSort() ? (
+                        <UiButton
+                          variant="ghost"
+                          size="sm"
+                          className="min-w-max font-semibold"
+                          onClick={item.column.getToggleSortingHandler()}
+                        >
+                          {flexRender(
+                            item.column.columnDef.header,
+                            item.getContext(),
+                          )}
+                          {item.column.getIsSorted() === 'asc' ? (
+                            <ChevronUp />
+                          ) : item.column.getIsSorted() === 'desc' ? (
+                            <ChevronDown />
+                          ) : (
+                            <ChevronsUpDown className="opacity-50" />
+                          )}
+                        </UiButton>
+                      ) : (
+                        flexRender(
+                          item.column.columnDef.header,
+                          item.getContext(),
+                        )
+                      )}
+                    </UiTableHead>
                   )
                 })}
-              </TableRow>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
+              </UiTableRow>
+            </UiTableHeader>
+            <UiTableBody>
               {table.getRowModel().rows.map((item) => (
-                <TableRow
+                <UiTableRow
                   key={item.original.id}
-                  className="hover:bg-slate-50 transition-colors"
                   onDoubleClick={() => handleRowDoubleClick(item.original)}
                 >
                   {item.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      text={flexRender(
+                    <UiTableCell key={cell.id}>
+                      {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext(),
                       )}
-                    />
+                    </UiTableCell>
                   ))}
-                </TableRow>
+                </UiTableRow>
               ))}
-            </tbody>
-          </table>
+            </UiTableBody>
+          </UiTable>
         </div>
 
         {/* Controles de paginação no rodapé (compartilhados por ambas as visualizações) */}
-        <div className="bg-white text-center flex justify-center items-center p-4 border-t border-slate-300 flex-row gap-8 sm:gap-12">
-          {table.getCanPreviousPage() && (
-            <button
-              onClick={() => table.previousPage()}
-              aria-label="Página anterior"
-              title="Página anterior"
-              className="inline-flex items-center p-2 rounded-xl hover:bg-slate-100 transition-colors min-h-[44px] min-w-[44px] justify-center cursor-pointer"
+        <Pagination className="table-pagination border-t p-4">
+          <PaginationContent className="gap-8 sm:gap-12">
+            {table.getCanPreviousPage() && (
+              <PaginationItem>
+                <UiButton
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => table.previousPage()}
+                  aria-label="Página anterior"
+                  title="Página anterior"
+                >
+                  <ChevronLeft className="size-6" />
+                </UiButton>
+              </PaginationItem>
+            )}
+            <PaginationItem
+              aria-label={`Página ${table.getState().pagination.pageIndex + 1}`}
+              title={`Página ${table.getState().pagination.pageIndex + 1}`}
+              className="flex min-w-11 items-center justify-center text-sm font-medium text-foreground sm:text-base"
             >
-              <IoIosArrowBack className="text-2xl text-slate-700" />
-            </button>
-          )}
-          <span
-            aria-label={`Página ${table.getState().pagination.pageIndex + 1}`}
-            title={`Página ${table.getState().pagination.pageIndex + 1}`}
-            className="text-sm sm:text-base font-medium text-slate-700 min-w-[44px] flex items-center justify-center"
-          >
-            {table.getState().pagination.pageIndex + 1}
-          </span>
-          {table.getCanNextPage() && (
-            <button
-              onClick={() => table.nextPage()}
-              aria-label="Próxima página"
-              title="Próxima página"
-              className="inline-flex items-center p-2 rounded-xl hover:bg-slate-100 transition-colors min-h-[44px] min-w-[44px] justify-center cursor-pointer"
-            >
-              <IoIosArrowForward className="text-2xl text-slate-700" />
-            </button>
-          )}
-        </div>
-      </div>
+              {table.getState().pagination.pageIndex + 1}
+            </PaginationItem>
+            {table.getCanNextPage() && (
+              <PaginationItem>
+                <UiButton
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => table.nextPage()}
+                  aria-label="Próxima página"
+                  title="Próxima página"
+                >
+                  <ChevronRight className="size-6" />
+                </UiButton>
+              </PaginationItem>
+            )}
+          </PaginationContent>
+        </Pagination>
+      </UiCard>
     </div>
   )
 }
