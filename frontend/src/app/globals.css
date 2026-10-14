@@ -2,17 +2,165 @@
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
 @import "tailwindcss";
 
-/* Cria variáveis para serem usadas no CSS */
+@import "tw-animate-css";
+
+/*
+ * Design tokens no padrão shadcn/ui.
+ * Cada cor semântica tem um único tom; fundos e bordas suaves usam
+ * transparência desse mesmo tom (ex.: bg-primary/10, border-destructive/25).
+ */
+@theme inline {
+  /* Fontes: font-sans (Montserrat), font-brand (Linden Hill), font-arial. */
+  --font-sans: "Montserrat", sans-serif;
+  --font-brand: "Linden Hill", serif;
+  --font-arial: Arial, sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 0.375rem);
+  --radius-md: calc(var(--radius) - 0.25rem);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 0.25rem);
+}
+
 :root {
-  --emphasis-font: "Linden Hill", serif;
-  --normal-font: "Montserrat", sans-serif;
-  --emphasis-color: #5E94E5;
+  --radius: 0.75rem;
+
+  /* Paleta oficial: um único azul, vermelho, verde e âmbar. */
+  --primary: #5e94e5;
+  --primary-foreground: #ffffff;
+  --destructive: #dc2626;
+  --success: #16a34a;
+  --warning: #d97706;
+
+  /* Neutros (escala slate). */
+  --background: #f8fafc;
+  --foreground: #1e293b;
+  --card: #ffffff;
+  --card-foreground: var(--foreground);
+  --popover: #ffffff;
+  --popover-foreground: var(--foreground);
+  --secondary: #f1f5f9;
+  --secondary-foreground: var(--foreground);
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: color-mix(in srgb, var(--primary) 10%, transparent);
+  --accent-foreground: var(--primary);
+  --border: #e2e8f0;
+  --input: #cbd5e1;
+  --ring: var(--primary);
 }
 
-* {
-    font-family: var(--normal-font);
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground;
+  }
 }
 
-h1 {
-    font-family: var(--emphasis-font);
+.brand-font {
+  font-family: var(--font-brand);
+  letter-spacing: 0.01em;
+}
+
+.page-shell {
+  width: 100%;
+  max-width: 90rem;
+  min-height: 100%;
+  margin-inline: auto;
+  padding: 1rem;
+}
+
+.page-heading {
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 1.875rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+
+.page-description {
+  margin-top: 0.5rem;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+@media (min-width: 640px) {
+  .page-shell {
+    padding: 1.5rem;
+  }
+}
+
+/* Em @layer base para que as classes dos componentes shadcn prevaleçam. */
+@layer base {
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/* Inventários: composição compacta conforme a referência visual. */
+.inventory-reference { padding: 20px; background: var(--background); }
+.inventory-reference .page-heading { font-size: 28px; color: var(--foreground); }
+.inventory-reference .page-description { font-size: 12px; margin-top: 4px; }
+.inventory-reference > header { margin-bottom: -6px; }
+.inventory-reference .inventory-new-button { background: var(--primary); min-height: 38px; border-radius: 9px; font-size: 13px; box-shadow: 0 2px 5px color-mix(in srgb, var(--primary) 12%, transparent); }
+.inventory-reference header > div:last-child { width: 166px; }
+.inventory-filter-card { box-shadow: 0 2px 5px color-mix(in srgb, var(--foreground) 4%, transparent); padding: 14px 18px 20px; }
+.inventory-filter-card input, .inventory-filter-card select { min-height: 32px; height: 32px; padding-top: 6px; padding-bottom: 6px; border-radius: 8px; font-size: 11px; border-color: var(--border); }
+.inventory-filter-card input[type=search] { padding-left: 35px; }
+.inventory-filter-card label { font-size: 11px; line-height: 14px; font-weight: 400; }
+.inventory-filter-card button:not([aria-expanded]):not([aria-label]) { min-height: 36px; font-size: 12px; }
+.inventory-table-card { border: 1px solid var(--border); border-radius: 12px; background: var(--card); box-shadow: 0 2px 5px color-mix(in srgb, var(--foreground) 4%, transparent); overflow: hidden; }
+.inventory-table-card > div:first-child { border: 0; padding: 12px 14px 8px; }
+.inventory-table-card > div:nth-child(2) { border: 0; box-shadow: none; }
+.inventory-table-card table { min-width: 850px; }
+@media (min-width: 768px) {
+  body:has(.inventory-reference) aside.w-64 { width: 208px; }
+  body:has(.inventory-reference) aside > div:first-child { height: 50px; padding-inline: 12px; }
+  body:has(.inventory-reference) aside > div:first-child a { gap: 8px; }
+  body:has(.inventory-reference) aside > div:first-child h1 { font-family: var(--font-arial); font-size: 20px; letter-spacing: 0; color: var(--primary); }
+  body:has(.inventory-reference) aside > div:first-child img { width: 30px; height: 30px; }
+  body:has(.inventory-reference) aside > div:first-child > button { padding: 4px; }
+  body:has(.inventory-reference) aside nav { padding-inline: 8px; font-size: 12px; }
+  body:has(.inventory-reference) aside nav a, body:has(.inventory-reference) aside nav button { padding: 8px 10px; border-radius: 9px; }
+  body:has(.inventory-reference) aside nav svg { width: 17px; height: 17px; }
+  body:has(.inventory-reference) header.sticky > div { min-height: 50px; padding-block: 8px; }
+  body:has(.inventory-reference) header.sticky button[aria-label*="Voltar"] { display: none; }
+}
+@media (max-width: 639px) {
+  .inventory-reference { padding: 16px; }
+  .inventory-reference header > div:last-child { width: 100%; }
+  .inventory-filter-card { padding: 16px; }
 }
