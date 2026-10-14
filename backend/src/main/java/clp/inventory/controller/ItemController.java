@@ -8,6 +8,7 @@ import clp.inventory.service.EmailService;
 import clp.inventory.service.ItemService;
 import clp.inventory.service.generatePdf.ItemPdfService;
 import clp.inventory.service.generateSheet.SheetBuilderService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.io.IOException;
 import java.util.List;
@@ -36,7 +37,9 @@ public class ItemController {
   }
 
   @PostMapping("/pdf")
-  public ResponseEntity<byte[]> generatePDF(@RequestBody List<Long> ids) {
+  public ResponseEntity<byte[]> generatePDF(
+      @RequestBody List<Long> ids, HttpServletRequest request) {
+    itemService.requireItemsView(ids, actingUserId(request));
     try {
       byte[] pdf = itemPdfService.generateItemPdf(ids);
 
@@ -51,38 +54,36 @@ public class ItemController {
   }
 
   @GetMapping("/{id}")
-  public ResponseEntity<ItemDto> getItemById(@PathVariable Long id) {
-    Item item =
-        itemService
-            .findById(id)
-            .orElseThrow(
-                () ->
-                    new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Item não encontrado com o ID: " + id));
+  public ResponseEntity<ItemDto> getItemById(@PathVariable Long id, HttpServletRequest request) {
+    Item item = itemService.findAccessibleItem(id, actingUserId(request));
 
     return ResponseEntity.ok(ItemDto.from(item));
   }
 
   @PutMapping("/{id}")
   public ResponseEntity<ItemDto> updateItem(
-      @PathVariable Long id, @Valid @RequestBody ItemDto updatedItem) {
+      @PathVariable Long id, @Valid @RequestBody ItemDto updatedItem, HttpServletRequest request) {
     if (!id.equals(updatedItem.id())) {
       throw new ResponseStatusException(
           HttpStatus.BAD_REQUEST, "ID no path e no corpo da requisição não correspondem.");
     }
-    Item savedItem = itemService.updateItem(updatedItem);
+    Item savedItem = itemService.updateItem(updatedItem, actingUserId(request));
     return ResponseEntity.ok(ItemDto.from(savedItem));
   }
 
   @PatchMapping("/{id}/notes")
   public ResponseEntity<ItemDto> updateItemNotes(
-      @PathVariable Long id, @RequestBody List<ObservationDto> notesList) {
-    Item updatedItem = itemService.updateItemNotes(id, notesList);
+      @PathVariable Long id,
+      @RequestBody List<ObservationDto> notesList,
+      HttpServletRequest request) {
+    Item updatedItem = itemService.updateItemNotes(id, notesList, actingUserId(request));
     return ResponseEntity.ok(ItemDto.from(updatedItem));
   }
 
   @PostMapping("/all-items-pdf")
-  public ResponseEntity<byte[]> generatePDFAllItems(@RequestBody long inventoryId) {
+  public ResponseEntity<byte[]> generatePDFAllItems(
+      @RequestBody long inventoryId, HttpServletRequest request) {
+    itemService.requireInventoryView(inventoryId, actingUserId(request));
     try {
       byte[] pdf = itemPdfService.generateAllItemsPdf(inventoryId);
 
@@ -97,7 +98,9 @@ public class ItemController {
   }
 
   @GetMapping("/export-sheet")
-  public ResponseEntity<byte[]> exportItems(@RequestParam long inventoryId) throws IOException {
+  public ResponseEntity<byte[]> exportItems(
+      @RequestParam long inventoryId, HttpServletRequest request) throws IOException {
+    itemService.requireInventoryView(inventoryId, actingUserId(request));
     byte[] excelData = sheetBuilderService.createAllItemsSheet(inventoryId);
 
     HttpHeaders headers = new HttpHeaders();
@@ -110,12 +113,24 @@ public class ItemController {
 
   @PostMapping("/send-email-sheet")
   public ResponseEntity<Void> sendSheetByEmail(
-      @RequestParam long inventoryId, @RequestBody EmailRequestDto request) throws IOException {
+      @RequestParam long inventoryId,
+      @RequestBody EmailRequestDto emailRequest,
+      HttpServletRequest request)
+      throws IOException {
+    itemService.requireInventoryView(inventoryId, actingUserId(request));
     byte[] excelData = sheetBuilderService.createAllItemsSheet(inventoryId);
 
     emailService.sendEmailWithAttachment(
-        request.email(), request.subject(), request.message(), "patrimonio.xlsx", excelData);
+        emailRequest.email(),
+        emailRequest.subject(),
+        emailRequest.message(),
+        "patrimonio.xlsx",
+        excelData);
 
     return ResponseEntity.ok().build();
+  }
+
+  private long actingUserId(HttpServletRequest request) {
+    return Long.parseLong(request.getAttribute("id_user").toString());
   }
 }
