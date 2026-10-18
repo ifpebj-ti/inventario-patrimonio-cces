@@ -222,6 +222,81 @@ export const UsersScreen = () => {
   const changedProfile =
     !!editing && profileId !== '' && Number(profileId) !== editing.profileId
 
+  // Texto, consequências e tom de cada confirmação. Ações que tiram acesso ou desfazem algo
+  // (desativar, desalocar, mexer no próprio perfil) ficam em vermelho.
+  const confirmationCopy = (action: UserAction) => {
+    const name = <strong className="font-semibold">{action.user.name}</strong>
+    if (action.type === 'active') {
+      return action.active
+        ? {
+            title: 'Reativar usuário',
+            confirmLabel: 'Reativar',
+            tone: 'default' as const,
+            message: <>Deseja reativar {name}?</>,
+            details: ['O usuário volta a poder entrar no sistema.'],
+          }
+        : {
+            title: 'Desativar usuário',
+            confirmLabel: 'Desativar',
+            tone: 'destructive' as const,
+            message: <>Deseja desativar {name}?</>,
+            details: [
+              'O acesso é bloqueado imediatamente, inclusive a sessão que já estiver aberta.',
+              'O histórico é preservado.',
+              'Você pode reativar a conta quando quiser.',
+            ],
+          }
+    }
+    if (action.type === 'profile') {
+      const self = action.user.id === actor?.id
+      return {
+        title: 'Alterar perfil do usuário',
+        confirmLabel: 'Alterar perfil',
+        tone: self ? ('destructive' as const) : ('default' as const),
+        message: (
+          <>
+            Deseja atribuir o perfil{' '}
+            <strong className="font-semibold">
+              {profileName(action.profileId)}
+            </strong>{' '}
+            a {name}?
+          </>
+        ),
+        details: [
+          self
+            ? 'Você poderá perder seu acesso administrativo.'
+            : 'Os acessos do usuário serão alterados.',
+        ],
+      }
+    }
+    const sectorName = (
+      <strong className="font-semibold">{action.sector.name}</strong>
+    )
+    return action.allocated
+      ? {
+          title: 'Alocar usuário',
+          confirmLabel: 'Alocar',
+          tone: 'default' as const,
+          message: (
+            <>
+              Deseja alocar {name} no setor {sectorName}?
+            </>
+          ),
+          details: ['Os outros setores do usuário serão preservados.'],
+        }
+      : {
+          title: 'Desalocar usuário',
+          confirmLabel: 'Desalocar',
+          tone: 'destructive' as const,
+          message: (
+            <>
+              Deseja desalocar {name} do setor {sectorName}?
+            </>
+          ),
+          details: ['Os outros setores do usuário serão preservados.'],
+        }
+  }
+
   return (
     <AdminPage
       title="Usuários"
@@ -612,32 +687,15 @@ export const UsersScreen = () => {
           </section>
         </AdminModal>
       )}
-      <AdminConfirmation
-        isOpen={!!confirmation}
-        onClose={() => setConfirmation(null)}
-        onConfirm={confirm}
-        busy={busy}
-        title={
-          confirmation?.type === 'profile'
-            ? 'Alterar perfil do usuário'
-            : confirmation?.type === 'active'
-              ? confirmation.active
-                ? 'Reativar usuário'
-                : 'Desativar usuário'
-              : confirmation?.allocated
-                ? 'Alocar usuário'
-                : 'Desalocar usuário'
-        }
-        message={
-          confirmation?.type === 'active'
-            ? confirmation.active
-              ? `Deseja reativar ${confirmation.user.name}? O usuário volta a poder entrar no sistema.`
-              : `Deseja desativar ${confirmation.user.name}? O acesso é bloqueado imediatamente, mas o histórico é preservado.`
-            : confirmation?.type === 'profile'
-              ? `Deseja atribuir "${profileName(confirmation.profileId)}" a ${confirmation.user.name}? ${confirmation.user.id === actor?.id ? 'Você poderá perder seu acesso administrativo.' : 'Os acessos do usuário serão alterados.'}`
-              : `Deseja ${confirmation?.allocated ? 'alocar' : 'desalocar'} ${confirmation?.user.name} ${confirmation?.allocated ? 'no' : 'do'} setor "${confirmation?.sector.name}"? Os outros setores serão preservados.`
-        }
-      />
+      {confirmation && (
+        <AdminConfirmation
+          isOpen
+          onClose={() => setConfirmation(null)}
+          onConfirm={confirm}
+          busy={busy}
+          {...confirmationCopy(confirmation)}
+        />
+      )}
     </AdminPage>
   )
 }

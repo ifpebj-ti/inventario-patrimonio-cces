@@ -1,10 +1,16 @@
 'use client'
 
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button as UiButton } from '@/components/ui/button'
 import { ErrorState } from '@/components/ui/error-state'
-import { TriangleAlert } from 'lucide-react'
+import { HelpCircle, TriangleAlert } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -169,39 +175,97 @@ export const AdminModal = ({
   </Dialog>
 )
 
+/**
+ * Confirmação de uma ação. `tone="destructive"` é para o que tira acesso ou desfaz algo (desativar,
+ * desalocar): ícone de alerta e botão vermelho. O foco inicial cai em "Cancelar" (o primeiro botão),
+ * então um Enter distraído não confirma. Esc e clique fora também cancelam, por isso não há "Fechar".
+ */
 export const AdminConfirmation = ({
   isOpen,
   title,
   message,
+  details,
+  confirmLabel = 'Confirmar',
+  tone = 'default',
   onClose,
   onConfirm,
   busy = false,
 }: {
   isOpen: boolean
   title: string
-  message: string
+  message: ReactNode
+  // Consequências da ação, uma por linha, abaixo da pergunta.
+  details?: string[]
+  confirmLabel?: string
+  tone?: 'default' | 'destructive'
   onClose: () => void
   onConfirm: () => void
   busy?: boolean
-}) =>
-  isOpen ? (
-    <AdminModal title={title} onClose={onClose} busy={busy}>
-      <p className="text-sm text-muted-foreground">{message}</p>
-      <div className="flex justify-end gap-3">
-        <UiButton
-          variant="outline"
-          type="button"
-          onClick={onClose}
-          disabled={busy}
-        >
-          Cancelar
-        </UiButton>
-        <UiButton type="button" onClick={onConfirm} disabled={busy}>
-          {busy ? 'Aguarde...' : 'Confirmar'}
-        </UiButton>
-      </div>
-    </AdminModal>
-  ) : null
+}) => {
+  // Desmontada quando fechada (sem animação de saída), para o texto não "piscar" sem ação.
+  if (!isOpen) return null
+  const destructive = tone === 'destructive'
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !busy) onClose()
+      }}
+    >
+      <DialogContent
+        showCloseButton={false}
+        className="gap-0 overflow-hidden rounded-xl p-0 sm:max-w-md"
+      >
+        <div className="flex gap-4 p-6">
+          <span
+            aria-hidden="true"
+            className={cn(
+              'flex size-10 shrink-0 items-center justify-center rounded-full',
+              destructive
+                ? 'bg-destructive/10 text-destructive'
+                : 'bg-primary/10 text-primary',
+            )}
+          >
+            {destructive ? <TriangleAlert /> : <HelpCircle />}
+          </span>
+          <div className="min-w-0 space-y-2">
+            <DialogTitle className="text-lg leading-snug">{title}</DialogTitle>
+            <DialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p className="text-foreground">{message}</p>
+                {details && details.length > 0 && (
+                  <ul className="list-disc space-y-1 pl-4">
+                    {details.map((detail) => (
+                      <li key={detail}>{detail}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </DialogDescription>
+          </div>
+        </div>
+        <div className="flex flex-col-reverse gap-2 border-t bg-muted/40 px-6 py-4 sm:flex-row sm:justify-end">
+          <UiButton
+            variant="outline"
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+          >
+            Cancelar
+          </UiButton>
+          <UiButton
+            variant={destructive ? 'destructive' : 'default'}
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+          >
+            {busy ? 'Aguarde...' : confirmLabel}
+          </UiButton>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 export const useOperation = () => {
   const [busy, setBusy] = useState(false)

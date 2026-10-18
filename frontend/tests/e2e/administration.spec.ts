@@ -266,7 +266,9 @@ const card = (page: Page, name: string) =>
 const confirm = (page: Page, title: string) =>
   page
     .getByRole('dialog', { name: title, exact: true })
-    .getByRole('button', { name: 'Confirmar', exact: true })
+    .getByRole('button', {
+      name: /^(Confirmar|Desativar|Reativar|Ativar|Alterar perfil|Alocar|Desalocar)$/,
+    })
     .click()
 
 test('perfil personalizado com ADMIN recebe menus administrativos', async ({
@@ -736,6 +738,16 @@ test('botão rápido desativa com confirmação e reativa sem confirmar', async 
   await expect(maria).toContainText('Ativo')
 
   await maria.getByRole('button', { name: 'Desativar Maria' }).click()
+  // A confirmação explica as consequências, tem um só caminho de saída ("Cancelar") e põe o foco
+  // nele, para um Enter distraído não desativar ninguém.
+  const dialog = page.getByRole('dialog', {
+    name: 'Desativar usuário',
+    exact: true,
+  })
+  await expect(dialog).toContainText('Deseja desativar Maria?')
+  await expect(dialog).toContainText('inclusive a sessão que já estiver aberta')
+  await expect(dialog.getByRole('button', { name: 'Fechar' })).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: 'Cancelar' })).toBeFocused()
   await confirm(page, 'Desativar usuário')
   await expect(maria).toContainText('Inativo')
   // O modal "Gerenciar acesso" não abre por causa do clique rápido.
