@@ -5,6 +5,8 @@ export const sectorSchema = z.object({
   name: z.string(),
   code: z.string().nullable(),
   active: z.boolean(),
+  // Sem usuário, inventário nem auditoria: só nesse caso o admin pode excluir o setor.
+  deletable: z.boolean().default(false),
   createdAt: z.string().nullable().optional(),
   updatedAt: z.string().nullable().optional(),
 })

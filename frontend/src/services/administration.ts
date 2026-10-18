@@ -86,6 +86,10 @@ export const setSectorActive = async (sectorId: number, active: boolean) =>
     ).data,
   )
 
+export const deleteSector = async (sectorId: number) => {
+  await api.delete(`/sectors/${sectorId}`)
+}
+
 export const listProfiles = async (signal?: AbortSignal) =>
   parse(z.array(profileSchema), (await api.get('/profiles', { signal })).data)
 export const listPermissions = async (signal?: AbortSignal) =>

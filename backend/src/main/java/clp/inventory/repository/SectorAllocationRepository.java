@@ -18,6 +18,8 @@ public interface SectorAllocationRepository extends JpaRepository<SectorAllocati
 
   List<SectorAllocation> findBySector_Id(long sectorId);
 
+  boolean existsBySector_Id(long sectorId);
+
   void deleteByUser_IdAndSector_Id(long userId, long sectorId);
 
   @Query(

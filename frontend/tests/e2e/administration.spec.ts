@@ -11,9 +11,9 @@ const fixture = () => ({
     body: Record<string, unknown> | null
   }[],
   sectors: [
-    { id: 1, name: 'Patrimônio', code: 'PAT', active: true },
-    { id: 2, name: 'Biblioteca', code: null, active: false },
-    { id: 3, name: 'Tecnologia', code: 'TI', active: true },
+    { id: 1, name: 'Patrimônio', code: 'PAT', active: true, deletable: false },
+    { id: 2, name: 'Biblioteca', code: null, active: false, deletable: false },
+    { id: 3, name: 'Tecnologia', code: 'TI', active: true, deletable: true },
   ],
   profiles: [
     {
@@ -176,6 +176,7 @@ const setup = async (page: Page, state = fixture()) => {
         name: String(body?.name),
         code: body?.code as string | null,
         active: true,
+        deletable: true,
       }
       state.sectors.push(sector)
       return send(201, sector)
@@ -188,6 +189,10 @@ const setup = async (page: Page, state = fixture()) => {
         (row) => row.id === Number(sectorUpdate[1]),
       )
       if (!sector) return send(404, {})
+      if (method === 'DELETE') {
+        state.sectors.splice(state.sectors.indexOf(sector), 1)
+        return send(204, null)
+      }
       if (method === 'PUT') {
         sector.name = String(body?.name)
         sector.code = body?.code as string | null
@@ -426,6 +431,68 @@ test('edição e ativação de setor respeitam confirmação e preservam associa
     .click()
   await confirm(page, 'Ativar setor')
   await expect(card(page, 'Patrimônio')).toContainText('Ativo')
+})
+
+test('admin exclui só setor sem vínculos, depois de confirmar', async ({
+  page,
+}) => {
+  const state = await setup(page)
+  await page.goto('/sectors')
+  // Setor com usuários ou inventários só pode ser ativado/desativado.
+  for (const name of ['Patrimônio', 'Biblioteca']) {
+    await expect(
+      card(page, name).getByRole('button', { name: 'Excluir' }),
+    ).toHaveCount(0)
+  }
+  await card(page, 'Tecnologia')
+    .getByRole('button', { name: 'Excluir' })
+    .click()
+  const dialog = page.getByRole('dialog', { name: 'Excluir setor' })
+  await expect(dialog).toContainText('Tecnologia')
+  await dialog.getByRole('button', { name: 'Cancelar' }).click()
+  await expect(card(page, 'Tecnologia')).toBeVisible()
+  expect(state.requests.some((r) => r.method === 'DELETE')).toBe(false)
+  await card(page, 'Tecnologia')
+    .getByRole('button', { name: 'Excluir' })
+    .click()
+  await page
+    .getByRole('dialog', { name: 'Excluir setor' })
+    .getByRole('button', { name: 'Excluir' })
+    .click()
+  await expect(card(page, 'Tecnologia')).toHaveCount(0)
+  expect(
+    state.requests.filter((r) => r.method === 'DELETE').map((r) => r.path),
+  ).toEqual(['/sectors/3'])
+  expect(state.sectors.map((sector) => sector.id)).toEqual([1, 2])
+})
+
+test('exclusão recusada pela API (409) mostra o erro e mantém o setor', async ({
+  page,
+}) => {
+  const state = await setup(page)
+  state.fail['DELETE /sectors/3'] = 409
+  await page.goto('/sectors')
+  await card(page, 'Tecnologia')
+    .getByRole('button', { name: 'Excluir' })
+    .click()
+  await page
+    .getByRole('dialog', { name: 'Excluir setor' })
+    .getByRole('button', { name: 'Excluir' })
+    .click()
+  await expect(page.getByText('não pode ser excluído')).toBeVisible()
+  await expect(card(page, 'Tecnologia')).toBeVisible()
+  expect(state.sectors.map((sector) => sector.id)).toEqual([1, 2, 3])
+})
+
+test('gestor não vê Excluir nem em setor sem vínculos', async ({ page }) => {
+  const state = fixture()
+  state.admin = false
+  state.users[0].sectorIds = [3]
+  await setup(page, state)
+  await page.goto('/sectors')
+  await expect(card(page, 'Tecnologia')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Excluir' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Novo setor' })).toHaveCount(0)
 })
 
 for (const status of [400, 401, 403, 404, 409, 500]) {

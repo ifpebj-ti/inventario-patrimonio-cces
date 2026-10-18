@@ -2,9 +2,11 @@ package clp.inventory.sector;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import clp.inventory.model.Inventory;
 import clp.inventory.model.Sector;
 import clp.inventory.model.SectorAllocation;
 import clp.inventory.model.User;
+import clp.inventory.repository.InventoryRepository;
 import clp.inventory.repository.ProfileRepository;
 import clp.inventory.repository.SectorAllocationRepository;
 import clp.inventory.repository.SectorRepository;
@@ -13,6 +15,7 @@ import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +62,8 @@ class SectorE2ETest {
   @Autowired SectorRepository sectorRepository;
 
   @Autowired SectorAllocationRepository sectorAllocationRepository;
+
+  @Autowired InventoryRepository inventoryRepository;
 
   private void allocateSectorDirectly(long userId, long sectorId) {
     User user = userRepository.findById(userId).orElseThrow();
@@ -460,6 +465,95 @@ class SectorE2ETest {
             Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+  }
+
+  @Test
+  void delete_emptySector_returns204AndRemovesIt() {
+    long adminId = adminUserId();
+    var created = create("Setor Excluir Vazio", null, adminId);
+    long id = ((Number) created.getBody().get("id")).longValue();
+    assertThat(created.getBody().get("deletable")).isEqualTo(true);
+
+    var response = deleteSector(id, adminId);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+    assertThat(sectorRepository.existsById(id)).isFalse();
+  }
+
+  @Test
+  void delete_withAllocatedUser_returns409AndKeepsSector() {
+    long adminId = adminUserId();
+    long id =
+        ((Number) create("Setor Excluir Com Usuario", null, adminId).getBody().get("id"))
+            .longValue();
+    allocateSectorDirectly(
+        createUserWithProfile("excluir-com-usuario@ifpe.edu.br", "CONSULTA"), id);
+
+    var response = deleteSector(id, adminId);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    assertThat(sectorRepository.existsById(id)).isTrue();
+    assertThat(getSector(id, adminId).getBody().get("deletable")).isEqualTo(false);
+  }
+
+  @Test
+  void delete_withInventory_returns409AndKeepsSector() {
+    long adminId = adminUserId();
+    long id =
+        ((Number) create("Setor Excluir Com Inventario", null, adminId).getBody().get("id"))
+            .longValue();
+    inventoryRepository.save(
+        new Inventory(
+            "Inventario do setor",
+            null,
+            LocalDate.now().plusDays(30),
+            userRepository.findById(adminId).orElseThrow(),
+            sectorRepository.findById(id).orElseThrow()));
+
+    var response = deleteSector(id, adminId);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    assertThat(sectorRepository.existsById(id)).isTrue();
+    assertThat(getSector(id, adminId).getBody().get("deletable")).isEqualTo(false);
+  }
+
+  @Test
+  void delete_notFound_returns404() {
+    var response = deleteSector(999999L, adminUserId());
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+  }
+
+  @Test
+  void delete_asNonAdmin_returns403AndKeepsSector() {
+    long adminId = adminUserId();
+    long id =
+        ((Number) create("Setor Excluir Sem Permissao", null, adminId).getBody().get("id"))
+            .longValue();
+    long managerId = createUserWithProfile("excluir-gestor@ifpe.edu.br", "GESTOR_SETOR");
+    allocateSectorDirectly(managerId, id);
+    long consultaId = createUserWithProfile("excluir-consulta@ifpe.edu.br", "CONSULTA");
+
+    for (long actor : List.of(managerId, consultaId)) {
+      assertThat(deleteSector(id, actor).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+    assertThat(sectorRepository.existsById(id)).isTrue();
+  }
+
+  private ResponseEntity<Map> deleteSector(long id, long actingUserId) {
+    return restTemplate.exchange(
+        "/sectors/" + id,
+        HttpMethod.DELETE,
+        new HttpEntity<>(authHeadersFor(actingUserId)),
+        Map.class);
+  }
+
+  private ResponseEntity<Map> getSector(long id, long actingUserId) {
+    return restTemplate.exchange(
+        "/sectors/" + id,
+        HttpMethod.GET,
+        new HttpEntity<>(authHeadersFor(actingUserId)),
+        Map.class);
   }
 
   @Test

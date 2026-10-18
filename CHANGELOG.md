@@ -12,6 +12,7 @@ O histórico é atualizado manualmente na própria pull request antes do merge e
 
 ### Added
 
+- Adicionada a exclusão de setor (`DELETE /sectors/{id}`), **só para o administrador** e só para setor sem usuário, inventário nem auditoria associados (senão `409`; esses setores só podem ser ativados ou desativados). `SectorDto` ganha o campo `deletable` e a tela de Setores ganha o botão **Excluir**, com confirmação, que só aparece nesses casos. Gestor de setor continua vendo só os próprios setores e sem criar, editar nem excluir (sub-issue #234 de #154).
 - Adicionado, na lista de Usuários, o botão rápido **Desativar/Ativar** ao lado de "Gerenciar acesso" (só administrador): desativar pede confirmação e reativar executa direto, com aviso de sucesso ou erro.
 - Adicionados testes Playwright do fluxo CSV no navegador e execução no workflow Quality, com respostas de API simuladas e cache Next isolado.
 - Adicionada verificação local de códigos vazios/longos, duplicatas no CSV, preço inválido/negativo, aspas e linhas físicas antes da pré-validação remota.

@@ -106,10 +106,18 @@ Google (`POST /auth/google`). Sem `Authorization`.
 | `PUT /sectors/{id}` | `ADMIN` | `200` |
 | `PATCH /sectors/{id}/activate` | `ADMIN` | `200` |
 | `PATCH /sectors/{id}/deactivate` | `ADMIN` | `200` |
+| `DELETE /sectors/{id}` | `ADMIN` | `204` |
 | `GET /sectors/{id}/users` | `ADMIN` ou `MANAGE_SECTOR` vinculado ao setor | `200` |
 
-**Não existe `DELETE /sectors/{id}`.** Setor nunca é removido — só ativado/desativado via os dois
-`PATCH` acima. Não implemente um botão de "excluir setor" na UI.
+### Excluir setor (`DELETE /sectors/{id}`)
+
+Só `ADMIN` exclui (gestor, operador e consulta recebem `403`). A exclusão só vale para setor **sem usuário
+alocado, sem inventário e sem auditoria de item** associados; senão a API responde `409` e o setor segue
+existindo, podendo apenas ser ativado ou desativado. Sem corpo na requisição e na resposta (`204`).
+
+Para não depender de tentativa e erro, todo `SectorDto` traz `deletable`: `true` quando a exclusão seria
+aceita agora. Mostre o botão "Excluir" só para `ADMIN` e só quando `deletable` for `true`; a regra é
+conferida de novo no `DELETE` (outro usuário pode ter alocado alguém no meio-tempo).
 
 ### Corpo de `POST`/`PUT`
 
@@ -134,9 +142,12 @@ Google (`POST /auth/google`). Sem `Authorization`.
   "code": "PAT",
   "active": true,
   "createdAt": "2026-10-03T20:21:58.123",
-  "updatedAt": "2026-10-03T20:21:58.123"
+  "updatedAt": "2026-10-03T20:21:58.123",
+  "deletable": true
 }
 ```
+
+`deletable` é só de leitura (ignorado no corpo de `POST`/`PUT`).
 
 `GET /sectors` devolve **todos os setores, ativos e inativos, junto**. Se uma tela (ex: dropdown
 de alocação de usuário) só deve oferecer setores ativos, o filtro por `active` precisa ser feito
@@ -146,7 +157,8 @@ no front — a API não tem um parâmetro para isso hoje.
 
 - `400`: `name` vazio/em branco, `name`/`code` passando do tamanho máximo, `name` duplicado.
 - `403`: usuário autenticado sem `ADMIN` (escrita) ou sem `ADMIN`/`MANAGE_SECTOR` (leitura).
-- `404`: setor não existe (`GET`/`PUT`/`activate`/`deactivate`/`users` por id).
+- `404`: setor não existe (`GET`/`PUT`/`activate`/`deactivate`/`DELETE`/`users` por id).
+- `409`: `DELETE` de setor que tem usuário, inventário ou auditoria associados.
 
 ### `GET /sectors/{id}/users` — usuários alocados a este setor
 
@@ -323,3 +335,4 @@ Para quem já tinha algo montado em cima da versão anterior:
 | 1.6 | 2026-10-11 | `/profiles`, `/permissions` e `PATCH /users/{id}/profile` passam a exigir `ADMIN`; `/permissions` vira somente leitura (`POST`/`PUT`/`DELETE` removidos); o perfil `ADMIN_ORGANIZATION` fica protegido (409); nome de perfil com `trim` (issue #205). |
 | 1.7 | 2026-10-18 | O `429` de `POST /auth/login` passa a vir de duas camadas (Nginx por IP e backend por usuário); `/auth/google` e `/auth/me` ficam sem limite de tentativas (issue #228). |
 | 1.8 | 2026-10-18 | `POST /users` e `DELETE /users/{id}` removidos (usuário só nasce no primeiro login Google, **sem perfil**, e nunca é excluído); `PATCH /users/{id}/activate` e `/deactivate` passam a exigir `ADMIN`; o campo `pendingGoogleLogin` sai de `UserDto` (issue #232). |
+| 1.9 | 2026-10-18 | Entra `DELETE /sectors/{id}` (só `ADMIN`, `409` se o setor tiver usuário, inventário ou auditoria) e o campo `deletable` em `SectorDto` (issue #234). |

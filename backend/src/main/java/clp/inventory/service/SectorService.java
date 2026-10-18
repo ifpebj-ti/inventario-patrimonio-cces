@@ -2,21 +2,36 @@ package clp.inventory.service;
 
 import clp.inventory.dto.SectorDto;
 import clp.inventory.model.Sector;
+import clp.inventory.repository.InventoryRepository;
+import clp.inventory.repository.ItemAuditRepository;
+import clp.inventory.repository.SectorAllocationRepository;
 import clp.inventory.repository.SectorRepository;
 import java.util.List;
 import java.util.NoSuchElementException;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class SectorService {
 
   private final SectorRepository sectorRepository;
+  private final SectorAllocationRepository sectorAllocationRepository;
+  private final InventoryRepository inventoryRepository;
+  private final ItemAuditRepository itemAuditRepository;
   private final AuthorizationService authorizationService;
 
   public SectorService(
-      SectorRepository sectorRepository, AuthorizationService authorizationService) {
+      SectorRepository sectorRepository,
+      SectorAllocationRepository sectorAllocationRepository,
+      InventoryRepository inventoryRepository,
+      ItemAuditRepository itemAuditRepository,
+      AuthorizationService authorizationService) {
     this.sectorRepository = sectorRepository;
+    this.sectorAllocationRepository = sectorAllocationRepository;
+    this.inventoryRepository = inventoryRepository;
+    this.itemAuditRepository = itemAuditRepository;
     this.authorizationService = authorizationService;
   }
 
@@ -58,6 +73,28 @@ public class SectorService {
     Sector sector = findSectorByIdInternal(id);
     sector.setActive(false);
     return sectorRepository.save(sector);
+  }
+
+  /**
+   * Só o admin exclui, e só setor sem usuário, inventário nem auditoria associados; os demais só
+   * podem ser ativados ou desativados, para preservar o histórico.
+   */
+  @Transactional
+  public void deleteSector(long id, long actingUserId) {
+    authorizationService.requirePermission(actingUserId, "ADMIN");
+    Sector sector = findSectorByIdInternal(id);
+    if (!isDeletable(sector.id())) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "O setor possui usuários ou inventários associados e não pode ser excluído; desative-o.");
+    }
+    sectorRepository.delete(sector);
+  }
+
+  public boolean isDeletable(long sectorId) {
+    return !sectorAllocationRepository.existsBySector_Id(sectorId)
+        && !inventoryRepository.existsBySector_Id(sectorId)
+        && !itemAuditRepository.existsByActorSector_IdOrTargetSector_Id(sectorId, sectorId);
   }
 
   /** Leitura de um setor: admin ou qualquer usuário alocado a ele. */
