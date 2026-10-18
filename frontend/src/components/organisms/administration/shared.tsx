@@ -135,6 +135,8 @@ export const AdminPage = ({
   </div>
 )
 
+// Mesmo padrão da confirmação: cabeçalho com o título e uma divisória, e só então o conteúdo. O cabeçalho
+// fica fixo e o conteúdo rola quando é maior que a tela.
 export const AdminModal = ({
   title,
   children,
@@ -156,11 +158,12 @@ export const AdminModal = ({
   >
     <DialogContent
       showCloseButton={false}
-      className="flex max-h-[90vh] flex-col overflow-y-auto rounded-xl gap-4 sm:max-w-2xl"
+      className="flex max-h-[90vh] flex-col gap-0 overflow-hidden rounded-xl p-0 sm:max-w-2xl"
     >
-      <DialogTitle className="sr-only">{title}</DialogTitle>
-      <div className="flex justify-between gap-3">
-        <h2 className="text-xl font-semibold">{title}</h2>
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b px-6 py-4">
+        <DialogTitle className="min-w-0 text-lg leading-snug">
+          {title}
+        </DialogTitle>
         <UiButton
           variant="outline"
           disabled={busy || inactive}
@@ -169,8 +172,10 @@ export const AdminModal = ({
         >
           Fechar
         </UiButton>
+      </header>
+      <div inert={inactive} className="space-y-4 overflow-y-auto px-6 py-5">
+        {children}
       </div>
-      <div inert={inactive}>{children}</div>
     </DialogContent>
   </Dialog>
 )
