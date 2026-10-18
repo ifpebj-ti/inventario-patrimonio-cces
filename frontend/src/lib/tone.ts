@@ -1,5 +1,5 @@
 // Tons semânticos do sistema, mapeados para as variantes do shadcn/ui.
-// Cores fixas: primary (#5E94E5), destructive (#DC2626), success (#16A34A) e warning.
+// Cores fixas: primary (#058EC8), destructive (#DC2626), success (#16A34A) e warning.
 export type Tone = 'neutral' | 'primary' | 'success' | 'warning' | 'danger'
 
 // Variante do Badge do shadcn/ui para cada tom.
