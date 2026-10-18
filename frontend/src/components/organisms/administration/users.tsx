@@ -3,7 +3,7 @@
 import { SelectField } from '@/components/ui/select-field'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { ListFilters } from '@/components/organisms/listFilters'
-import { Plus, Trash2, UserCheck, UserX } from 'lucide-react'
+import { UserCheck, UserX } from 'lucide-react'
 import { profileLabel } from '@/lib/access-labels'
 import { Button as UiButton } from '@/components/ui/button'
 import { Label as UiLabel } from '@/components/ui/label'
@@ -22,7 +22,6 @@ import { useAdministrationAccess } from '@/contexts/AdministrationAccess'
 import {
   administrationFailure,
   assignUserProfile,
-  deleteUser,
   listProfiles,
   listSectors,
   listUsers,
@@ -37,13 +36,11 @@ import {
   ErrorNotice,
   useOperation,
 } from './shared'
-import { CreateUserModal } from './createUser'
 
 type UserAction =
   | { type: 'profile'; user: ManagedUser; profileId: number | null }
   | { type: 'sector'; user: ManagedUser; sector: Sector; allocated: boolean }
   | { type: 'active'; user: ManagedUser; active: boolean }
-  | { type: 'delete'; user: ManagedUser }
 
 export const UsersScreen = () => {
   const { user: actor } = useAuth()
@@ -52,7 +49,6 @@ export const UsersScreen = () => {
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [sectors, setSectors] = useState<Sector[]>([])
   const [permissions, setPermissions] = useState<Permission[]>([])
-  const [creating, setCreating] = useState(false)
   const [sectorFilter, setSectorFilter] = useState('all')
   const [activeFilter, setActiveFilter] = useState('all')
   const [loading, setLoading] = useState(true)
@@ -109,60 +105,67 @@ export const UsersScreen = () => {
     setSectorId('')
     setEditorError(null)
   }
-  const confirm = () =>
-    run(async () => {
-      if (!confirmation || !access.canManageUsers) return
-      const action = confirmation
-      setEditorError(null)
-      try {
-        if (action.type === 'delete') {
-          await deleteUser(action.user.id)
-          setUsers((rows) => rows.filter((row) => row.id !== action.user.id))
-          setEditing(null)
-          setConfirmation(null)
-          toast.success('Usuário excluído.')
-          return
-        }
-        const updated =
-          action.type === 'active'
-            ? await setUserActive(action.user.id, action.active)
-            : action.type === 'profile'
-              ? await assignUserProfile(action.user.id, action.profileId)
-              : await setUserSector(
-                  action.user.id,
-                  action.sector.id,
-                  action.allocated,
-                )
-        setUsers((rows) =>
-          rows.map((row) => (row.id === updated.id ? updated : row)),
-        )
+  // Executa a ação confirmada (ou direta, no caso de reativar pela lista). O modal "Gerenciar acesso" pode
+  // estar fechado: só ele reflete o resultado e os erros; sem ele o erro vai para um toast.
+  const perform = async (action: UserAction) => {
+    if (!access.canManageUsers) return
+    setEditorError(null)
+    try {
+      const updated =
+        action.type === 'active'
+          ? await setUserActive(action.user.id, action.active)
+          : action.type === 'profile'
+            ? await assignUserProfile(action.user.id, action.profileId)
+            : await setUserSector(
+                action.user.id,
+                action.sector.id,
+                action.allocated,
+              )
+      setUsers((rows) =>
+        rows.map((row) => (row.id === updated.id ? updated : row)),
+      )
+      if (editing?.id === updated.id) {
         setEditing(updated)
         setProfileId(
           updated.profileId === null ? '' : String(updated.profileId),
         )
         setSectorId('')
-        setConfirmation(null)
-        toast.success(
-          action.type === 'profile'
-            ? 'Perfil do usuário atualizado.'
-            : action.type === 'active'
-              ? action.active
-                ? 'Usuário reativado.'
-                : 'Usuário desativado.'
-              : 'Associação ao setor atualizada.',
-        )
-        if (updated.id === actor?.id) await access.refresh()
-      } catch (failure) {
-        const problem = administrationFailure(failure)
-        setConfirmation(null)
-        setEditorError(
-          problem.status === 400 && action.type === 'profile'
-            ? 'O perfil selecionado não está disponível. Atualize a lista antes de tentar novamente.'
-            : problem.message,
-        )
-        if (problem.status === 403) await access.refresh()
       }
+      setConfirmation(null)
+      toast.success(
+        action.type === 'profile'
+          ? 'Perfil do usuário atualizado.'
+          : action.type === 'active'
+            ? action.active
+              ? 'Usuário reativado.'
+              : 'Usuário desativado.'
+            : 'Associação ao setor atualizada.',
+      )
+      if (updated.id === actor?.id) await access.refresh()
+    } catch (failure) {
+      const problem = administrationFailure(failure)
+      const message =
+        problem.status === 400 && action.type === 'profile'
+          ? 'O perfil selecionado não está disponível. Atualize a lista antes de tentar novamente.'
+          : problem.message
+      setConfirmation(null)
+      if (editing) setEditorError(message)
+      else toast.error(message)
+      if (problem.status === 403) await access.refresh()
+    }
+  }
+  const confirm = () =>
+    run(async () => {
+      if (confirmation) await perform(confirmation)
     })
+  // Reativar não pede confirmação (é inofensivo); desativar abre a confirmação.
+  const quickToggle = (user: ManagedUser) => {
+    if (user.active) {
+      setConfirmation({ type: 'active', user, active: false })
+      return
+    }
+    run(() => perform({ type: 'active', user, active: true }))
+  }
   const profileName = (id: number | null) =>
     id === null
       ? 'Sem perfil'
@@ -193,13 +196,10 @@ export const UsersScreen = () => {
     access.isAdmin ||
     (!isManagementProfile(target.profileId) &&
       target.sectorIds.some((id) => access.sectorIds.includes(id)))
-  // Desativar e excluir afetam todos os setores do usuário: o gestor só remove quem atua
-  // exclusivamente nos setores dele; ninguém remove a própria conta.
-  const canRemoveUser = (target: ManagedUser) =>
-    target.id !== actor?.id &&
-    (access.isAdmin ||
-      (canManageUser(target) &&
-        target.sectorIds.every((id) => access.sectorIds.includes(id))))
+  // Ativar e desativar valem para todos os setores do usuário: só o administrador faz isso, e
+  // ninguém mexe na própria conta.
+  const canToggleUser = (target: ManagedUser) =>
+    access.isAdmin && target.id !== actor?.id
   const visible = users
     .filter(
       (user) =>
@@ -226,17 +226,6 @@ export const UsersScreen = () => {
     <AdminPage
       title="Usuários"
       description="Gerencie o perfil de acesso e a participação de cada usuário em múltiplos setores."
-      action={
-        access.canManageUsers ? (
-          <UiButton
-            type="button"
-            disabled={loading || busy || !!error}
-            onClick={() => setCreating(true)}
-          >
-            <Plus /> Novo usuário
-          </UiButton>
-        ) : undefined
-      }
     >
       <ErrorNotice
         message={error}
@@ -386,29 +375,36 @@ export const UsersScreen = () => {
                             >
                               {user.active ? 'Ativo' : 'Inativo'}
                             </StatusBadge>
-                            {user.pendingGoogleLogin && (
-                              <StatusBadge tone="warning">
-                                Aguardando primeiro acesso
-                              </StatusBadge>
-                            )}
                           </div>
                         </div>
                       </div>
-                      {canManageUser(user) ? (
-                        <UiButton
-                          variant="outline"
-                          type="button"
-                          disabled={busy}
-                          onClick={() => open(user)}
-                          className="shrink-0"
-                        >
-                          Gerenciar acesso
-                        </UiButton>
-                      ) : (
-                        <p className="max-w-48 shrink-0 text-xs text-muted-foreground">
-                          Somente o administrador altera este acesso.
-                        </p>
-                      )}
+                      <div className="flex shrink-0 flex-wrap items-center gap-2">
+                        {canToggleUser(user) && (
+                          <UiButton
+                            variant="outline"
+                            type="button"
+                            disabled={busy}
+                            aria-label={`${user.active ? 'Desativar' : 'Ativar'} ${user.name}`}
+                            onClick={() => quickToggle(user)}
+                          >
+                            {user.active ? 'Desativar' : 'Ativar'}
+                          </UiButton>
+                        )}
+                        {canManageUser(user) ? (
+                          <UiButton
+                            variant="outline"
+                            type="button"
+                            disabled={busy}
+                            onClick={() => open(user)}
+                          >
+                            Gerenciar acesso
+                          </UiButton>
+                        ) : (
+                          <p className="max-w-48 text-xs text-muted-foreground">
+                            Somente o administrador altera este acesso.
+                          </p>
+                        )}
+                      </div>
                     </div>
                     <div className="grid gap-3 border-t pt-4 sm:grid-cols-2">
                       <div className="space-y-1.5">
@@ -506,7 +502,7 @@ export const UsersScreen = () => {
                 ? 'Conta ativa. Desativar bloqueia o acesso imediatamente e preserva o histórico.'
                 : 'Conta desativada: o usuário não consegue entrar no sistema.'}
             </p>
-            {canRemoveUser(editing) ? (
+            {canToggleUser(editing) ? (
               <div className="flex flex-wrap gap-2">
                 <UiButton
                   variant="outline"
@@ -523,23 +519,12 @@ export const UsersScreen = () => {
                   {editing.active ? <UserX /> : <UserCheck />}
                   {editing.active ? 'Desativar usuário' : 'Reativar usuário'}
                 </UiButton>
-                <UiButton
-                  variant="outline"
-                  type="button"
-                  disabled={busy}
-                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() =>
-                    setConfirmation({ type: 'delete', user: editing })
-                  }
-                >
-                  <Trash2 /> Excluir usuário
-                </UiButton>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                {editing.id === actor?.id
-                  ? 'Você não pode desativar nem excluir a própria conta.'
-                  : 'Este usuário também atua em outros setores: só o administrador pode desativar ou excluir.'}
+                {!access.isAdmin
+                  ? 'Somente o administrador ativa ou desativa usuários.'
+                  : 'Você não pode desativar a própria conta.'}
               </p>
             )}
           </section>
@@ -627,19 +612,6 @@ export const UsersScreen = () => {
           </section>
         </AdminModal>
       )}
-      {creating && (
-        <CreateUserModal
-          profiles={assignableProfiles}
-          permissions={permissions}
-          sectors={sectors}
-          onClose={() => setCreating(false)}
-          onCreated={() => {
-            setCreating(false)
-            setReload((value) => value + 1)
-            toast.success('Usuário cadastrado com perfil e setores associados.')
-          }}
-        />
-      )}
       <AdminConfirmation
         isOpen={!!confirmation}
         onClose={() => setConfirmation(null)}
@@ -652,22 +624,18 @@ export const UsersScreen = () => {
               ? confirmation.active
                 ? 'Reativar usuário'
                 : 'Desativar usuário'
-              : confirmation?.type === 'delete'
-                ? 'Excluir usuário'
-                : confirmation?.allocated
-                  ? 'Alocar usuário'
-                  : 'Desalocar usuário'
+              : confirmation?.allocated
+                ? 'Alocar usuário'
+                : 'Desalocar usuário'
         }
         message={
           confirmation?.type === 'active'
             ? confirmation.active
               ? `Deseja reativar ${confirmation.user.name}? O usuário volta a poder entrar no sistema.`
               : `Deseja desativar ${confirmation.user.name}? O acesso é bloqueado imediatamente, mas o histórico é preservado.`
-            : confirmation?.type === 'delete'
-              ? `Deseja excluir ${confirmation.user.name}? A conta e os vínculos com setores são removidos permanentemente. Quem criou inventários não pode ser excluído: desative a conta.`
-              : confirmation?.type === 'profile'
-                ? `Deseja atribuir "${profileName(confirmation.profileId)}" a ${confirmation.user.name}? ${confirmation.user.id === actor?.id ? 'Você poderá perder seu acesso administrativo.' : 'Os acessos do usuário serão alterados.'}`
-                : `Deseja ${confirmation?.allocated ? 'alocar' : 'desalocar'} ${confirmation?.user.name} ${confirmation?.allocated ? 'no' : 'do'} setor "${confirmation?.sector.name}"? Os outros setores serão preservados.`
+            : confirmation?.type === 'profile'
+              ? `Deseja atribuir "${profileName(confirmation.profileId)}" a ${confirmation.user.name}? ${confirmation.user.id === actor?.id ? 'Você poderá perder seu acesso administrativo.' : 'Os acessos do usuário serão alterados.'}`
+              : `Deseja ${confirmation?.allocated ? 'alocar' : 'desalocar'} ${confirmation?.user.name} ${confirmation?.allocated ? 'no' : 'do'} setor "${confirmation?.sector.name}"? Os outros setores serão preservados.`
         }
       />
     </AdminPage>

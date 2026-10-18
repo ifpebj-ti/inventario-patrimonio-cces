@@ -36,7 +36,7 @@ const item = {
   observations: [] as unknown[],
 }
 
-const setup = async (page: Page, role: Role) => {
+const setup = async (page: Page, role: Role, profileId: number | null = 1) => {
   await page.context().addCookies([
     {
       name: 'inventarium.token',
@@ -65,7 +65,7 @@ const setup = async (page: Page, role: Role) => {
         id: 7,
         name: 'Pessoa',
         email: 'pessoa@example.com',
-        profileId: 1,
+        profileId,
         sectorIds: [1],
         permissions: permissionsOf[role],
       })
@@ -256,6 +256,20 @@ test.describe('telas restritas', () => {
       await expect(page).toHaveURL(/\/inventory$/)
     })
   }
+
+  // Quem entra pela primeira vez com o Google nasce sem perfil e sem nenhuma permissão, até um
+  // administrador atribuir o acesso: a interface o trata como somente leitura, sem erro.
+  test('usuário sem perfil não acessa usuários nem dashboard', async ({
+    page,
+  }) => {
+    await setup(page, 'consult', null)
+    await page.goto('/users')
+    await expect(
+      page.getByRole('heading', { name: 'Acesso restrito' }),
+    ).toBeVisible()
+    await page.goto('/dashboard')
+    await expect(page).toHaveURL(/\/inventory$/)
+  })
 
   test('gestor não acessa perfis e permissões', async ({ page }) => {
     await setup(page, 'manager')

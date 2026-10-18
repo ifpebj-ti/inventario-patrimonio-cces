@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { expandFilters, optionTexts, pickOption } from './select'
+import { expandFilters, pickOption } from './select'
 
 const fixture = () => ({
   admin: true,
@@ -135,26 +135,6 @@ const setup = async (page: Page, state = fixture()) => {
     if (path === '/permissions') return send(200, state.permissions)
     if (path === '/profiles' && method === 'GET')
       return send(200, state.profiles)
-    if (path === '/users' && method === 'POST') {
-      if (
-        state.users.some(
-          (user) =>
-            user.email.toLowerCase() === String(body?.email).toLowerCase(),
-        )
-      )
-        return send(409, {})
-      const user = {
-        id: 4,
-        name: String(body?.name || String(body?.email).split('@')[0]),
-        email: String(body?.email),
-        profileId: body?.profileId as number | null,
-        sectorIds: body?.sectorIds as number[],
-        pendingGoogleLogin: true,
-        active: true,
-      }
-      state.users.push(user)
-      return send(201, user)
-    }
     if (path === '/users' && method === 'GET' && !state.admin)
       // O gestor lista apenas os usuários que compartilham algum setor com ele.
       return send(
@@ -220,13 +200,6 @@ const setup = async (page: Page, state = fixture()) => {
       const user = state.users.find((row) => row.id === Number(userActive[1]))!
       user.active = userActive[2] === 'activate'
       return send(200, user)
-    }
-    const userDelete = path.match(/^\/users\/(\d+)$/)
-    if (userDelete && method === 'DELETE') {
-      state.users = state.users.filter(
-        (row) => row.id !== Number(userDelete[1]),
-      )
-      return send(204, null)
     }
     const userProfile = path.match(/^\/users\/(\d+)\/profile$/)
     if (userProfile) {
@@ -342,13 +315,14 @@ test('gestor consulta somente setores vinculados e não recebe controles adminis
   await expect(card(page, 'Ana')).toContainText(
     'Somente o administrador altera este acesso.',
   )
-  await page.getByRole('button', { name: 'Novo usuário', exact: true }).click()
-  const modal = page.getByRole('dialog', { name: 'Novo usuário' })
-  // Só pode cadastrar Operador de Campo e Consulta, nunca gestor nem administrador.
-  expect(await optionTexts(modal.getByLabel('Perfil de acesso'))).toEqual([
-    'Operador de Campo',
-    'Consulta',
-  ])
+  // Usuário só nasce no primeiro login pelo Google: não há cadastro na tela.
+  await expect(page.getByRole('button', { name: 'Novo usuário' })).toHaveCount(
+    0,
+  )
+  // O gestor só atribui Operador de Campo e Consulta, nunca gestor nem administrador.
+  await expect(card(page, 'Ana')).toContainText(
+    'Somente o administrador altera este acesso.',
+  )
 })
 
 test('gestor sem setor tem lista vazia', async ({ page }) => {
@@ -484,67 +458,6 @@ for (const status of [400, 401, 403, 404, 409, 500]) {
   })
 }
 
-test('admin cadastra usuário com permissões do perfil e múltiplos setores, preservando filtros', async ({
-  page,
-}) => {
-  const state = await setup(page)
-  await page.goto('/users')
-  await expandFilters(page)
-  await pickOption(page.getByLabel('Filtrar por perfil'), 'Gestor de Setor')
-  await page.getByLabel('Buscar usuário').fill('nova')
-  await page.getByRole('button', { name: 'Novo usuário', exact: true }).click()
-  const modal = page.getByRole('dialog', { name: 'Novo usuário' })
-  await expect(modal.getByText('Permissões disponíveis (3)')).toBeVisible()
-  await modal.getByLabel('E-mail do usuário').fill('Nova@IFPE.edu.br')
-  await modal.getByLabel('Nome (opcional)').fill('Nova Pessoa')
-  await pickOption(modal.getByLabel('Perfil de acesso'), 'Gestor de Setor')
-  const permission = modal.locator('li').filter({ hasText: 'Gerenciar Setor' })
-  await expect(permission.getByText('Incluída', { exact: true })).toBeVisible()
-  await expect(modal.getByLabel('Biblioteca', { exact: true })).toHaveCount(0)
-  await modal.getByLabel('Patrimônio', { exact: true }).check()
-  await modal.getByLabel('Tecnologia', { exact: true }).check()
-  await modal.getByRole('button', { name: 'Cadastrar usuário' }).click()
-  await expect(modal).toHaveCount(0)
-  await expect(card(page, 'Nova Pessoa')).toContainText('nova@ifpe.edu.br')
-  await expect(card(page, 'Nova Pessoa')).toContainText('Patrimônio')
-  await expect(card(page, 'Nova Pessoa')).toContainText('Tecnologia')
-  await expect(card(page, 'Nova Pessoa')).toContainText(
-    'Aguardando primeiro acesso',
-  )
-  await expect(page.getByLabel('Filtrar por perfil')).toContainText(
-    'Gestor de Setor',
-  )
-  await expect(page.getByLabel('Buscar usuário')).toHaveValue('nova')
-  expect(
-    state.requests.find((r) => r.method === 'POST' && r.path === '/users')
-      ?.body,
-  ).toEqual({
-    name: 'Nova Pessoa',
-    email: 'nova@ifpe.edu.br',
-    profileId: 12,
-    sectorIds: [1, 3],
-  })
-})
-
-test('cadastro duplicado preserva o formulário e não cria usuário', async ({
-  page,
-}) => {
-  const state = await setup(page)
-  await page.goto('/users')
-  await page.getByRole('button', { name: 'Novo usuário', exact: true }).click()
-  const modal = page.getByRole('dialog', { name: 'Novo usuário' })
-  await modal.getByLabel('E-mail do usuário').fill('camille@example.com')
-  await pickOption(modal.getByLabel('Perfil de acesso'), 'Consulta')
-  await modal.getByRole('button', { name: 'Cadastrar usuário' }).click()
-  await expect(modal.getByRole('alert')).toContainText(
-    'Já existe um usuário com esse e-mail',
-  )
-  await expect(modal.getByLabel('E-mail do usuário')).toHaveValue(
-    'camille@example.com',
-  )
-  expect(state.users).toHaveLength(3)
-})
-
 test('filtros de setor, perfil e busca se combinam', async ({ page }) => {
   await setup(page)
   await page.goto('/users')
@@ -679,9 +592,7 @@ test('catálogo exibe perfis e permissões somente para consulta', async ({
     ),
   ).toHaveLength(0)
   await page.getByRole('link', { name: 'Gerenciar usuários' }).click()
-  await expect(
-    page.getByRole('button', { name: 'Novo usuário', exact: true }),
-  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Usuários' })).toBeVisible()
 })
 
 test('busca do catálogo filtra por perfil e permissão', async ({ page }) => {
@@ -797,89 +708,113 @@ test('admin desativa e reativa um usuário, com confirmação', async ({
   ).toBe(true)
 })
 
-test('admin exclui um usuário e ele sai da lista', async ({ page }) => {
+test('usuário não tem cadastro nem exclusão na tela', async ({ page }) => {
   const state = await setup(page)
   await page.goto('/users')
+  await expect(card(page, 'Maria')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Novo usuário' })).toHaveCount(
+    0,
+  )
   await card(page, 'Maria')
     .getByRole('button', { name: 'Gerenciar acesso' })
     .click()
-  await page.getByRole('button', { name: 'Excluir usuário' }).click()
-  await confirm(page, 'Excluir usuário')
-  await expect(card(page, 'Maria')).toHaveCount(0)
-  expect(
-    state.requests.some((r) => r.method === 'DELETE' && r.path === '/users/2'),
-  ).toBe(true)
-})
-
-test('excluir quem criou inventários mostra o motivo e mantém o usuário', async ({
-  page,
-}) => {
-  const state = fixture()
-  state.fail['DELETE /users/2'] = 409
-  await setup(page, state)
-  await page.goto('/users')
-  await card(page, 'Maria')
-    .getByRole('button', { name: 'Gerenciar acesso' })
-    .click()
-  await page.getByRole('button', { name: 'Excluir usuário' }).click()
-  await confirm(page, 'Excluir usuário')
-  await expect(page.getByRole('alert')).toContainText('criou inventários')
+  await expect(page.getByRole('button', { name: /Excluir/ })).toHaveCount(0)
   await expect(
     page.getByRole('button', { name: 'Desativar usuário' }),
   ).toBeVisible()
+  expect(
+    state.requests.filter((r) => r.path === '/users' && r.method !== 'GET'),
+  ).toHaveLength(0)
 })
 
-test('ninguém desativa nem exclui a própria conta', async ({ page }) => {
+test('botão rápido desativa com confirmação e reativa sem confirmar', async ({
+  page,
+}) => {
+  const state = await setup(page)
+  await page.goto('/users')
+  const maria = card(page, 'Maria')
+  await expect(maria).toContainText('Ativo')
+
+  await maria.getByRole('button', { name: 'Desativar Maria' }).click()
+  await confirm(page, 'Desativar usuário')
+  await expect(maria).toContainText('Inativo')
+  // O modal "Gerenciar acesso" não abre por causa do clique rápido.
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(
+    maria.getByRole('button', { name: 'Ativar Maria' }),
+  ).toBeVisible()
+  expect(
+    state.requests.some(
+      (r) => r.method === 'PATCH' && r.path === '/users/2/deactivate',
+    ),
+  ).toBe(true)
+
+  // Reativar não pede confirmação.
+  await maria.getByRole('button', { name: 'Ativar Maria' }).click()
+  await expect(maria).toContainText('Ativo')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(
+    maria.getByRole('button', { name: 'Desativar Maria' }),
+  ).toBeVisible()
+  expect(
+    state.requests.some(
+      (r) => r.method === 'PATCH' && r.path === '/users/2/activate',
+    ),
+  ).toBe(true)
+})
+
+test('botão rápido mostra o erro em um aviso e mantém a situação', async ({
+  page,
+}) => {
+  const state = fixture()
+  state.fail['PATCH /users/2/deactivate'] = 409
+  await setup(page, state)
+  await page.goto('/users')
+  const maria = card(page, 'Maria')
+  await maria.getByRole('button', { name: 'Desativar Maria' }).click()
+  await confirm(page, 'Desativar usuário')
+  await expect(page.getByText('A operação entra em conflito')).toBeVisible()
+  await expect(maria).toContainText('Ativo')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+test('ninguém desativa a própria conta, nem pelo botão rápido', async ({
+  page,
+}) => {
   await setup(page)
   await page.goto('/users')
+  await expect(
+    card(page, 'Camille').getByRole('button', { name: /^(Desativar|Ativar) / }),
+  ).toHaveCount(0)
   await card(page, 'Camille')
     .getByRole('button', { name: 'Gerenciar acesso' })
     .click()
   await expect(
     page.getByRole('button', { name: 'Desativar usuário' }),
   ).toHaveCount(0)
-  await expect(
-    page.getByRole('button', { name: 'Excluir usuário' }),
-  ).toHaveCount(0)
   await expect(page.getByText('própria conta')).toBeVisible()
 })
 
-test('gestor só desativa ou exclui quem atua exclusivamente nos seus setores', async ({
+test('gestor não ativa nem desativa usuários, nem do próprio setor', async ({
   page,
 }) => {
   const state = fixture()
   state.admin = false
-  // Operador do setor do gestor (1), mas também atuando em outro setor (2).
-  state.users[1].sectorIds = [1, 2]
-  state.users[1].profileId = 13
-  await setup(page, state)
-  await page.goto('/users')
-  await card(page, 'Maria')
-    .getByRole('button', { name: 'Gerenciar acesso' })
-    .click()
-  await expect(
-    page.getByRole('button', { name: 'Desativar usuário' }),
-  ).toHaveCount(0)
-  await expect(
-    page.getByRole('button', { name: 'Excluir usuário' }),
-  ).toHaveCount(0)
-  await expect(page.getByText('também atua em outros setores')).toBeVisible()
-})
-
-test('gestor remove operador que atua só no seu setor', async ({ page }) => {
-  const state = fixture()
-  state.admin = false
+  // Operador atuando só no setor do gestor (1): ainda assim só o administrador ativa ou desativa.
   state.users[1].sectorIds = [1]
   state.users[1].profileId = 13
   await setup(page, state)
   await page.goto('/users')
+  await expect(
+    card(page, 'Maria').getByRole('button', { name: /^(Desativar|Ativar) / }),
+  ).toHaveCount(0)
   await card(page, 'Maria')
     .getByRole('button', { name: 'Gerenciar acesso' })
     .click()
   await expect(
-    page.getByRole('button', { name: 'Desativar usuário' }),
-  ).toBeVisible()
+    page.getByRole('button', { name: /Desativar usuário|Reativar usuário/ }),
+  ).toHaveCount(0)
   await expect(
-    page.getByRole('button', { name: 'Excluir usuário' }),
+    page.getByText('Somente o administrador ativa ou desativa usuários.'),
   ).toBeVisible()
 })

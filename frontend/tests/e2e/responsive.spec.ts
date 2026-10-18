@@ -231,13 +231,18 @@ for (const viewport of viewports.slice(0, 2)) {
       await shot(page, 'novo-inventario')
     })
 
-    test('novo usuário e gerenciar acesso', async ({ page }) => {
+    test('usuários: botão rápido e gerenciar acesso', async ({ page }) => {
       await mock(page)
       await page.goto('/users')
-      await page.getByRole('button', { name: /Novo usuário/ }).click()
-      await fitsViewport(page, '')
-      await shot(page, 'novo-usuario')
-      await page.keyboard.press('Escape')
+      await expect(
+        page.getByRole('button', { name: /^(Desativar|Ativar) / }).first(),
+      ).toBeVisible()
+      // A lista, com os dois botões em cada linha, não pode estourar a largura da tela.
+      const size = page.viewportSize()!
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBeLessThanOrEqual(size.width)
+      await shot(page, 'usuarios')
       await page
         .getByRole('button', { name: 'Gerenciar acesso' })
         .first()
