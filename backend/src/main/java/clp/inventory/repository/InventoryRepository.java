@@ -19,8 +19,6 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
 
   boolean existsByNameAndUser_Id(String name, Long userId);
 
-  boolean existsByUser_Id(Long userId);
-
   List<Inventory> findBySector_Id(long sectorId);
 
   // Quem não é admin enxerga os inventários dos setores a que está alocado. Inventários antigos

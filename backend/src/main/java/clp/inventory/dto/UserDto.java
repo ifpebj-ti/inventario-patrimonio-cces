@@ -4,13 +4,7 @@ import clp.inventory.model.User;
 import java.util.List;
 
 public record UserDto(
-    long id,
-    String name,
-    String email,
-    List<Long> sectorIds,
-    Long profileId,
-    boolean pendingGoogleLogin,
-    boolean active) {
+    long id, String name, String email, List<Long> sectorIds, Long profileId, boolean active) {
 
   public static UserDto from(User user, List<Long> sectorIds) {
     return new UserDto(
@@ -19,7 +13,6 @@ public record UserDto(
         user.getEmail(),
         sectorIds,
         user.getProfileId(),
-        user.isPendingGoogleLogin(),
         user.isActive());
   }
 }

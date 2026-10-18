@@ -84,49 +84,6 @@ class GoogleLoginE2ETest {
   @Autowired UserRepository userRepository;
 
   @Autowired clp.inventory.repository.ProfileRepository profileRepository;
-  @Autowired clp.inventory.repository.SectorRepository sectorRepository;
-  @Autowired clp.inventory.repository.SectorAllocationRepository allocationRepository;
-  @Autowired clp.inventory.service.AdminUserService adminUserService;
-
-  @Test
-  void firstGoogleLoginPreservesPreRegisteredUserProfileAndSectors() throws Exception {
-    var admin = new clp.inventory.model.User();
-    admin.setName("Admin");
-    admin.setEmail("pre-registration-admin@ifpe.edu.br");
-    admin.setGoogleId("pre-registration-admin-sub");
-    admin.setProfile(
-        profileRepository.findAll().stream()
-            .filter(p -> p.name().equals("ADMIN_ORGANIZATION"))
-            .findFirst()
-            .orElseThrow());
-    userRepository.save(admin);
-    var profile =
-        profileRepository.findAll().stream()
-            .filter(p -> p.name().equals("GESTOR_SETOR"))
-            .findFirst()
-            .orElseThrow();
-    var sector =
-        sectorRepository.save(new clp.inventory.model.Sector("Pre-registration sector", null));
-    String email = "pre-registered@ifpe.edu.br";
-    var pending =
-        adminUserService.create(
-            new clp.inventory.dto.CreateUserDto(
-                "Nome definido pelo admin", email, profile.id(), java.util.List.of(sector.id())),
-            admin.getId());
-    var response =
-        restTemplate.postForEntity(
-            "/auth/google", Map.of("credential", signToken(email)), Map.class);
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-    var sessionUser = (Map<?, ?>) response.getBody().get("user");
-    assertThat(sessionUser.get("id")).isEqualTo(pending.getId().intValue());
-    assertThat(sessionUser.get("name")).isEqualTo("Nome definido pelo admin");
-    assertThat(sessionUser.get("profileId")).isEqualTo((int) profile.id());
-    assertThat(sessionUser.get("permissions")).isEqualTo(java.util.List.of("MANAGE_SECTOR"));
-    var stored = userRepository.findById(pending.getId()).orElseThrow();
-    assertThat(stored.isPendingGoogleLogin()).isFalse();
-    assertThat(stored.getGoogleId()).isEqualTo("google-sub-" + email);
-    assertThat(allocationRepository.findByUser_Id(pending.getId())).hasSize(1);
-  }
 
   private String signToken(String email) throws JOSEException {
     var now = Instant.now();
@@ -166,11 +123,10 @@ class GoogleLoginE2ETest {
         .containsEntry("permissions", java.util.List.of())
         .doesNotContainKeys("googleId", "systemUser", "passwordHash", "profile");
 
-    // Quem entra pela primeira vez nasce com o perfil de consulta (somente leitura).
+    // Quem entra pela primeira vez nasce sem perfil: um administrador atribui o acesso depois.
     var created = userRepository.findByEmail(ALLOWED_EMAIL).orElseThrow();
-    assertThat(created.getProfile().name()).isEqualTo("CONSULTA");
-    assertThat(((Number) sessionUser.get("profileId")).longValue())
-        .isEqualTo(created.getProfileId());
+    assertThat(created.getProfile()).isNull();
+    assertThat(sessionUser.get("profileId")).isNull();
 
     var meHeaders = new HttpHeaders();
     meHeaders.setBearerAuth(appToken);
@@ -180,6 +136,73 @@ class GoogleLoginE2ETest {
     assertThat(meResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(meResponse.getBody().get("email")).isEqualTo(ALLOWED_EMAIL);
     assertThat(meResponse.getBody()).isEqualTo(sessionUser);
+  }
+
+  @Test
+  void userCreatedByGoogleLoginHasNoPermissionsUntilAnAdminAssignsAProfile() throws Exception {
+    var admin = new clp.inventory.model.User();
+    admin.setName("Admin");
+    admin.setEmail("perfil-admin@ifpe.edu.br");
+    admin.setGoogleId("google-sub-perfil-admin@ifpe.edu.br");
+    admin.setProfile(
+        profileRepository.findAll().stream()
+            .filter(p -> p.name().equals("ADMIN_ORGANIZATION"))
+            .findFirst()
+            .orElseThrow());
+    userRepository.save(admin);
+    String adminToken =
+        (String)
+            restTemplate
+                .postForEntity(
+                    "/auth/google",
+                    Map.of("credential", signToken("perfil-admin@ifpe.edu.br")),
+                    Map.class)
+                .getBody()
+                .get("token");
+
+    String email = "sem-perfil@ifpe.edu.br";
+    var login =
+        restTemplate.postForEntity(
+            "/auth/google", Map.of("credential", signToken(email)), Map.class);
+    String token = (String) login.getBody().get("token");
+    var created = userRepository.findByEmail(email).orElseThrow();
+
+    // Sem perfil: nenhuma permissão e nenhuma rota de administração.
+    var meBefore =
+        restTemplate.exchange(
+            "/auth/me", HttpMethod.GET, new HttpEntity<>(bearer(token)), Map.class);
+    assertThat(meBefore.getBody().get("profileId")).isNull();
+    assertThat(meBefore.getBody().get("permissions")).isEqualTo(java.util.List.of());
+    assertThat(
+            restTemplate
+                .exchange("/users", HttpMethod.GET, new HttpEntity<>(bearer(token)), String.class)
+                .getStatusCode())
+        .isEqualTo(HttpStatus.FORBIDDEN);
+
+    // Um administrador atribui o perfil e o mesmo usuário passa a ter as permissões dele.
+    var consulta =
+        profileRepository.findAll().stream()
+            .filter(p -> p.name().equals("GESTOR_SETOR"))
+            .findFirst()
+            .orElseThrow();
+    var assigned =
+        restTemplate.exchange(
+            "/users/" + created.getId() + "/profile",
+            HttpMethod.PATCH,
+            new HttpEntity<>(Map.of("profileId", consulta.id()), bearer(adminToken)),
+            Map.class);
+    assertThat(assigned.getStatusCode()).isEqualTo(HttpStatus.OK);
+    var meAfter =
+        restTemplate.exchange(
+            "/auth/me", HttpMethod.GET, new HttpEntity<>(bearer(token)), Map.class);
+    assertThat(meAfter.getBody().get("permissions")).isEqualTo(java.util.List.of("MANAGE_SECTOR"));
+  }
+
+  private HttpHeaders bearer(String token) {
+    var headers = new HttpHeaders();
+    headers.setBearerAuth(token);
+    headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+    return headers;
   }
 
   @Test

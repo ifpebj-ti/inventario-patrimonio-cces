@@ -33,10 +33,6 @@ public class User {
   @JsonIgnore
   private boolean systemUser = false;
 
-  @Column(name = "pending_google_login", nullable = false)
-  @JsonIgnore
-  private boolean pendingGoogleLogin = false;
-
   // Conta desativada não entra no sistema; o histórico (inventários criados) é preservado.
   @Column(name = "active", nullable = false)
   @JsonIgnore
@@ -49,15 +45,6 @@ public class User {
 
   public void setActive(boolean active) {
     this.active = active;
-  }
-
-  @JsonIgnore
-  public boolean isPendingGoogleLogin() {
-    return pendingGoogleLogin;
-  }
-
-  public void setPendingGoogleLogin(boolean pendingGoogleLogin) {
-    this.pendingGoogleLogin = pendingGoogleLogin;
   }
 
   @Column(name = "password_hash")

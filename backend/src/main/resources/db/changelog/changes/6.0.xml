@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+    <!--
+        Remove o pre-cadastro de usuario: o usuario so nasce no primeiro login pelo Google (sem perfil).
+        O changeset 20261013-05 criou pending_google_login e abriu um terceiro ramo no CHECK
+        ck_user_system_google (usuario comum sem google_id enquanto pendente); aqui o ramo e a coluna saem
+        e o CHECK volta a forma estrita: google_id e nulo se e somente se a conta e de sistema.
+
+        Um pre-cadastro nunca autenticou, entao so pode ter aloracoes de setor (nao tem inventario nem
+        auditoria): elas e os proprios pre-cadastros sao apagados antes, para o CHECK novo nunca falhar num
+        banco que tenha sobrado algum. Se algum deles tivesse outra dependencia, o DELETE falha e o
+        changeset inteiro (uma transacao) e desfeito, sem estado pela metade.
+    -->
+    <changeSet id="20261018-01" author="inventarium">
+        <sql>
+            DELETE FROM im_sector_allocation
+             WHERE id_user IN (SELECT id FROM im_user WHERE pending_google_login = true);
+            DELETE FROM im_user WHERE pending_google_login = true;
+            ALTER TABLE im_user DROP CONSTRAINT ck_user_system_google;
+            ALTER TABLE im_user DROP COLUMN pending_google_login;
+            ALTER TABLE im_user ADD CONSTRAINT ck_user_system_google CHECK (
+                (is_system_user = true AND google_id IS NULL)
+                OR (is_system_user = false AND google_id IS NOT NULL));
+        </sql>
+    </changeSet>
+</databaseChangeLog>
