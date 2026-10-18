@@ -41,125 +41,107 @@ class LoginAttemptLimiterTest {
   @BeforeEach
   void setUp() {
     clock = new MutableClock();
-    limiter = newLimiter(100, 3);
+    limiter = newLimiter(3);
   }
 
-  private LoginAttemptLimiter newLimiter(int ipMax, int userMax) {
-    return new LoginAttemptLimiter(
-        ipMax, userMax, Duration.ofMinutes(15), Duration.ofMinutes(15), clock);
+  private LoginAttemptLimiter newLimiter(int userMax) {
+    return new LoginAttemptLimiter(userMax, Duration.ofMinutes(15), Duration.ofMinutes(15), clock);
   }
 
-  private void fail(LoginAttemptLimiter target, String ip, String user, int times) {
+  private void fail(LoginAttemptLimiter target, String user, int times) {
     for (int i = 0; i < times; i++) {
-      target.recordFailure(ip, user);
+      target.recordFailure(user);
     }
   }
 
   @Test
   void belowTheLimit_isNotBlocked() {
-    fail(limiter, "1.1.1.1", "admin", 2);
+    fail(limiter, "admin", 2);
 
-    assertThat(limiter.blockedFor("1.1.1.1", "admin")).isEmpty();
+    assertThat(limiter.blockedFor("admin")).isEmpty();
   }
 
   @Test
-  void reachingTheUserLimit_blocksThatUserFromAnyIp() {
-    fail(limiter, "1.1.1.1", "admin", 3);
+  void reachingTheUserLimit_blocksThatUser() {
+    fail(limiter, "admin", 3);
 
-    assertThat(limiter.blockedFor("9.9.9.9", "admin")).isPresent();
-    assertThat(limiter.blockedFor("9.9.9.9", "outro")).isEmpty();
-  }
-
-  @Test
-  void reachingTheIpLimit_blocksThatIpForAnyUser() {
-    limiter = newLimiter(3, 100);
-
-    limiter.recordFailure("1.1.1.1", "a");
-    limiter.recordFailure("1.1.1.1", "b");
-    limiter.recordFailure("1.1.1.1", "c");
-
-    assertThat(limiter.blockedFor("1.1.1.1", "qualquer")).isPresent();
-    assertThat(limiter.blockedFor("2.2.2.2", "qualquer")).isEmpty();
+    assertThat(limiter.blockedFor("admin")).isPresent();
+    assertThat(limiter.blockedFor("outro")).isEmpty();
   }
 
   @Test
   void usernameIsNormalized() {
-    limiter.recordFailure("1.1.1.1", " Admin ");
-    limiter.recordFailure("1.1.1.1", "ADMIN");
-    limiter.recordFailure("1.1.1.1", "admin");
+    limiter.recordFailure(" Admin ");
+    limiter.recordFailure("ADMIN");
+    limiter.recordFailure("admin");
 
-    assertThat(limiter.blockedFor("9.9.9.9", "admin")).isPresent();
+    assertThat(limiter.blockedFor("admin")).isPresent();
   }
 
   @Test
   void block_reportsTheRemainingTimeAndExpires() {
-    fail(limiter, "1.1.1.1", "admin", 3);
+    fail(limiter, "admin", 3);
     clock.advance(Duration.ofMinutes(10));
 
-    assertThat(limiter.blockedFor("1.1.1.1", "admin")).contains(Duration.ofMinutes(5));
+    assertThat(limiter.blockedFor("admin")).contains(Duration.ofMinutes(5));
 
     clock.advance(Duration.ofMinutes(5));
 
-    assertThat(limiter.blockedFor("1.1.1.1", "admin")).isEmpty();
+    assertThat(limiter.blockedFor("admin")).isEmpty();
   }
 
   @Test
   void afterTheBlock_theCounterStartsOver() {
-    fail(limiter, "1.1.1.1", "admin", 3);
+    fail(limiter, "admin", 3);
     clock.advance(Duration.ofMinutes(15));
 
-    fail(limiter, "1.1.1.1", "admin", 2);
+    fail(limiter, "admin", 2);
 
-    assertThat(limiter.blockedFor("1.1.1.1", "admin")).isEmpty();
+    assertThat(limiter.blockedFor("admin")).isEmpty();
   }
 
   @Test
   void failuresOutsideTheWindow_doNotAccumulate() {
-    fail(limiter, "1.1.1.1", "admin", 2);
+    fail(limiter, "admin", 2);
     clock.advance(Duration.ofMinutes(16));
-    fail(limiter, "1.1.1.1", "admin", 2);
+    fail(limiter, "admin", 2);
 
-    assertThat(limiter.blockedFor("1.1.1.1", "admin")).isEmpty();
+    assertThat(limiter.blockedFor("admin")).isEmpty();
   }
 
   @Test
-  void success_resetsTheUserCounterButNotTheIpCounter() {
-    limiter = newLimiter(4, 3);
-
-    fail(limiter, "1.1.1.1", "admin", 2);
+  void success_resetsTheUserCounter() {
+    fail(limiter, "admin", 2);
     limiter.recordSuccess("admin");
-    fail(limiter, "1.1.1.1", "admin", 2);
+    fail(limiter, "admin", 2);
 
-    // usuário: 2 falhas depois do reset, abaixo do limite de 3
-    assertThat(limiter.blockedFor("9.9.9.9", "admin")).isEmpty();
-    // IP: 4 falhas no total, o sucesso não zera
-    assertThat(limiter.blockedFor("1.1.1.1", "outro")).isPresent();
+    assertThat(limiter.blockedFor("admin")).isEmpty();
   }
 
   @Test
   void blankOrNullUsername_doesNotBreak() {
-    limiter.recordFailure("1.1.1.1", null);
+    limiter.recordFailure(null);
 
-    assertThat(limiter.blockedFor("1.1.1.1", null)).isEmpty();
+    assertThat(limiter.blockedFor(null)).isEmpty();
   }
 
   @Test
   void clear_dropsEveryBlock() {
-    fail(limiter, "1.1.1.1", "admin", 3);
+    fail(limiter, "admin", 3);
 
     limiter.clear();
 
-    assertThat(limiter.blockedFor("1.1.1.1", "admin")).isEmpty();
+    assertThat(limiter.blockedFor("admin")).isEmpty();
   }
 
   @Test
   void manyDistinctKeys_doNotGrowWithoutBound_andKeepActiveBlocks() {
-    fail(limiter, "1.1.1.1", "admin", 3);
+    fail(limiter, "admin", 3);
 
     for (int i = 0; i < 25_000; i++) {
-      limiter.recordFailure("10.0." + (i / 250) + "." + (i % 250), "usuario-" + i);
+      limiter.recordFailure("usuario-" + i);
     }
 
-    assertThat(limiter.blockedFor("1.1.1.1", "admin")).isPresent();
+    assertThat(limiter.blockedFor("admin")).isPresent();
   }
 }

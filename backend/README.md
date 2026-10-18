@@ -127,28 +127,33 @@ A mensagem de 401 é única de propósito, igual ao `/auth/google`.
 
 ### Limite de tentativas
 
-O login por senha tem bloqueio temporário contra força bruta, com contadores **em memória** (a
-aplicação roda numa instância; reiniciar o backend zera os contadores):
+O login por senha tem duas camadas contra força bruta:
 
-- **Por usuário**: 5 falhas em 15 min bloqueiam aquele usuário por 15 min, de qualquer IP. Usuário
-  inexistente conta igual, então a resposta não revela quais usuários existem.
-- **Por IP**: 10 falhas em 15 min bloqueiam aquele IP por 15 min, para qualquer usuário.
-- Durante o bloqueio a resposta é `429` **mesmo com a senha certa** (e sem gastar BCrypt). Pedidos
-  bloqueados não prolongam o bloqueio, e requisições com campos vazios (400) não contam.
-- Um login com sucesso zera o contador do usuário, mas não o do IP.
+- **Backend, por usuário** (contador **em memória**: a aplicação roda numa instância e reiniciar o
+  backend zera os contadores): 5 falhas em 15 min bloqueiam aquele usuário por 15 min, de qualquer IP.
+  Usuário inexistente conta igual, então a resposta não revela quais usuários existem.
+- **Nginx, por IP, só no `/auth/login`**: freio de taxa (zona `auth`, 10 requisições por minuto com
+  rajada de 10; passou disso, `429` até o ritmo cair). Não é bloqueio de 15 min: limita a velocidade de
+  quem tenta. Ver `infra/nginx/app-vm/sites-tls/21-api.conf`. O `/auth/google` e o `/auth/me` ficam só na
+  zona geral do Nginx (20 req/s), sem limite de tentativas.
+- Durante o bloqueio por usuário a resposta é `429` **mesmo com a senha certa** (e sem gastar BCrypt).
+  Pedidos bloqueados não prolongam o bloqueio, e requisições com campos vazios (400) não contam.
+- Um login com sucesso zera o contador do usuário.
+- Os dois `429` trazem `Retry-After` e CORS (o do Nginx vem de `snippets/login-rate-limited.conf`).
 - O bloqueio é temporário de propósito: bloqueio permanente permitiria a qualquer um travar o
   `admin`. Contrapartida: quem insistir consegue manter o `admin` indisponível, sem afetar o login
   Google dos demais.
 
-Os limites são configuráveis: `AUTH_LOGIN_USER_MAX_FAILURES`, `AUTH_LOGIN_IP_MAX_FAILURES`,
-`AUTH_LOGIN_WINDOW` e `AUTH_LOGIN_BLOCK_DURATION` (ex.: `15m`).
+Os limites do backend são configuráveis: `AUTH_LOGIN_USER_MAX_FAILURES`, `AUTH_LOGIN_WINDOW` e
+`AUTH_LOGIN_BLOCK_DURATION` (ex.: `15m`). Os do Nginx ficam em `infra/nginx` e mudam com
+`infra/scripts/deploy-nginx.sh`.
 
-**IP do cliente.** O limite por IP usa o IP de quem conecta. Atrás de um proxy (nginx) esse seria o
-IP do proxy, e todos os clientes dividiriam o mesmo contador. Nesse caso o proxy precisa
-**sobrescrever** o `X-Forwarded-For` (não anexar ao que veio do cliente) e o backend precisa de
-`FORWARD_HEADERS_STRATEGY=native`. Sem proxy confiável deixe o padrão (`none`): o cabeçalho viria do
-cliente e seria falsificável. O `/auth/google` não tem esse limite: não há segredo para adivinhar
-(o que entra é um ID token assinado pelo Google).
+**IP do cliente.** Quem enxerga o IP real é o Nginx, por isso o limite por IP é dele: o backend não lê
+o IP no login. Em desenvolvimento, sem Nginx na frente, só vale o bloqueio por usuário.
+`FORWARD_HEADERS_STRATEGY=native` (padrão de produção, com o Nginx sobrescrevendo o
+`X-Forwarded-For`) faz o backend enxergar o IP, o esquema e o host reais, mas o limitador de login não
+depende dele. O `/auth/google` não tem limite de tentativas: não há segredo para adivinhar (o que
+entra é um ID token assinado pelo Google).
 
 
 # - Limpeza de Dados com clear-all-data.sh

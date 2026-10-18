@@ -77,10 +77,13 @@ Google (`POST /auth/google`). Sem `Authorization`.
 - `401`: usuário inexistente, senha errada **ou** login por senha desligado no backend (sem senha
   configurada). A resposta é a mesma nos três casos, de propósito.
 - `429`: muitas tentativas. Corpo `Too many attempts` e cabeçalho `Retry-After` (segundos até poder
-  tentar de novo). O bloqueio vale por usuário (5 falhas em 15 min) e por IP (10 falhas em 15 min),
-  dura 15 min e vale **mesmo com a senha certa**. Mostre uma mensagem própria ("Muitas tentativas,
-  tente de novo em N minutos") em vez de tratar como erro genérico. O `Retry-After` é legível pelo
-  navegador (CORS expõe o cabeçalho).
+  tentar de novo). Vem de **duas camadas**, ambas com `Retry-After` e CORS: o **backend** bloqueia o
+  usuário por 15 min depois de 5 falhas em 15 min (vale **mesmo com a senha certa**, de qualquer IP); o
+  **Nginx** freia o IP que faz muitas requisições seguidas ao `/auth/login` (10 por minuto, rajada de
+  10; passou disso, `429` com `Retry-After` curto até o ritmo cair, sem bloqueio longo).
+  `/auth/google` e `/auth/me` **não** têm limite de tentativas. Mostre uma mensagem própria ("Muitas
+  tentativas, tente de novo em N minutos") em vez de tratar como erro genérico. O `Retry-After` é
+  legível pelo navegador (CORS expõe o cabeçalho).
 - A senha e o identificador vêm de `SYSTEM_ADMIN_PASSWORD`/`SYSTEM_ADMIN_USERNAME` no `.env` do
   backend; o front não tem como saber se o login por senha está ligado, só tentar.
 - Essa conta **não aparece** em `GET /users` nem em `GET /sectors/{id}/users`, e as rotas que mexem em
@@ -327,3 +330,4 @@ Para quem já tinha algo montado em cima da versão anterior:
 | 1.4 | 2026-10-11 | `POST /auth/login` passa a responder `429` com `Retry-After` após falhas repetidas (issue #201). |
 | 1.5 | 2026-10-11 | A conta de sistema sai de `GET /users` e `GET /sectors/{id}/users`, e as rotas de perfil e alocação respondem `404` para ela (issue #202). |
 | 1.6 | 2026-10-11 | `/profiles`, `/permissions` e `PATCH /users/{id}/profile` passam a exigir `ADMIN`; `/permissions` vira somente leitura (`POST`/`PUT`/`DELETE` removidos); o perfil `ADMIN_ORGANIZATION` fica protegido (409); nome de perfil com `trim` (issue #205). |
+| 1.7 | 2026-10-18 | O `429` de `POST /auth/login` passa a vir de duas camadas (Nginx por IP e backend por usuário); `/auth/google` e `/auth/me` ficam sem limite de tentativas (issue #228). |

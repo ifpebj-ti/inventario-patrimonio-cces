@@ -127,7 +127,31 @@ test("API exposes only the actuator health endpoints", () => {
 
   assert.match(api.block, /location\s+~\s+\^\/actuator\/health/);
   assert.match(api.block, /location\s+\/actuator\/\s*\{\s*return\s+404;/);
-  assert.match(api.block, /location\s+\/auth\/\s*\{[^}]*limit_req\s+zone=auth/);
+});
+
+test("only /auth/login gets the strict per-IP limit; /auth/google and /auth/me stay on the general zone", () => {
+  const api = tlsServers.find(({ block }) => /server_name\s+api\.inventariumifpe\.me\s*;/.test(block));
+
+  assert.match(api.block, /location\s+=\s+\/auth\/login\s*\{[^}]*limit_req\s+zone=auth/);
+  assert.doesNotMatch(api.block, /location\s+\/auth\//, "nao deve haver location /auth/ generica");
+  assert.equal((api.block.match(/zone=auth\b/g) ?? []).length, 1, "a zona auth so vale no login");
+  assert.match(api.block, /location\s+\/\s*\{[^}]*limit_req\s+zone=api/);
+});
+
+test("the nginx 429 on login carries Retry-After and CORS, and keeps the security headers", () => {
+  const api = tlsServers.find(({ block }) => /server_name\s+api\.inventariumifpe\.me\s*;/.test(block));
+  const named = api.block.match(/location\s+@login_rate_limited\s*\{([^}]*)\}/);
+  const snippet = stripComments(read("snippets", "login-rate-limited.conf"));
+
+  assert.match(api.block, /location\s+=\s+\/auth\/login\s*\{[^}]*error_page\s+429\s*=\s*@login_rate_limited/);
+  assert.ok(named, "location @login_rate_limited ausente");
+  for (const include of ["headers-common.conf", "headers-api.conf", "login-rate-limited.conf"]) {
+    assert.match(named[1], new RegExp(`snippets/${include.replace(".", "\\.")}`), `sem ${include}`);
+  }
+  assert.match(snippet, /add_header Retry-After "\d+" always;/);
+  assert.match(snippet, /add_header Access-Control-Allow-Origin "https:\/\/inventariumifpe\.me" always;/);
+  assert.match(snippet, /add_header Access-Control-Expose-Headers "Retry-After" always;/);
+  assert.match(snippet, /return 429 "Too many attempts";/);
 });
 
 test("proxy sets X-Forwarded-For from the peer address instead of appending the client's", () => {
