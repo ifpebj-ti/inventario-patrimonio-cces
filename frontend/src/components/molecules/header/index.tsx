@@ -20,7 +20,7 @@ export const Header = () => {
           onClick={toggleMobile}
           type="button"
           aria-label="Abrir menu de navegação"
-          className="md:hidden mr-2 shrink-0 text-primary"
+          className="mr-2 shrink-0 text-primary lg:hidden"
         >
           <Menu className="size-5" />
         </UiButton>

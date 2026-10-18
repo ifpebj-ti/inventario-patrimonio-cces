@@ -71,7 +71,7 @@ const CollapsedTooltip = ({
   enabled ? (
     <Tooltip>
       <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <TooltipContent side="right" className="hidden md:block">
+      <TooltipContent side="right" className="hidden lg:block">
         {label}
       </TooltipContent>
     </Tooltip>

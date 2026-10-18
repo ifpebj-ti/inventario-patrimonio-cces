@@ -135,7 +135,7 @@ export function Sidebar() {
       {/* 1. Versão Desktop (>= 768px): Fixa na lateral esquerda */}
       <aside
         aria-label="Menu lateral de navegação"
-        className={`sticky top-0 z-40 hidden h-screen shrink-0 flex-col border-r bg-card transition-all duration-300 ease-in-out md:flex ${
+        className={`sticky top-0 z-40 hidden h-dvh shrink-0 flex-col border-r bg-card transition-all duration-300 ease-in-out lg:flex ${
           isCollapsed ? 'w-24' : 'w-64'
         }`}
       >
@@ -266,7 +266,7 @@ export function Sidebar() {
         <SheetContent
           side="left"
           aria-describedby={undefined}
-          className="w-72 max-w-[80vw] gap-0 md:hidden"
+          className="h-dvh max-h-dvh w-72 max-w-[80vw] gap-0 lg:hidden"
         >
           <SheetTitle className="sr-only">
             Menu de navegação principal
@@ -281,12 +281,12 @@ export function Sidebar() {
           </div>
 
           {/* Lista de navegação mobile */}
-          <div className="flex-1 overflow-x-hidden overflow-y-auto py-2">
+          <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto py-2">
             <SidebarNav />
           </div>
 
           {/* Rodapé Mobile: Perfil e Logout */}
-          <div className="mt-auto flex items-center gap-3 border-t bg-muted/50 p-3">
+          <div className="mt-auto flex shrink-0 items-center gap-3 border-t bg-muted/50 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <UserAvatar initials={initials} className="size-9" />
             {userIdentity}
             <UiButton
