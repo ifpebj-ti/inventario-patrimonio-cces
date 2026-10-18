@@ -3,7 +3,7 @@
 import { SelectField } from '@/components/ui/select-field'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { ListFilters } from '@/components/organisms/listFilters'
-import { UserCheck, UserX } from 'lucide-react'
+import { TriangleAlert, UserCheck, UserX } from 'lucide-react'
 import { profileLabel } from '@/lib/access-labels'
 import { Button as UiButton } from '@/components/ui/button'
 import { Label as UiLabel } from '@/components/ui/label'
@@ -36,6 +36,14 @@ import {
   ErrorNotice,
   useOperation,
 } from './shared'
+
+const initialsOf = (name: string) =>
+  name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('')
 
 type UserAction =
   | { type: 'profile'; user: ManagedUser; profileId: number | null }
@@ -421,12 +429,7 @@ export const UsersScreen = () => {
                           sectors.find((sector) => sector.id === id)?.name ||
                           `Setor #${id}`,
                       )
-                const initials = user.name
-                  .split(' ')
-                  .filter(Boolean)
-                  .slice(0, 2)
-                  .map((part) => part[0]?.toUpperCase())
-                  .join('')
+                const initials = initialsOf(user.name)
                 return (
                   <article
                     key={user.id}
@@ -531,157 +534,199 @@ export const UsersScreen = () => {
           onClose={() => setEditing(null)}
         >
           <ErrorNotice message={editorError} />
-          <p className="text-sm text-muted-foreground break-all">
-            {editing.email}
-          </p>
-          <section className="space-y-3">
+          <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+              {initialsOf(editing.name) || '?'}
+            </div>
+            <div className="min-w-0 space-y-1.5">
+              <p className="text-sm break-all text-muted-foreground">
+                {editing.email}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                <StatusBadge tone={editing.active ? 'success' : 'neutral'}>
+                  {editing.active ? 'Ativo' : 'Inativo'}
+                </StatusBadge>
+                <StatusBadge
+                  tone={editing.profileId === null ? 'neutral' : 'primary'}
+                >
+                  {profileName(editing.profileId)}
+                </StatusBadge>
+              </div>
+            </div>
+          </div>
+          <section className="space-y-2">
             <h3 className="font-semibold">Perfil de acesso</h3>
-            <UiLabel className="flex-col items-stretch gap-1.5 text-sm">
-              Perfil do usuário
-              <SelectField
-                aria-label="Perfil do usuário"
-                options={assignableProfiles.map((profile) => ({
-                  value: String(profile.id),
-                  label: profileLabel(profile.name),
-                }))}
-                value={profileId}
-                onValueChange={setProfileId}
-                placeholder="Selecione o perfil"
-                disabled={busy}
-              />
-            </UiLabel>
-            <UiButton
-              type="button"
-              disabled={busy || !changedProfile}
-              onClick={() =>
-                setConfirmation({
-                  type: 'profile',
-                  user: editing,
-                  profileId: Number(profileId),
-                })
-              }
-            >
-              Confirmar alteração de perfil
-            </UiButton>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <UiLabel className="flex-1 flex-col items-stretch gap-1.5 text-sm">
+                Perfil do usuário
+                <SelectField
+                  aria-label="Perfil do usuário"
+                  options={assignableProfiles.map((profile) => ({
+                    value: String(profile.id),
+                    label: profileLabel(profile.name),
+                  }))}
+                  value={profileId}
+                  onValueChange={setProfileId}
+                  placeholder="Selecione o perfil"
+                  disabled={busy}
+                />
+              </UiLabel>
+              <UiButton
+                type="button"
+                disabled={busy || !changedProfile}
+                aria-label="Confirmar alteração de perfil"
+                onClick={() =>
+                  setConfirmation({
+                    type: 'profile',
+                    user: editing,
+                    profileId: Number(profileId),
+                  })
+                }
+              >
+                Alterar perfil
+              </UiButton>
+            </div>
+            {editing.profileId === null && (
+              <p className="text-sm text-muted-foreground">
+                Este usuário ainda não tem perfil: não tem permissões até você
+                escolher um.
+              </p>
+            )}
             {editing.id === actor?.id && (
-              <p className="text-sm text-warning">
+              <p className="flex items-start gap-2 text-sm text-warning">
+                <TriangleAlert className="mt-0.5 size-4 shrink-0" />
                 Alterar seu próprio perfil pode remover seu acesso às telas
                 administrativas.
               </p>
             )}
           </section>
           <section className="space-y-3 border-t border-muted pt-4">
+            <h3 className="font-semibold">
+              Setores associados ({editing.sectorIds.length})
+            </h3>
+            {editing.sectorIds.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Nenhum setor associado.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {editing.sectorIds.map((id) => {
+                  const sector = sectors.find((row) => row.id === id)
+                  return (
+                    <li
+                      key={id}
+                      className="flex items-center justify-between gap-2 rounded-lg border px-3 py-1.5 text-sm"
+                    >
+                      <span className="flex min-w-0 flex-wrap items-center gap-2">
+                        {sector?.name || `Setor #${id}`}
+                        {sector && !sector.active && (
+                          <StatusBadge tone="neutral">Inativo</StatusBadge>
+                        )}
+                      </span>
+                      <UiButton
+                        variant="ghost"
+                        size="sm"
+                        type="button"
+                        className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        disabled={
+                          busy ||
+                          !sector ||
+                          (!access.isAdmin && !access.sectorIds.includes(id))
+                        }
+                        onClick={() =>
+                          sector &&
+                          setConfirmation({
+                            type: 'sector',
+                            user: editing,
+                            sector,
+                            allocated: false,
+                          })
+                        }
+                        aria-label={`Desalocar de ${sector?.name || id}`}
+                      >
+                        Desalocar
+                      </UiButton>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <UiLabel className="flex-1 flex-col items-stretch gap-1.5 text-sm">
+                Adicionar setor
+                <SelectField
+                  aria-label="Adicionar setor"
+                  options={availableSectors.map((sector) => ({
+                    value: String(sector.id),
+                    label: sector.name,
+                  }))}
+                  value={sectorId}
+                  onValueChange={setSectorId}
+                  placeholder="Selecione um setor ativo"
+                  disabled={busy}
+                />
+              </UiLabel>
+              <UiButton
+                type="button"
+                disabled={busy || !sectorId}
+                aria-label="Alocar no setor"
+                onClick={() => {
+                  const sector = availableSectors.find(
+                    (row) => row.id === Number(sectorId),
+                  )
+                  if (sector)
+                    setConfirmation({
+                      type: 'sector',
+                      user: editing,
+                      sector,
+                      allocated: true,
+                    })
+                }}
+              >
+                Alocar
+              </UiButton>
+            </div>
+            {availableSectors.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                Não há outros setores ativos disponíveis.
+              </p>
+            )}
+          </section>
+          <section
+            className={`space-y-3 rounded-lg border p-4 ${editing.active ? 'border-destructive/30' : 'border-muted'}`}
+          >
             <h3 className="font-semibold">Situação da conta</h3>
             <p className="text-sm text-muted-foreground">
               {editing.active
-                ? 'Conta ativa. Desativar bloqueia o acesso imediatamente e preserva o histórico.'
+                ? 'Conta ativa: o usuário consegue entrar no sistema.'
                 : 'Conta desativada: o usuário não consegue entrar no sistema.'}
             </p>
             {canToggleUser(editing) ? (
-              <div className="flex flex-wrap gap-2">
-                <UiButton
-                  variant="outline"
-                  type="button"
-                  disabled={busy}
-                  onClick={() =>
-                    setConfirmation({
-                      type: 'active',
-                      user: editing,
-                      active: !editing.active,
-                    })
-                  }
-                >
-                  {editing.active ? <UserX /> : <UserCheck />}
-                  {editing.active ? 'Desativar usuário' : 'Reativar usuário'}
-                </UiButton>
-              </div>
+              <UiButton
+                variant="outline"
+                type="button"
+                disabled={busy}
+                className={
+                  editing.active
+                    ? 'border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive'
+                    : undefined
+                }
+                onClick={() =>
+                  setConfirmation({
+                    type: 'active',
+                    user: editing,
+                    active: !editing.active,
+                  })
+                }
+              >
+                {editing.active ? <UserX /> : <UserCheck />}
+                {editing.active ? 'Desativar usuário' : 'Reativar usuário'}
+              </UiButton>
             ) : (
               <p className="text-sm text-muted-foreground">
                 {!access.isAdmin
                   ? 'Somente o administrador ativa ou desativa usuários.'
                   : 'Você não pode desativar a própria conta.'}
-              </p>
-            )}
-          </section>
-          <section className="space-y-3 border-t border-muted pt-4">
-            <h3 className="font-semibold">Setores associados</h3>
-            <ul className="space-y-2">
-              {editing.sectorIds.map((id) => {
-                const sector = sectors.find((row) => row.id === id)
-                return (
-                  <li
-                    key={id}
-                    className="flex items-center justify-between gap-2 text-sm"
-                  >
-                    <span>
-                      {sector?.name || `Setor #${id}`}
-                      {sector && !sector.active && ' · Inativo'}
-                    </span>
-                    <UiButton
-                      variant="outline"
-                      type="button"
-                      disabled={
-                        busy ||
-                        !sector ||
-                        (!access.isAdmin && !access.sectorIds.includes(id))
-                      }
-                      onClick={() =>
-                        sector &&
-                        setConfirmation({
-                          type: 'sector',
-                          user: editing,
-                          sector,
-                          allocated: false,
-                        })
-                      }
-                      aria-label={`Desalocar de ${sector?.name || id}`}
-                    >
-                      Desalocar
-                    </UiButton>
-                  </li>
-                )
-              })}
-              {editing.sectorIds.length === 0 && (
-                <li className="text-sm text-muted-foreground">
-                  Nenhum setor associado.
-                </li>
-              )}
-            </ul>
-            <UiLabel className="flex-col items-stretch gap-1.5 text-sm">
-              Adicionar setor
-              <SelectField
-                aria-label="Adicionar setor"
-                options={availableSectors.map((sector) => ({
-                  value: String(sector.id),
-                  label: sector.name,
-                }))}
-                value={sectorId}
-                onValueChange={setSectorId}
-                placeholder="Selecione um setor ativo"
-                disabled={busy}
-              />
-            </UiLabel>
-            <UiButton
-              type="button"
-              disabled={busy || !sectorId}
-              onClick={() => {
-                const sector = availableSectors.find(
-                  (row) => row.id === Number(sectorId),
-                )
-                if (sector)
-                  setConfirmation({
-                    type: 'sector',
-                    user: editing,
-                    sector,
-                    allocated: true,
-                  })
-              }}
-            >
-              Alocar no setor
-            </UiButton>
-            {availableSectors.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                Não há outros setores ativos disponíveis.
               </p>
             )}
           </section>

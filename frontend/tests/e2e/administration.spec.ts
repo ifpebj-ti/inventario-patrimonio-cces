@@ -830,3 +830,51 @@ test('gestor não ativa nem desativa usuários, nem do próprio setor', async ({
     page.getByText('Somente o administrador ativa ou desativa usuários.'),
   ).toBeVisible()
 })
+
+test('modal de acesso mostra quem é o usuário e deixa a situação da conta por último', async ({
+  page,
+}) => {
+  await setup(page)
+  await page.goto('/users')
+  await card(page, 'Maria')
+    .getByRole('button', { name: 'Gerenciar acesso' })
+    .click()
+  const modal = page.getByRole('dialog', { name: 'Acesso de Maria' })
+  // Identidade e estado no topo.
+  await expect(modal).toContainText('maria@example.com')
+  await expect(modal.getByText('Ativo', { exact: true })).toBeVisible()
+  await expect(modal.getByText('Sem perfil', { exact: true })).toBeVisible()
+  // Quem ainda não tem perfil recebe a orientação e só altera depois de escolher um.
+  await expect(modal).toContainText('Este usuário ainda não tem perfil')
+  const change = modal.getByRole('button', {
+    name: 'Confirmar alteração de perfil',
+  })
+  await expect(change).toBeDisabled()
+  await pickOption(modal.getByLabel('Perfil do usuário'), 'Consulta')
+  await expect(change).toBeEnabled()
+  // A ação de cuidado (desativar) fica isolada no fim.
+  expect(
+    await modal.getByRole('heading', { level: 3 }).allTextContents(),
+  ).toEqual(['Perfil de acesso', 'Setores associados (0)', 'Situação da conta'])
+})
+
+test('modal de um usuário inativo mostra o estado e oferece reativar', async ({
+  page,
+}) => {
+  const state = fixture()
+  state.users[1].active = false
+  await setup(page, state)
+  await page.goto('/users')
+  await card(page, 'Maria')
+    .getByRole('button', { name: 'Gerenciar acesso' })
+    .click()
+  const modal = page.getByRole('dialog', { name: 'Acesso de Maria' })
+  await expect(modal.getByText('Inativo', { exact: true })).toBeVisible()
+  await expect(modal).toContainText('o usuário não consegue entrar')
+  await expect(
+    modal.getByRole('button', { name: 'Reativar usuário' }),
+  ).toBeVisible()
+  await expect(
+    modal.getByRole('button', { name: 'Desativar usuário' }),
+  ).toHaveCount(0)
+})
