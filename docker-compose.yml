@@ -51,6 +51,25 @@ services:
     networks:
       - inventarium-net
 
+  # Reproduz o Nginx de producao (freio por IP do login). O navegador usa este servico na porta
+  # NGINX_PORT; o backend continua publicado em BACKEND_PORT para curl e debug, mas esse caminho nao
+  # passa pelo limite de IP. Config em infra/nginx/dev.
+  nginx:
+    container_name: inventarium-nginx
+    image: nginx:1.26-alpine
+    restart: unless-stopped
+    depends_on:
+      inventarium-back:
+        condition: service_healthy
+    ports:
+      - "${NGINX_PORT:-8081}:80"
+    volumes:
+      - ./infra/nginx/dev/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./infra/nginx/app-vm/snippets/proxy.conf:/etc/nginx/inventarium/snippets/proxy.conf:ro
+      - ./infra/nginx/dev/login-rate-limited.conf:/etc/nginx/inventarium/snippets/login-rate-limited.conf:ro
+    networks:
+      - inventarium-net
+
   inventarium-front:
     container_name: inventarium-front
     image: ${FRONTEND_IMAGE:-inventarium-front:local}
@@ -58,7 +77,7 @@ services:
       context: ./frontend
       args:
         NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:?defina GOOGLE_OAUTH_CLIENT_ID no .env}
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:${NGINX_PORT:-8081}}
     restart: unless-stopped
     depends_on:
       inventarium-back:

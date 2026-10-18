@@ -39,7 +39,6 @@ const stackVariables = [
   "FRONTEND_PORT",
   "SPRING_JPA_HIBERNATE_DDL_AUTO",
   "GOOGLE_ALLOWED_DOMAINS",
-  "AUTH_LOGIN_IP_MAX_FAILURES",
   "AUTH_LOGIN_USER_MAX_FAILURES",
   "AUTH_LOGIN_WINDOW",
   "AUTH_LOGIN_BLOCK_DURATION",
@@ -140,7 +139,6 @@ test("passes admin, proxy and login limiter settings to the backend", { skip }, 
   assert.equal(environment.SYSTEM_ADMIN_PASSWORD, "");
   assert.equal(environment.FORWARD_HEADERS_STRATEGY, "native");
   assert.equal(environment.CORS_ALLOWED_ORIGINS, "https://inventariumifpe.me");
-  assert.equal(environment.AUTH_LOGIN_IP_MAX_FAILURES, "10");
   assert.equal(environment.AUTH_LOGIN_USER_MAX_FAILURES, "5");
   assert.equal(environment.AUTH_LOGIN_WINDOW, "15m");
   assert.equal(environment.AUTH_LOGIN_BLOCK_DURATION, "15m");

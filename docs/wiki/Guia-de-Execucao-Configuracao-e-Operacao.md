@@ -48,7 +48,8 @@ Preencha o `.env` antes de subir a aplicação.
 | --- | --- | --- | --- |
 | `SECURITY_TOKEN_SECRET` | Sim | Backend | Segredo usado para assinar os JWTs da aplicação. Gere um valor forte. |
 | `POSTGRES_PORT` | Nao | Compose | Porta publicada no host. Padrao: `5433`. |
-| `BACKEND_PORT` | Nao | Compose | Porta publicada da API. Padrao: `8080`. |
+| `BACKEND_PORT` | Nao | Compose | Porta publicada da API. Padrao: `8080`. Direto no backend: não passa pelo limite de IP do Nginx de desenvolvimento. |
+| `NGINX_PORT` | Nao | Compose | Porta do Nginx de desenvolvimento (freio por IP do login, como em produção). O frontend do compose chama a API por ele. Padrao: `8081`. |
 | `FRONTEND_PORT` | Nao | Compose | Porta publicada da web. Padrao: `3000`. |
 | `POSTGRES_USER` | Nao | Postgres/backend | Usuário do banco. Padrao: `admin`. |
 | `POSTGRES_PASSWORD` | Nao | Postgres/backend | Senha do banco local. Padrao: `admin`. |
@@ -56,14 +57,14 @@ Preencha o `.env` antes de subir a aplicação.
 | `BACKEND_IMAGE` | Nao | Compose | Nome/tag da imagem do backend. Local: `inventarium-back:local`. |
 | `FRONTEND_IMAGE` | Nao | Compose | Nome/tag da imagem do frontend. Local: `inventarium-front:local`. |
 | `GOOGLE_OAUTH_CLIENT_ID` | Sim | Backend/frontend | Client ID publico do Google OAuth. Precisa ser o mesmo nos dois lados. |
-| `NEXT_PUBLIC_API_URL` | Nao | Frontend | URL pública que o navegador usa para chamar a API. Local: `http://localhost:8080`. |
+| `NEXT_PUBLIC_API_URL` | Nao | Frontend | URL pública que o navegador usa para chamar a API. Local com o compose: `http://localhost:8081` (pelo Nginx de desenvolvimento); direto no backend, `http://localhost:8080`. |
 | `GOOGLE_ALLOWED_DOMAINS` | Nao | Backend | Dominios permitidos no login Google. Padrao: `ifpe.edu.br`. |
 | `SPRING_MAIL_USERNAME` | Nao | Backend | Conta SMTP usada para envio de emails. |
 | `SPRING_MAIL_PASSWORD` | Nao | Backend | Senha de app do Gmail ou credencial SMTP equivalente. Em produção é obrigatória (o compose de produção aborta sem ela). |
 | `SYSTEM_ADMIN_USERNAME` | Nao | Backend | Usuário da conta de sistema que entra por senha (`POST /auth/login`). Padrao: `admin`. |
 | `SYSTEM_ADMIN_PASSWORD` | Nao | Backend | Senha da conta de sistema. Vazia desliga o login por senha. Precisa ter **no mínimo 12 caracteres**: com menos, a conta não é criada e o backend só registra um erro no log. Trocar o valor e reiniciar troca a senha da conta. |
-| `FORWARD_HEADERS_STRATEGY` | Nao | Backend | `none` (padrão local) ou `native`. Use `native` somente atrás do Nginx, que deve sobrescrever o `X-Forwarded-For`; é o padrão do compose de produção. O limite de tentativas de login por IP depende disso. |
-| `AUTH_LOGIN_IP_MAX_FAILURES`, `AUTH_LOGIN_USER_MAX_FAILURES`, `AUTH_LOGIN_WINDOW`, `AUTH_LOGIN_BLOCK_DURATION` | Nao | Backend | Limites do login por senha. Padrao: 10 falhas por IP, 5 por usuário, janela e bloqueio de `15m`. O compose de produção os repassa. |
+| `FORWARD_HEADERS_STRATEGY` | Nao | Backend | `none` (padrão local) ou `native`. Use `native` somente atrás do Nginx, que deve sobrescrever o `X-Forwarded-For`; é o padrão do compose de produção. O limite de tentativas de login não depende disso: o limite por IP é do Nginx e o do backend é por usuário. |
+| `AUTH_LOGIN_USER_MAX_FAILURES`, `AUTH_LOGIN_WINDOW`, `AUTH_LOGIN_BLOCK_DURATION` | Nao | Backend | Limites do login por senha, por usuário. Padrao: 5 falhas, janela e bloqueio de `15m`. O compose de produção os repassa. O limite por IP é do Nginx (`infra/nginx`). |
 | `IMAGE_TAG` | Nao | Compose de produção | Tag das imagens do GHCR. Padrao: `latest` (última release). Para rollback, use `vX.Y.Z`. |
 | `CORS_ALLOWED_ORIGINS` | Nao | Compose de produção | Origens (separadas por vírgula) autorizadas a chamar a API pelo navegador. Padrao no compose de produção: `https://inventariumifpe.me`; em desenvolvimento: `http://localhost:3000`. `*` é recusado na inicialização do backend. |
 
@@ -150,8 +151,11 @@ Serviços publicados:
 ```text
 Frontend web: http://localhost:3000
 Backend API:  http://localhost:8080
+Nginx (API):  http://localhost:8081   (o frontend do compose chama a API por aqui)
 PostgreSQL:   localhost:5433
 ```
+
+Para ver o limite de tentativas do login: o frontend do compose chama a API pelo Nginx (`8081`). Erre a senha do `admin` na tela até a mensagem de "Muitas tentativas" (bloqueio por usuário, no backend) ou dispare muitas requisições seguidas, por exemplo `for i in $(seq 1 14); do curl -s -o /dev/null -w "%{http_code} " -X POST -H 'Content-Type: application/json' -d '{"username":"x","password":"y"}' http://localhost:8081/auth/login; done` (os últimos respondem `429`, do Nginx). Pela porta `8080` só vale o bloqueio por usuário. No Docker o Nginx pode enxergar todo cliente local como o mesmo IP (o gateway da rede), então isso serve para ver o `429`, não para testar IPs diferentes.
 
 Se `POSTGRES_PORT` estiver definido como `5432`, o banco sera publicado em `localhost:5432`. Evite isso se ja existir outro Postgres rodando na máquina.
 

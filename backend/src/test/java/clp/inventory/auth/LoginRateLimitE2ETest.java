@@ -21,8 +21,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * Limite de tentativas do POST /auth/login. Fica numa classe própria, com limites pequenos e
- * contexto próprio, para os bloqueios não contaminarem o SystemAdminLoginE2ETest (todos os testes
- * chegam do mesmo IP, 127.0.0.1).
+ * contexto próprio, para os bloqueios não contaminarem o SystemAdminLoginE2ETest. O bloqueio é só
+ * por usuário; o limite por IP é do Nginx.
  */
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -31,7 +31,6 @@ class LoginRateLimitE2ETest {
 
   private static final String ADMIN_PASSWORD = "senha-forte-do-admin";
   private static final int USER_MAX = 3;
-  private static final int IP_MAX = 5;
 
   @Container @ServiceConnection
   static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15");
@@ -42,7 +41,6 @@ class LoginRateLimitE2ETest {
     registry.add("system.admin.username", () -> "admin");
     registry.add("system.admin.password", () -> ADMIN_PASSWORD);
     registry.add("auth.login.user-max-failures", () -> String.valueOf(USER_MAX));
-    registry.add("auth.login.ip-max-failures", () -> String.valueOf(IP_MAX));
   }
 
   @Autowired TestRestTemplate restTemplate;
@@ -105,27 +103,19 @@ class LoginRateLimitE2ETest {
   }
 
   @Test
-  void blockedUser_doesNotBlockOtherUsersBelowTheIpLimit() {
+  void blockedUser_doesNotBlockOtherUsers_evenFromTheSameIp() {
     failLogins("admin", USER_MAX);
 
-    assertThat(login("outro-usuario", "senha-errada").getStatusCode())
-        .isEqualTo(HttpStatus.UNAUTHORIZED);
-  }
-
-  @Test
-  void ipLimit_blocksEveryUserFromThatIp() {
-    for (int i = 0; i < IP_MAX; i++) {
-      failLogins("usuario-" + i, 1);
+    // O IP é o mesmo (127.0.0.1) e não há limite por IP aqui: ele é do Nginx.
+    for (int i = 0; i < USER_MAX * 3; i++) {
+      assertThat(login("usuario-" + i, "senha-errada").getStatusCode())
+          .isEqualTo(HttpStatus.UNAUTHORIZED);
     }
-
-    var response = login("admin", ADMIN_PASSWORD);
-
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
   }
 
   @Test
   void missingCredentials_returns400AndDoesNotCountAsFailure() {
-    for (int i = 0; i < USER_MAX + IP_MAX; i++) {
+    for (int i = 0; i < USER_MAX * 3; i++) {
       var response =
           restTemplate.postForEntity(
               "/auth/login", Map.of("username", "admin", "password", ""), String.class);

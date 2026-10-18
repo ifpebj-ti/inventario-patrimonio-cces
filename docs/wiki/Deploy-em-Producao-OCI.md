@@ -241,6 +241,8 @@ infra/scripts/deploy-nginx.sh <IP_RESERVADO>
 
 O script valida (`nginx -t`) e restaura a configuração anterior se falhar. Para testar a configuração antes: `bash infra/scripts/test-nginx-config.sh` (requer Docker).
 
+O freio por IP do login (zona `auth`, só no `location = /auth/login` de `21-api.conf`) e o `429` com CORS e `Retry-After` (`snippets/login-rate-limited.conf`) fazem parte desta configuração: o merge de um PR que os altere só vale em produção depois deste `deploy-nginx.sh`. O backend limita por usuário e não depende do IP.
+
 ### 4.4 Certificados
 
 A renovação é automática (2x ao dia, só renova com menos de 30 dias). Para forçar ou investigar:

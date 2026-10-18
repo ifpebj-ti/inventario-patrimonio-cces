@@ -24,9 +24,13 @@ src="infra/nginx/app-vm"
 work=".nginx-test.$$"
 mkdir -p "$work"
 cid=""
+dev_cid=""
 cleanup() {
   if [ -n "$cid" ]; then
     docker rm -f "$cid" >/dev/null 2>&1 || true
+  fi
+  if [ -n "$dev_cid" ]; then
+    docker rm -f "$dev_cid" >/dev/null 2>&1 || true
   fi
   rm -rf "$work"
 }
@@ -68,5 +72,30 @@ if docker start -a "$cid"; then
   echo "nginx -t: OK"
 else
   echo "nginx -t: FALHOU" >&2
+  exit 1
+fi
+
+# Nginx de desenvolvimento (infra/nginx/dev, usado pelo docker-compose.yml): mesmo -t, com o layout do
+# container do compose. O upstream inventarium-back so existe na rede do compose, entao aqui ele
+# aponta para o loopback so para o nginx -t conseguir resolver o nome.
+dev="infra/nginx/dev"
+mkdir -p "$work/dev"
+cp "$dev/default.conf" "$dev/login-rate-limited.conf" "$work/dev/"
+cp "$src/snippets/proxy.conf" "$work/dev/"
+
+dev_cid="$(docker create --add-host inventarium-back:127.0.0.1 --entrypoint sh "$NGINX_IMAGE" -c '
+  set -e
+  rm -f /etc/nginx/conf.d/default.conf
+  mkdir -p /etc/nginx/inventarium/snippets
+  cp /tmp/inv-dev/default.conf /etc/nginx/conf.d/default.conf
+  cp /tmp/inv-dev/proxy.conf /tmp/inv-dev/login-rate-limited.conf /etc/nginx/inventarium/snippets/
+  nginx -t
+')"
+docker cp "$work/dev/." "$dev_cid:/tmp/inv-dev"
+
+if docker start -a "$dev_cid"; then
+  echo "nginx -t (dev): OK"
+else
+  echo "nginx -t (dev): FALHOU" >&2
   exit 1
 fi
