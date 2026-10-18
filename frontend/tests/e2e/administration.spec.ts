@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 import { expandFilters, pickOption } from './select'
 
 const fixture = () => ({
@@ -267,7 +267,7 @@ const confirm = (page: Page, title: string) =>
   page
     .getByRole('dialog', { name: title, exact: true })
     .getByRole('button', {
-      name: /^(Confirmar|Desativar|Reativar|Ativar|Alterar perfil|Alocar|Desalocar)$/,
+      name: /^(Confirmar|Desativar|Reativar|Ativar|Salvar)$/,
     })
     .click()
 
@@ -494,7 +494,13 @@ test('usuários filtram Sem perfil e enviam profileId ao servidor', async ({
   ).toBeGreaterThan(1)
 })
 
-test('perfil e múltiplos setores são alterados somente após confirmação', async ({
+const addSector = async (modal: Locator, text: string) => {
+  await modal.getByLabel('Adicionar setor').fill(text)
+  await modal.getByRole('option', { name: new RegExp(text) }).click()
+  await modal.getByRole('button', { name: 'Adicionar', exact: true }).click()
+}
+
+test('perfil e setores ficam pendentes e são salvos de uma vez', async ({
   page,
 }) => {
   const state = await setup(page)
@@ -502,38 +508,79 @@ test('perfil e múltiplos setores são alterados somente após confirmação', a
   await card(page, 'Maria')
     .getByRole('button', { name: 'Gerenciar acesso' })
     .click()
-  await pickOption(page.getByLabel('Perfil do usuário'), 'Gestor de Setor')
-  await page
-    .getByRole('button', { name: 'Confirmar alteração de perfil' })
-    .click()
+  const modal = page.getByRole('dialog', { name: 'Acesso de Maria' })
+  const save = modal.getByRole('button', { name: 'Salvar alterações' })
+  await expect(modal).toContainText('Nenhuma alteração pendente')
+  await expect(save).toBeDisabled()
+
+  await modal.getByRole('radio', { name: /Gestor de Setor/ }).check()
+  await addSector(modal, 'Patrimônio')
+  await addSector(modal, 'Tecnologia')
+  await expect(modal).toContainText('3 alterações pendentes')
+  // Nada vai ao servidor antes de salvar.
+  expect(state.requests.filter((r) => r.method !== 'GET')).toHaveLength(0)
   expect(state.users[1].profileId).toBeNull()
-  await confirm(page, 'Alterar perfil do usuário')
-  await expect(page.getByLabel('Perfil do usuário')).toContainText(
-    'Gestor de Setor',
-  )
-  await pickOption(page.getByLabel('Adicionar setor'), 'Patrimônio')
-  await page.getByRole('button', { name: 'Alocar no setor' }).click()
-  await confirm(page, 'Alocar usuário')
-  await expect(
-    page.getByRole('button', { name: 'Desalocar de Patrimônio' }),
-  ).toBeVisible()
-  await pickOption(page.getByLabel('Adicionar setor'), 'Tecnologia')
-  await page.getByRole('button', { name: 'Alocar no setor' }).click()
-  await confirm(page, 'Alocar usuário')
-  await expect(
-    page.getByRole('button', { name: 'Desalocar de Tecnologia' }),
-  ).toBeVisible()
-  await page.getByRole('button', { name: 'Desalocar de Patrimônio' }).click()
-  await confirm(page, 'Desalocar usuário')
-  await expect(
-    page.getByRole('button', { name: 'Desalocar de Patrimônio' }),
-  ).toHaveCount(0)
+
+  // Desfazer tira a inclusão da lista de pendências.
+  await modal.getByRole('button', { name: 'Desfazer Patrimônio' }).click()
+  await expect(modal).toContainText('2 alterações pendentes')
+  await expect(modal.getByText('Patrimônio')).toHaveCount(0)
+
+  await save.click()
+  await expect(page.getByText('Alterações salvas.')).toBeVisible()
+  await expect(modal).toContainText('Nenhuma alteração pendente')
+  expect(state.users[1].profileId).toBe(12)
   expect(state.users[1].sectorIds).toEqual([3])
-  await expect(
-    page
-      .getByLabel('Adicionar setor')
-      .getByRole('option', { name: 'Biblioteca' }),
-  ).toHaveCount(0)
+  await expect(modal.getByText('Perfil atual')).toBeVisible()
+  expect(
+    state.requests
+      .filter((r) => r.method !== 'GET')
+      .map((r) => `${r.method} ${r.path}`),
+  ).toEqual(['PATCH /users/2/profile', 'POST /users/2/sectors/3'])
+})
+
+test('remover um setor também só vale ao salvar, e setor inativo não aparece na busca', async ({
+  page,
+}) => {
+  const state = fixture()
+  state.users[1].sectorIds = [1]
+  await setup(page, state)
+  await page.goto('/users')
+  await card(page, 'Maria')
+    .getByRole('button', { name: 'Gerenciar acesso' })
+    .click()
+  const modal = page.getByRole('dialog', { name: 'Acesso de Maria' })
+  await modal.getByRole('button', { name: 'Desalocar de Patrimônio' }).click()
+  await expect(modal).toContainText('Será removido')
+  await expect(modal).toContainText('1 alteração pendente')
+  expect(state.users[1].sectorIds).toEqual([1])
+  // Biblioteca está inativa: a busca não a oferece.
+  await modal.getByLabel('Adicionar setor').fill('Bibli')
+  await expect(modal.getByRole('option')).toHaveCount(0)
+  await expect(modal).toContainText('Nenhum setor ativo encontrado')
+  await modal.getByRole('button', { name: 'Salvar alterações' }).click()
+  await expect(page.getByText('Alterações salvas.')).toBeVisible()
+  expect(state.users[1].sectorIds).toEqual([])
+})
+
+test('falha ao salvar mostra o erro e mantém o que não foi salvo como pendente', async ({
+  page,
+}) => {
+  const state = fixture()
+  state.fail['POST /users/2/sectors/3'] = 409
+  await setup(page, state)
+  await page.goto('/users')
+  await card(page, 'Maria')
+    .getByRole('button', { name: 'Gerenciar acesso' })
+    .click()
+  const modal = page.getByRole('dialog', { name: 'Acesso de Maria' })
+  await modal.getByRole('radio', { name: /Consulta/ }).check()
+  await addSector(modal, 'Tecnologia')
+  await modal.getByRole('button', { name: 'Salvar alterações' }).click()
+  await expect(modal.getByRole('alert')).toContainText('Parte das alterações')
+  // O perfil já foi salvo; o setor continua pendente.
+  expect(state.users[1].profileId).toBe(14)
+  await expect(modal).toContainText('1 alteração pendente')
 })
 
 test('remover o próprio acesso administrativo bloqueia a tela e os menus', async ({
@@ -544,14 +591,15 @@ test('remover o próprio acesso administrativo bloqueia a tela e os menus', asyn
   await card(page, 'Camille')
     .getByRole('button', { name: 'Gerenciar acesso' })
     .click()
-  await pickOption(page.getByLabel('Perfil do usuário'), 'Consulta')
-  await page
-    .getByRole('button', { name: 'Confirmar alteração de perfil' })
-    .click()
+  const modal = page.getByRole('dialog', { name: 'Acesso de Camille' })
+  await expect(modal).toContainText('Alterar seu próprio perfil')
+  await modal.getByRole('radio', { name: /Consulta/ }).check()
+  await modal.getByRole('button', { name: 'Salvar alterações' }).click()
+  // Mexer no próprio perfil pede confirmação, pois pode tirar o acesso.
   await expect(
-    page.getByRole('dialog', { name: 'Alterar perfil do usuário' }),
+    page.getByRole('dialog', { name: 'Salvar alterações', exact: true }),
   ).toContainText('perder seu acesso')
-  await confirm(page, 'Alterar perfil do usuário')
+  await confirm(page, 'Salvar alterações')
   await expect(
     page.getByRole('heading', { name: 'Acesso restrito' }),
   ).toBeVisible()
@@ -831,7 +879,7 @@ test('gestor não ativa nem desativa usuários, nem do próprio setor', async ({
   ).toBeVisible()
 })
 
-test('modal de acesso mostra quem é o usuário e deixa a situação da conta por último', async ({
+test('modal de acesso mostra quem é o usuário, orienta quem não tem perfil e deixa desativar por último', async ({
   page,
 }) => {
   await setup(page)
@@ -840,22 +888,38 @@ test('modal de acesso mostra quem é o usuário e deixa a situação da conta po
     .getByRole('button', { name: 'Gerenciar acesso' })
     .click()
   const modal = page.getByRole('dialog', { name: 'Acesso de Maria' })
-  // Identidade e estado no topo.
+  // Identidade e estado no cabeçalho.
   await expect(modal).toContainText('maria@example.com')
   await expect(modal.getByText('Ativo', { exact: true })).toBeVisible()
-  await expect(modal.getByText('Sem perfil', { exact: true })).toBeVisible()
-  // Quem ainda não tem perfil recebe a orientação e só altera depois de escolher um.
+  // Um cartão por perfil, com a descrição; ninguém marcado e sem "Perfil atual".
+  await expect(modal.getByRole('radio')).toHaveCount(5)
+  await expect(modal.getByRole('radio', { checked: true })).toHaveCount(0)
+  await expect(modal.getByText('Perfil atual')).toHaveCount(0)
   await expect(modal).toContainText('Este usuário ainda não tem perfil')
-  const change = modal.getByRole('button', {
-    name: 'Confirmar alteração de perfil',
-  })
-  await expect(change).toBeDisabled()
-  await pickOption(modal.getByLabel('Perfil do usuário'), 'Consulta')
-  await expect(change).toBeEnabled()
-  // A ação de cuidado (desativar) fica isolada no fim.
+  // A ação de cuidado fica isolada no fim.
   expect(
     await modal.getByRole('heading', { level: 3 }).allTextContents(),
-  ).toEqual(['Perfil de acesso', 'Setores associados (0)', 'Situação da conta'])
+  ).toEqual(['Perfil de acesso', 'Setores associados (0)', 'Desativar conta'])
+})
+
+test('modal marca o perfil atual e abre o botão de desativar com confirmação', async ({
+  page,
+}) => {
+  await setup(page)
+  await page.goto('/users')
+  await card(page, 'Ana')
+    .getByRole('button', { name: 'Gerenciar acesso' })
+    .click()
+  const modal = page.getByRole('dialog', { name: 'Acesso de Ana' })
+  await expect(modal.getByRole('radio', { checked: true })).toHaveCount(1)
+  await expect(
+    modal.getByRole('radio', { name: /Gestor de Setor/ }),
+  ).toBeChecked()
+  await expect(modal.getByText('Perfil atual')).toBeVisible()
+  await modal.getByRole('button', { name: 'Desativar usuário' }).click()
+  await expect(
+    page.getByRole('dialog', { name: 'Desativar usuário', exact: true }),
+  ).toBeVisible()
 })
 
 test('modal de um usuário inativo mostra o estado e oferece reativar', async ({
