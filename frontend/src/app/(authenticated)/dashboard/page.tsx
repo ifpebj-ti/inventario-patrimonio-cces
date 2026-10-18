@@ -201,7 +201,7 @@ function DashboardContent() {
             <CalendarRange className="pointer-events-none absolute top-1/2 left-4 z-10 size-5 -translate-y-1/2 text-muted-foreground" />
             <SelectField
               aria-label="Ano do dashboard"
-              className="h-12 min-w-52 bg-card pl-12 font-normal"
+              className="h-12 w-full min-w-52 bg-card pl-12 font-normal sm:w-auto"
               options={[
                 { value: 'ALL', label: 'Todos os anos' },
                 ...years.map((year) => ({
@@ -216,7 +216,7 @@ function DashboardContent() {
           <div className="relative">
             <SelectField
               aria-label="Setor do dashboard"
-              className="h-12 min-w-52 bg-card"
+              className="h-12 w-full min-w-52 bg-card sm:w-auto"
               options={[
                 { value: 'ALL', label: 'Todos os setores' },
                 ...sectors.map((sector) => ({
@@ -313,7 +313,7 @@ function DashboardContent() {
             ))}
           </section>
           <section
-            className="grid gap-5 lg:grid-cols-2"
+            className="grid grid-cols-1 gap-5 lg:grid-cols-2"
             aria-label="Gráficos do período"
           >
             <UiCard className="gap-0 p-6">
@@ -439,7 +439,7 @@ function DashboardContent() {
                     {statusChart.map((item) => (
                       <div
                         key={item.label}
-                        className="flex items-center justify-between gap-8 text-sm text-foreground"
+                        className="flex items-center justify-between gap-4 text-sm text-foreground sm:gap-8"
                       >
                         <span className="flex items-center gap-2">
                           <span

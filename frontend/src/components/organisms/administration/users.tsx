@@ -347,7 +347,7 @@ export const UsersScreen = () => {
             <p className="text-sm text-muted-foreground">
               {visible.length} usuários encontrados
             </p>
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 gap-3">
               {visible.map((user) => {
                 const sectorNames =
                   user.sectorIds.length === 0
