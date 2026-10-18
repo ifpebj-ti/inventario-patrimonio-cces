@@ -1,7 +1,7 @@
 'use client'
 
 import { SelectField } from '@/components/ui/select-field'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ErrorState } from '@/components/ui/error-state'
 import { Card as UiCard } from '@/components/ui/card'
 import {
   Tooltip,
@@ -237,22 +237,7 @@ function DashboardContent() {
           Carregando os indicadores do dashboard…
         </UiCard>
       ) : error ? (
-        <Alert
-          variant="destructive"
-          className="border-destructive/25 bg-destructive/10 p-6"
-        >
-          <AlertDescription className="items-center text-center">
-            <p className="font-medium">{error}</p>
-            <UiButton
-              variant="default"
-              className="mt-4 w-full sm:w-52"
-              type="button"
-              onClick={() => refreshInventories()}
-            >
-              Tentar novamente
-            </UiButton>
-          </AlertDescription>
-        </Alert>
+        <ErrorState message={error} onRetry={() => refreshInventories()} />
       ) : (
         <>
           <section

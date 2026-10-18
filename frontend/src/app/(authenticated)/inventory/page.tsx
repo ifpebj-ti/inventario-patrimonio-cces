@@ -1,7 +1,7 @@
 'use client'
 
 import { Button as UiButton } from '@/components/ui/button'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ErrorState } from '@/components/ui/error-state'
 import { Card as UiCard } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
 import {
@@ -226,22 +226,7 @@ export default function InventoryListPage() {
           Carregando inventários…
         </UiCard>
       ) : error ? (
-        <Alert
-          variant="destructive"
-          className="border-destructive/25 bg-destructive/10 p-6"
-        >
-          <AlertDescription className="items-center text-center">
-            <p>{error}</p>
-            <UiButton
-              variant="default"
-              className="mt-4 w-52"
-              type="button"
-              onClick={() => refreshInventories()}
-            >
-              Tentar novamente
-            </UiButton>
-          </AlertDescription>
-        </Alert>
+        <ErrorState message={error} onRetry={() => refreshInventories()} />
       ) : (
         <Table
           appearance="inventory"

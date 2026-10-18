@@ -3,6 +3,8 @@
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button as UiButton } from '@/components/ui/button'
+import { ErrorState } from '@/components/ui/error-state'
+import { TriangleAlert } from 'lucide-react'
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -17,27 +19,23 @@ export const ErrorNotice = ({
 }: {
   message: string | null
   retry?: () => void
-}) =>
-  message ? (
+}) => {
+  if (!message) return null
+  // Falha ao carregar a tela: mesmo estado de erro das demais páginas.
+  if (retry) return <ErrorState message={message} onRetry={retry} />
+  // Falha numa ação (ex.: dentro de um formulário): aviso compacto.
+  return (
     <Alert
       variant="destructive"
       className="border-destructive/25 bg-destructive/10"
     >
+      <TriangleAlert />
       <AlertDescription>
         <p>{message}</p>
-        {retry && (
-          <UiButton
-            variant="link"
-            type="button"
-            onClick={retry}
-            className="h-auto p-0 text-destructive"
-          >
-            Tentar novamente
-          </UiButton>
-        )}
       </AlertDescription>
     </Alert>
-  ) : null
+  )
+}
 
 export const AccessGate = ({
   admin = false,
