@@ -190,20 +190,6 @@ public class AuthorizationService {
     return allocatedSectorIds(target.getId()).stream().anyMatch(mine::contains);
   }
 
-  /**
-   * Desativar ou excluir afeta todos os setores do usuário: o admin pode sempre; o gestor só quando
-   * o usuário atua exclusivamente nos setores dele.
-   */
-  public void requireRemoveUser(long actingUserId, User target) {
-    requireManageUser(actingUserId, target);
-    if (!isAdmin(actingUserId)
-        && !allocatedSectorIds(actingUserId).containsAll(allocatedSectorIds(target.getId()))) {
-      throw new ResponseStatusException(
-          HttpStatus.FORBIDDEN,
-          "Este usuário também atua em outros setores. Peça a um administrador.");
-    }
-  }
-
   public void requireManageUser(long actingUserId, User target) {
     if (!canManageUser(actingUserId, target)) {
       throw new ResponseStatusException(

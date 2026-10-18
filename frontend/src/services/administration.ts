@@ -6,7 +6,6 @@ import {
   permissionSchema,
   profileSchema,
   sectorSchema,
-  type CreateUserRequest,
 } from '@/commons/models/administration'
 
 export class AdministrationError extends Error {
@@ -100,22 +99,6 @@ export const listUsers = async (profileId?: number, signal?: AbortSignal) =>
     z.array(managedUserSchema),
     (await api.get('/users', { params: { profileId }, signal })).data,
   )
-export const createUser = async (data: CreateUserRequest) => {
-  try {
-    return parse(managedUserSchema, (await api.post('/users', data)).data)
-  } catch (error) {
-    const problem = administrationFailure(
-      error,
-      'Já existe um usuário com esse e-mail. Busque-o na lista para gerenciar o acesso.',
-    )
-    if (problem.status === 400)
-      throw new AdministrationError(
-        400,
-        'Confira o e-mail, o perfil e os setores. O perfil e os setores selecionados precisam estar disponíveis.',
-      )
-    throw problem
-  }
-}
 export const assignUserProfile = async (
   userId: number,
   profileId: number | null,
@@ -124,23 +107,13 @@ export const assignUserProfile = async (
     managedUserSchema,
     (await api.patch(`/users/${userId}/profile`, { profileId })).data,
   )
-// Desativar impede o acesso mas preserva o histórico; excluir remove a conta e os vínculos.
+// Desativar impede o acesso mas preserva o histórico; só o administrador ativa ou desativa.
 export const setUserActive = async (userId: number, active: boolean) =>
   parse(
     managedUserSchema,
     (await api.patch(`/users/${userId}/${active ? 'activate' : 'deactivate'}`))
       .data,
   )
-export const deleteUser = async (userId: number) => {
-  try {
-    await api.delete(`/users/${userId}`)
-  } catch (error) {
-    throw administrationFailure(
-      error,
-      'Este usuário criou inventários e não pode ser excluído. Desative a conta para preservar o histórico.',
-    )
-  }
-}
 export const setUserSector = async (
   userId: number,
   sectorId: number,

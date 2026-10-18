@@ -1,11 +1,10 @@
 # Autenticação
 
 O Inventarium usa **login com Google** (OAuth 2.0 / OpenID Connect, fluxo de ID token). Não há
-senha local, verificação de e-mail própria nem recuperação de senha para usuários comuns. O admin
-(ou o gestor de setor, só Operador e Consulta nos seus setores) pode pré-cadastrar e-mail, perfil e
-setores via `POST /users`; quem entra sem pré-cadastro nasce com o perfil `CONSULTA` e conta
-desativada (`active = false`) não entra e perde a sessão aberta; a identidade é vinculada no primeiro
-login verificado com Google. A exceção é a **conta de sistema** (`POST /auth/login`, usuário e
+senha local, verificação de e-mail própria nem recuperação de senha para usuários comuns. Este login é a
+**única forma de criar um usuário**: quem entra pela primeira vez nasce **sem perfil** (um administrador
+atribui o perfil e os setores depois) e usuário nunca é excluído, só desativado (`active = false`, por um
+administrador): conta desativada não entra e perde a sessão aberta. A exceção é a **conta de sistema** (`POST /auth/login`, usuário e
 senha, perfil `ADMIN_ORGANIZATION`), que serve ao primeiro acesso e tem limite de tentativas
 contra força bruta. Ela está descrita em [`backend/README.md`](../README.md#conta-de-sistema); o
 resto deste documento trata do fluxo Google.
@@ -143,15 +142,15 @@ domain.equals(allowed) || domain.endsWith("." + allowed)
 O `"."` antes do domínio permitido é o que impede `@fakeifpe.edu.br` de casar com `ifpe.edu.br`.
 
 A verificação roda **apenas na criação da conta**. Quem já tem conta continua entrando mesmo que
-a lista mude depois — não existe um mecanismo de "desativar usuário" no sistema, então revalidar
-o domínio em todo login só trocaria um risco (conta indevida criada) por outro (erro de digitação
-na config trancando todo mundo de uma vez).
+a lista mude depois: revalidar o domínio em todo login só trocaria um risco (conta indevida criada) por
+outro (erro de digitação na config trancando todo mundo de uma vez). Para tirar o acesso de alguém depois,
+o administrador desativa a conta.
 
 ---
 
 ## Modelo de dados
 
-A tabela `im_user` mantém a identidade, o perfil e o estado do primeiro acesso:
+A tabela `im_user` mantém a identidade, o perfil e a situação da conta:
 
 ```
 id          bigint        PK
@@ -160,20 +159,16 @@ email       varchar(255)  NOT NULL, UNIQUE
 google_id   varchar(255)  UNIQUE, nullable conforme o tipo de conta
 id_profile  bigint        FK, nullable
 is_system_user boolean    NOT NULL
-pending_google_login boolean NOT NULL
+active      boolean       NOT NULL (default true)
 password_hash varchar(100) nullable, somente conta de sistema
 created_at  timestamp     NOT NULL
 updated_at  timestamp     NOT NULL
 ```
 
-O banco exige que a conta comum tenha um `google_id`, exceto quando está pré-cadastrada com
-`pending_google_login = true`. A conta de sistema deve manter `google_id` nulo e não pode ser
-pendente. Senhas permanecem exclusivas da conta de sistema.
-
-O primeiro login de um pré-cadastro vincula o `sub` somente após a validação do ID token e do
-e-mail verificado pelo `GoogleTokenProvider`. A consulta usa bloqueio de escrita para serializar
-essa vinculação. Perfil, nome e setores são preservados. Depois da vinculação, outro `sub` não
-pode usar a mesma conta. O índice único em `lower(email)` impede cadastros duplicados por caixa.
+O banco exige que a conta comum tenha um `google_id` e que a conta de sistema o mantenha nulo
+(`ck_user_system_google`). Senhas permanecem exclusivas da conta de sistema. Outro `sub` não pode usar uma conta já
+vinculada, e o índice único em `lower(email)` impede contas duplicadas por diferença de caixa. A coluna
+`pending_google_login` (pré-cadastro) foi removida pela migration `6.0.xml`.
 
 ---
 
@@ -323,15 +318,13 @@ produção use a origem real do frontend, por exemplo `https://inventariumifpe.m
 
 CORS não substitui a autenticação: o JWT continua sendo a única credencial validada.
 
-### 6. Sem revogação de sessão
+### 6. Revogação de sessão
 
-Não há como invalidar um JWT da aplicação antes da expiração natural de 24h. Se a instituição
-desativar uma conta Google (ex.: aluno formado, servidor desligado), a pessoa continua com acesso
-ao Inventarium por até 24h depois — o Google para de emitir novos ID tokens para ela, mas o JWT
-da aplicação já emitido continua válido até expirar. Aceitável para a maioria dos casos de uso
-institucionais, mas vale que quem for operar o sistema em produção esteja ciente do limite. Uma
-correção completa exigiria uma coluna de versão de token checada no filtro a cada requisição —
-fora do escopo desta implementação.
+O JWT da aplicação vale 24h, mas **desativar o usuário o invalida na hora**: o `SecurityFilter` consulta a
+coluna `active` a cada requisição e responde `401` (`Conta desativada`) a quem foi desativado, e o login pelo
+Google recusa a conta. O que **não** é revogado é uma conta desativada só no Google (aluno formado, servidor
+desligado): o Google para de emitir ID tokens para ela, mas o JWT da aplicação já emitido continua válido até
+expirar. Para cortar o acesso antes disso, um administrador desativa o usuário no Inventarium.
 
 ### 7. Backup do `SECURITY_TOKEN_SECRET`
 

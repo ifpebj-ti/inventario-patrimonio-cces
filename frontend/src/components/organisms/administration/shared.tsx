@@ -1,10 +1,16 @@
 'use client'
 
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button as UiButton } from '@/components/ui/button'
 import { ErrorState } from '@/components/ui/error-state'
 import { TriangleAlert } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -129,6 +135,8 @@ export const AdminPage = ({
   </div>
 )
 
+// Mesmo padrão da confirmação: cabeçalho com o título e uma divisória, e só então o conteúdo. O cabeçalho
+// fica fixo e o conteúdo rola quando é maior que a tela.
 export const AdminModal = ({
   title,
   children,
@@ -150,11 +158,12 @@ export const AdminModal = ({
   >
     <DialogContent
       showCloseButton={false}
-      className="flex max-h-[90vh] flex-col overflow-y-auto rounded-xl gap-4 sm:max-w-2xl"
+      className="flex max-h-[90vh] flex-col gap-0 overflow-hidden rounded-xl p-0 sm:max-w-2xl"
     >
-      <DialogTitle className="sr-only">{title}</DialogTitle>
-      <div className="flex justify-between gap-3">
-        <h2 className="text-xl font-semibold">{title}</h2>
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b px-6 py-4">
+        <DialogTitle className="min-w-0 text-lg leading-snug">
+          {title}
+        </DialogTitle>
         <UiButton
           variant="outline"
           disabled={busy || inactive}
@@ -163,45 +172,97 @@ export const AdminModal = ({
         >
           Fechar
         </UiButton>
+      </header>
+      <div inert={inactive} className="space-y-4 overflow-y-auto px-6 py-5">
+        {children}
       </div>
-      <div inert={inactive}>{children}</div>
     </DialogContent>
   </Dialog>
 )
 
+/**
+ * Confirmação de uma ação. `tone="destructive"` é para o que tira acesso ou desfaz algo (desativar,
+ * desalocar): botão vermelho. O foco inicial cai em "Cancelar" (o primeiro botão),
+ * então um Enter distraído não confirma. Esc e clique fora também cancelam, por isso não há "Fechar".
+ */
 export const AdminConfirmation = ({
   isOpen,
   title,
   message,
+  details,
+  confirmLabel = 'Confirmar',
+  tone = 'default',
   onClose,
   onConfirm,
   busy = false,
 }: {
   isOpen: boolean
   title: string
-  message: string
+  message: ReactNode
+  // Consequências da ação, uma por linha, abaixo da pergunta.
+  details?: string[]
+  confirmLabel?: string
+  tone?: 'default' | 'destructive'
   onClose: () => void
   onConfirm: () => void
   busy?: boolean
-}) =>
-  isOpen ? (
-    <AdminModal title={title} onClose={onClose} busy={busy}>
-      <p className="text-sm text-muted-foreground">{message}</p>
-      <div className="flex justify-end gap-3">
-        <UiButton
-          variant="outline"
-          type="button"
-          onClick={onClose}
-          disabled={busy}
-        >
-          Cancelar
-        </UiButton>
-        <UiButton type="button" onClick={onConfirm} disabled={busy}>
-          {busy ? 'Aguarde...' : 'Confirmar'}
-        </UiButton>
-      </div>
-    </AdminModal>
-  ) : null
+}) => {
+  // Desmontada quando fechada (sem animação de saída), para o texto não "piscar" sem ação.
+  if (!isOpen) return null
+  const destructive = tone === 'destructive'
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !busy) onClose()
+      }}
+    >
+      <DialogContent
+        showCloseButton={false}
+        className="gap-0 overflow-hidden rounded-xl p-0 sm:max-w-md"
+      >
+        <header className="border-b px-6 py-4">
+          <DialogTitle className="text-lg leading-snug">{title}</DialogTitle>
+        </header>
+        <DialogDescription asChild>
+          <div className="space-y-3 px-6 py-5 text-sm text-muted-foreground">
+            <p className="text-base text-foreground">{message}</p>
+            {details && details.length > 0 && (
+              <ul className="list-disc space-y-1.5 pl-5">
+                {details.map((detail) => (
+                  <li key={detail}>{detail}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </DialogDescription>
+        <div className="flex flex-col-reverse gap-2 border-t bg-muted/40 px-6 py-4 sm:flex-row sm:justify-end">
+          <UiButton
+            variant="outline"
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+          >
+            Cancelar
+          </UiButton>
+          <UiButton
+            variant={destructive ? 'destructive' : 'default'}
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            // O app não tem tema escuro: sem isto o `dark:` do botão destrutivo o deixa desbotado
+            // quando o sistema do usuário está em modo escuro.
+            className={cn(
+              destructive && 'dark:bg-destructive dark:hover:bg-destructive/90',
+            )}
+          >
+            {busy ? 'Aguarde...' : confirmLabel}
+          </UiButton>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 export const useOperation = () => {
   const [busy, setBusy] = useState(false)

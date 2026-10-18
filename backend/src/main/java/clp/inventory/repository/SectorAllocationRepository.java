@@ -20,8 +20,6 @@ public interface SectorAllocationRepository extends JpaRepository<SectorAllocati
 
   void deleteByUser_IdAndSector_Id(long userId, long sectorId);
 
-  void deleteByUser_Id(long userId);
-
   @Query(
       "select distinct a.user from SectorAllocation a where a.sector.id in :sectorIds "
           + "and a.user.systemUser = false")

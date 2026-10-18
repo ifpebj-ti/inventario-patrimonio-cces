@@ -3,7 +3,6 @@ package clp.inventory.service;
 import clp.inventory.dto.GoogleUserInfo;
 import clp.inventory.model.Profile;
 import clp.inventory.model.User;
-import clp.inventory.repository.InventoryRepository;
 import clp.inventory.repository.ProfileRepository;
 import clp.inventory.repository.SectorAllocationRepository;
 import clp.inventory.repository.UserRepository;
@@ -31,10 +30,7 @@ public class UserService {
   private final UserRepository userRepository;
   private final ProfileRepository profileRepository;
   private final SectorAllocationRepository sectorAllocationRepository;
-  private final InventoryRepository inventoryRepository;
   private final AuthorizationService authorizationService;
-
-  private static final String DEFAULT_PROFILE_NAME = "CONSULTA";
 
   @Value("${security.token.secret}")
   private String secretKey;
@@ -43,17 +39,16 @@ public class UserService {
       UserRepository userRepository,
       ProfileRepository profileRepository,
       SectorAllocationRepository sectorAllocationRepository,
-      InventoryRepository inventoryRepository,
       AuthorizationService authorizationService) {
     this.userRepository = userRepository;
     this.profileRepository = profileRepository;
     this.sectorAllocationRepository = sectorAllocationRepository;
-    this.inventoryRepository = inventoryRepository;
     this.authorizationService = authorizationService;
   }
 
   /**
-   * Localiza o usuário pelo e-mail verificado do Google, vincula um pré-cadastro ou cria a conta.
+   * Localiza o usuário pelo e-mail verificado do Google ou cria a conta. Esta é a única forma de um
+   * usuário nascer: sem perfil, até que um administrador atribua o acesso.
    */
   @Transactional
   public User findOrCreateGoogleUser(GoogleUserInfo googleUser) throws AuthenticationException {
@@ -68,11 +63,6 @@ public class UserService {
       }
       if (!existing.get().isActive()) {
         throw new AuthenticationException("Account is deactivated");
-      }
-      if (existing.get().isPendingGoogleLogin()) {
-        existing.get().setGoogleId(googleUser.sub());
-        existing.get().setPendingGoogleLogin(false);
-        return userRepository.save(existing.get());
       }
       if (!googleUser.sub().equals(existing.get().getGoogleId())) {
         throw new AuthenticationException("Google account does not match the registered identity");
@@ -89,8 +79,8 @@ public class UserService {
     user.setName(googleUser.name());
     user.setEmail(email);
     user.setGoogleId(googleUser.sub());
-    // Todo usuário tem perfil: quem entra pela primeira vez começa como consulta (somente leitura).
-    profileRepository.findByName(DEFAULT_PROFILE_NAME).ifPresent(user::setProfile);
+    // Sem perfil de propósito: quem entra pela primeira vez não tem nenhuma permissão até que um
+    // administrador atribua o perfil.
 
     return userRepository.save(user);
   }
@@ -153,34 +143,13 @@ public class UserService {
     return userRepository.save(user);
   }
 
-  /** Desativar impede o acesso sem apagar o histórico; ativar devolve o acesso. */
-  @Transactional
-  public User setActive(long userId, boolean active, long actingUserId) {
-    User user = requireRemovable(userId, actingUserId, active ? "ativar" : "desativar");
-    user.setActive(active);
-    return userRepository.save(user);
-  }
-
   /**
-   * Excluir remove a conta e os vínculos com setores. Quem criou inventários não pode ser excluído:
-   * o histórico é preservado e a conta deve ser desativada.
+   * Desativar impede o acesso sem apagar o histórico; ativar devolve o acesso. Só o administrador
+   * ativa ou desativa: a conta vale para todos os setores do usuário.
    */
   @Transactional
-  public void deleteUser(long userId, long actingUserId) {
-    User user = requireRemovable(userId, actingUserId, "excluir");
-    if (inventoryRepository.existsByUser_Id(userId)) {
-      throw new ResponseStatusException(
-          HttpStatus.CONFLICT,
-          "Este usuário criou inventários e não pode ser excluído. Desative a conta para"
-              + " preservar o histórico.");
-    }
-    sectorAllocationRepository.deleteByUser_Id(userId);
-    userRepository.delete(user);
-  }
-
-  private User requireRemovable(long userId, long actingUserId, String verb) {
-    authorizationService.requireAnyPermission(
-        actingUserId, AuthorizationService.ADMIN, AuthorizationService.MANAGE_SECTOR);
+  public User setActive(long userId, boolean active, long actingUserId) {
+    authorizationService.requirePermission(actingUserId, AuthorizationService.ADMIN);
     // A conta de sistema responde como se não existisse.
     User user =
         userRepository
@@ -189,10 +158,11 @@ public class UserService {
             .orElseThrow(() -> new NoSuchElementException("User not found with id: " + userId));
     if (user.getId() == actingUserId) {
       throw new ResponseStatusException(
-          HttpStatus.CONFLICT, "Você não pode " + verb + " a sua própria conta.");
+          HttpStatus.CONFLICT,
+          "Você não pode " + (active ? "ativar" : "desativar") + " a sua própria conta.");
     }
-    authorizationService.requireRemoveUser(actingUserId, user);
-    return user;
+    user.setActive(active);
+    return userRepository.save(user);
   }
 
   /** Admin lista todos; gestor lista os usuários dos seus setores. */

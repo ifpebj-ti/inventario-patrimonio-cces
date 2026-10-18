@@ -201,18 +201,6 @@ class AccessControlE2ETest {
         "/inventory/add-items", HttpMethod.POST, new HttpEntity<>(body, headers), String.class);
   }
 
-  private Map<String, Object> userBody(String email, Long profileId, List<Long> sectorIds) {
-    Map<String, Object> body = new HashMap<>();
-    body.put("email", email);
-    body.put("profileId", profileId);
-    body.put("sectorIds", sectorIds);
-    return body;
-  }
-
-  private String email() {
-    return "novo-" + System.nanoTime() + "@ifpe.edu.br";
-  }
-
   // ---------------------------------------------------------------- inventários: leitura
 
   @Test
@@ -494,60 +482,26 @@ class AccessControlE2ETest {
   }
 
   @Test
-  void managerCreatesOnlyOperatorsAndConsultInOwnSectors() {
+  void usersCannotBeCreatedOrDeletedThroughTheApi() {
     Scenario s = new Scenario();
-    List<Long> sectorA = List.of(s.sectorA.id());
+    long before = users.count();
+    Map<String, Object> body =
+        Map.of("email", "novo-" + System.nanoTime() + "@ifpe.edu.br", "name", "Novo");
 
-    for (String profile : List.of("OPERADOR_CAMPO", "CONSULTA")) {
-      var created =
-          call(
-              s.managerA,
-              HttpMethod.POST,
-              "/users",
-              userBody(email(), profileId(profile), sectorA),
-              UserDto.class);
-      assertThat(created.getStatusCode()).as(profile).isEqualTo(HttpStatus.CREATED);
-      assertThat(created.getBody().sectorIds()).containsExactly(s.sectorA.id());
+    // Usuário só nasce no primeiro login pelo Google; nem o admin cria por aqui.
+    for (User actor : List.of(s.admin, s.managerA)) {
+      assertThat(status(actor, HttpMethod.POST, "/users", body))
+          .isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
     }
-    // Nunca gestores nem administradores.
-    for (String profile : List.of("GESTOR_SETOR", "ADMIN_ORGANIZATION")) {
-      String email = email();
+    // E nunca é apagado: só desativado.
+    for (User actor : List.of(s.admin, s.managerA)) {
       assertThat(
-              status(
-                  s.managerA,
-                  HttpMethod.POST,
-                  "/users",
-                  userBody(email, profileId(profile), sectorA)))
-          .as(profile)
-          .isEqualTo(HttpStatus.FORBIDDEN);
-      assertThat(users.findByEmail(email)).isEmpty();
+              status(actor, HttpMethod.DELETE, "/users/" + s.operatorA.getId(), null)
+                  .is2xxSuccessful())
+          .isFalse();
     }
-    // Só nos próprios setores, e sempre com setor.
-    assertThat(
-            status(
-                s.managerA,
-                HttpMethod.POST,
-                "/users",
-                userBody(email(), profileId("CONSULTA"), List.of(s.sectorB.id()))))
-        .isEqualTo(HttpStatus.FORBIDDEN);
-    assertThat(
-            status(
-                s.managerA,
-                HttpMethod.POST,
-                "/users",
-                userBody(email(), profileId("CONSULTA"), List.of())))
-        .isEqualTo(HttpStatus.BAD_REQUEST);
-    // Perfil é obrigatório para todos.
-    assertThat(status(s.admin, HttpMethod.POST, "/users", userBody(email(), null, List.of())))
-        .isEqualTo(HttpStatus.BAD_REQUEST);
-    // Admin cadastra qualquer perfil.
-    assertThat(
-            status(
-                s.admin,
-                HttpMethod.POST,
-                "/users",
-                userBody(email(), profileId("GESTOR_SETOR"), sectorA)))
-        .isEqualTo(HttpStatus.CREATED);
+    assertThat(users.count()).isEqualTo(before);
+    assertThat(users.findById(s.operatorA.getId())).isPresent();
   }
 
   @Test
@@ -659,73 +613,40 @@ class AccessControlE2ETest {
   }
 
   @Test
-  void managerRemovesOnlyLowerProfileUsersThatActOnlyInOwnSectors() {
+  void onlyAdminActivatesOrDeactivatesUsers() {
     Scenario s = new Scenario();
-    User sharedWithB = user("OPERADOR_CAMPO", s.sectorA, s.sectorB);
+    User withoutProfile = new User();
+    withoutProfile.setName("Sem perfil");
+    withoutProfile.setEmail("sem-perfil-" + System.nanoTime() + "@ifpe.edu.br");
+    withoutProfile.setGoogleId(withoutProfile.getEmail());
+    withoutProfile = users.save(withoutProfile);
+    String target = "/users/" + s.operatorA.getId();
 
-    // Operador do próprio setor: pode.
-    assertThat(
-            status(
-                s.managerA,
-                HttpMethod.PATCH,
-                "/users/" + s.operatorA.getId() + "/deactivate",
-                null))
-        .isEqualTo(HttpStatus.OK);
-    // Também atua em outro setor: só o administrador.
-    assertThat(
-            status(
-                s.managerA,
-                HttpMethod.PATCH,
-                "/users/" + sharedWithB.getId() + "/deactivate",
-                null))
-        .isEqualTo(HttpStatus.FORBIDDEN);
-    assertThat(status(s.managerA, HttpMethod.DELETE, "/users/" + sharedWithB.getId(), null))
-        .isEqualTo(HttpStatus.FORBIDDEN);
-    // Gestor de outro setor e perfis de gestão estão fora do alcance.
-    assertThat(
-            status(
-                s.managerA, HttpMethod.PATCH, "/users/" + s.managerB.getId() + "/deactivate", null))
-        .isEqualTo(HttpStatus.FORBIDDEN);
-    // Operador e consulta não removem ninguém.
-    User otherOperator = user("OPERADOR_CAMPO", s.sectorA);
-    for (User actor : List.of(otherOperator, s.consultA)) {
-      assertThat(status(actor, HttpMethod.DELETE, "/users/" + s.consultA.getId(), null))
+    // Nem o gestor do próprio setor, nem operador, consulta ou quem ainda não tem perfil.
+    for (User actor : List.of(s.managerA, s.operatorA, s.consultA, withoutProfile)) {
+      assertThat(status(actor, HttpMethod.PATCH, target + "/deactivate", null))
+          .isEqualTo(HttpStatus.FORBIDDEN);
+      assertThat(status(actor, HttpMethod.PATCH, target + "/activate", null))
           .isEqualTo(HttpStatus.FORBIDDEN);
     }
-    assertThat(users.findById(sharedWithB.getId()).orElseThrow().isActive()).isTrue();
-  }
+    assertThat(users.findById(s.operatorA.getId()).orElseThrow().isActive()).isTrue();
 
-  @Test
-  void nobodyDeactivatesOrDeletesOwnAccount() {
-    Scenario s = new Scenario();
-
-    for (User actor : List.of(s.admin, s.managerA)) {
-      assertThat(status(actor, HttpMethod.PATCH, "/users/" + actor.getId() + "/deactivate", null))
-          .isEqualTo(HttpStatus.CONFLICT);
-      assertThat(status(actor, HttpMethod.DELETE, "/users/" + actor.getId(), null))
-          .isEqualTo(HttpStatus.CONFLICT);
-      assertThat(users.findById(actor.getId()).orElseThrow().isActive()).isTrue();
+    // O administrador desativa qualquer um, inclusive o gestor e quem atua em vários setores.
+    for (User other : List.of(s.operatorA, s.managerB)) {
+      assertThat(status(s.admin, HttpMethod.PATCH, "/users/" + other.getId() + "/deactivate", null))
+          .isEqualTo(HttpStatus.OK);
+      assertThat(users.findById(other.getId()).orElseThrow().isActive()).isFalse();
     }
   }
 
   @Test
-  void deleteRemovesUserAndSectorLinksButKeepsThoseWithInventoryHistory() {
+  void adminCannotDeactivateOrActivateOwnAccount() {
     Scenario s = new Scenario();
 
-    // Sem inventários criados: a conta e os vínculos são removidos.
-    assertThat(status(s.managerA, HttpMethod.DELETE, "/users/" + s.consultA.getId(), null))
-        .isEqualTo(HttpStatus.NO_CONTENT);
-    assertThat(users.findById(s.consultA.getId())).isEmpty();
-    assertThat(allocations.findByUser_Id(s.consultA.getId())).isEmpty();
-    // Quem criou inventários não é excluído: deve ser desativado para preservar o histórico.
-    assertThat(status(s.admin, HttpMethod.DELETE, "/users/" + s.managerA.getId(), null))
+    assertThat(status(s.admin, HttpMethod.PATCH, "/users/" + s.admin.getId() + "/deactivate", null))
         .isEqualTo(HttpStatus.CONFLICT);
-    assertThat(users.findById(s.managerA.getId())).isPresent();
-    assertThat(
-            status(s.admin, HttpMethod.PATCH, "/users/" + s.managerA.getId() + "/deactivate", null))
-        .isEqualTo(HttpStatus.OK);
-    // Usuário inexistente.
-    assertThat(status(s.admin, HttpMethod.DELETE, "/users/9999999", null))
-        .isEqualTo(HttpStatus.NOT_FOUND);
+    assertThat(status(s.admin, HttpMethod.PATCH, "/users/" + s.admin.getId() + "/activate", null))
+        .isEqualTo(HttpStatus.CONFLICT);
+    assertThat(users.findById(s.admin.getId()).orElseThrow().isActive()).isTrue();
   }
 }

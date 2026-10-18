@@ -12,8 +12,7 @@ essas rotas não foram tocadas por este trabalho.
 - **Toda rota abaixo exige `Authorization: Bearer <jwt>`.** Sem header, a resposta é `403
   Forbidden` — não `401` — porque o `SecurityConfig` ainda não tem um `AuthenticationEntryPoint`
   customizado (é um TODO em aberto no backend).
-- **Um JWT com assinatura válida mas cujo `subject` não existe mais em `im_user`** (ex: usuário
-  excluído) faz as rotas que checam permissão (`/sectors`, `/profiles`, `/permissions`,
+- **Um JWT com assinatura válida mas cujo `subject` não existe mais em `im_user`** (ex: banco recriado) faz as rotas que checam permissão (`/sectors`, `/profiles`, `/permissions`,
   `/users/{id}/sectors/{sectorId}` e `PATCH /users/{id}/profile`) responderem `401 Unauthorized`,
   não `403`. É o único caso em que essas rotas devolvem 401 em vez de 403.
 - **O corpo de erro nunca tem um campo `message`.** O backend não tem `@ControllerAdvice`/handler
@@ -43,14 +42,18 @@ Hoje existem só 3 permissões, seedadas automaticamente, e cada perfil seedado 
 
 | Permissão | Perfil que tem | O que libera hoje |
 | --- | --- | --- |
-| `ADMIN` | `ADMIN_ORGANIZATION` | Vê e gerencia tudo: setores, usuários (cadastro, perfil, alocação, desativar e excluir), catálogos, inventários e itens de qualquer setor. |
-| `MANAGE_SECTOR` | `GESTOR_SETOR` | Vê os setores e inventários a que está vinculado; cria, edita, finaliza e exclui inventários desses setores, importa e limpa itens; cadastra usuários **só com perfil sem permissão de gestão** (Operador e Consulta) e **só nos próprios setores**; lê os catálogos de perfis e permissões. |
+| `ADMIN` | `ADMIN_ORGANIZATION` | Vê e gerencia tudo: setores, usuários (perfil, alocação, ativar e desativar), catálogos, inventários e itens de qualquer setor. |
+| `MANAGE_SECTOR` | `GESTOR_SETOR` | Vê os setores e inventários a que está vinculado; cria, edita, finaliza e exclui inventários desses setores, importa e limpa itens; atribui perfil a usuários dos seus setores **só entre perfis sem permissão de gestão** (Operador e Consulta) e aloca usuários nos próprios setores; **não ativa nem desativa usuários**; lê os catálogos de perfis e permissões. |
 | `MANAGE_ITEM` | `OPERADOR_CAMPO` | Vê os inventários do seu setor e opera os itens: valida (escaneia) e registra observações. Não cria, edita nem finaliza inventários e não altera os dados do item. |
 | (nenhuma) | `CONSULTA` | Somente leitura nos inventários e setores a que está vinculado. |
 
-Todo usuário tem perfil: o cadastro e a troca de perfil exigem `profileId` (`400` sem ele) e quem entra
-pela primeira vez com Google nasce como `CONSULTA`. Contas antigas ainda podem vir com `profileId: null`
-e não têm nenhuma permissão. Perfis e permissões são definidos pelas migrations e seus catálogos são
+**Usuário só nasce no primeiro login pelo Google, sem perfil.** Não há cadastro nem pré-cadastro de usuário na
+API (`POST /users` não existe): quem entra pela primeira vez recebe `profileId: null`, nenhuma permissão e nenhum
+setor, até que um **administrador** atribua o perfil (`PATCH /users/{id}/profile`) e aloque os setores. A troca de
+perfil exige `profileId` (`400` sem ele): não existe "voltar a sem perfil". Contas antigas podem ter `CONSULTA`.
+**Consequência para o gestor:** ele só enxerga os usuários que já estão nos seus setores, então um usuário recém-criado
+(sem setor) só aparece para o administrador, que faz a primeira alocação.
+Perfis e permissões são definidos pelas migrations e seus catálogos são
 somente para consulta. Alterações na política entram por código e migration. O admin pode atribuir um
 perfil existente ao usuário em `/users`, mas não mudar as permissões daquele perfil pela API.
 
@@ -170,14 +173,13 @@ alocados a algum dos seus setores. Devolve um array de usuário no formato:
   "email": "maria.silva@ifpe.edu.br",
   "sectorIds": [1, 4],
   "profileId": 2,
-  "pendingGoogleLogin": false,
   "active": true
 }
 ```
 
 `sectorIds` é sempre uma lista (vazia se o usuário não estiver alocado a nenhum setor).
-`profileId` vem `null` apenas em contas antigas sem perfil. `pendingGoogleLogin` indica pré-cadastro que ainda não
-fez o primeiro acesso; `active` é `false` para conta desativada. `googleId`, `createdAt` e `updatedAt`
+`profileId` vem `null` para quem entrou pelo Google e ainda não recebeu perfil; `active` é `false` para conta
+desativada. O campo `pendingGoogleLogin` foi removido junto com o pré-cadastro. `googleId`, `createdAt` e `updatedAt`
 nunca aparecem no JSON de usuário (isso já era assim antes, não é uma mudança desta revisão).
 
 **Não existe mais filtro por setor aqui** (`?sectorId=` saiu). Para ver quem está alocado a um
@@ -227,29 +229,17 @@ e consulta recebem `403`. **A conta de sistema é a exceção**: o perfil dela n
 Resposta: o `User` atualizado. Erros: `403` sem permissão; `404` usuário não existe (ou é a conta de
 sistema); `400` `profileId` ausente ou inexistente.
 
-### `POST /users` — cadastrar usuário
-
-Corpo: `{ "email": "...", "name": "opcional", "profileId": 3, "sectorIds": [1] }`. Cria um pré-cadastro que
-é vinculado ao Google no primeiro acesso. `profileId` é obrigatório (`400`); e-mail duplicado responde `409`;
-setor inexistente ou inativo, `400`.
-
-**Permissão: `ADMIN` ou `MANAGE_SECTOR`.** O gestor só cadastra perfis sem permissão de gestão (nunca gestor
-nem admin, `403`), precisa informar ao menos um setor (`400`) e só pode vincular aos setores a que ele
-próprio está alocado (`403`). Resposta: `201` com o usuário.
-
 ### `PATCH /users/{id}/deactivate` e `PATCH /users/{id}/activate`
 
-Desativar bloqueia o acesso imediatamente (sessões abertas passam a responder `401` e o login pelo Google é
+**Permissão: `ADMIN`.** Desativar bloqueia o acesso imediatamente (sessões abertas passam a responder `401` e o login pelo Google é
 recusado) e preserva o histórico; ativar devolve o acesso. Resposta: o `User` atualizado, com `active`.
 
-### `DELETE /users/{id}` — excluir usuário
+**Regras de `deactivate` e `activate`:** exigem **`ADMIN`** (`403` para qualquer outro perfil, inclusive o gestor,
+mesmo para usuários do próprio setor); ninguém age sobre a própria conta (`409`); a conta de sistema e ids
+inexistentes respondem `404`. Quem tem a conta desativada recebe `401` em qualquer chamada com o token que já tinha.
 
-Remove a conta e as alocações a setores (`204`). Quem criou inventários não pode ser excluído (`409`):
-desative a conta para preservar o histórico.
-
-**Regras de `deactivate`, `activate` e `DELETE`:** exigem `ADMIN` ou `MANAGE_SECTOR`; ninguém age sobre a
-própria conta (`409`); o gestor só age sobre usuários sem permissão de gestão que atuam **exclusivamente**
-nos setores dele (`403` se também atuam em outros setores); a conta de sistema responde `404`.
+**Não existe excluir usuário.** `POST /users` e `DELETE /users/{id}` foram removidos: usuário só se ativa e
+desativa, e o histórico (inventários e auditoria) é sempre preservado.
 
 ---
 
@@ -332,3 +322,4 @@ Para quem já tinha algo montado em cima da versão anterior:
 | 1.5 | 2026-10-11 | A conta de sistema sai de `GET /users` e `GET /sectors/{id}/users`, e as rotas de perfil e alocação respondem `404` para ela (issue #202). |
 | 1.6 | 2026-10-11 | `/profiles`, `/permissions` e `PATCH /users/{id}/profile` passam a exigir `ADMIN`; `/permissions` vira somente leitura (`POST`/`PUT`/`DELETE` removidos); o perfil `ADMIN_ORGANIZATION` fica protegido (409); nome de perfil com `trim` (issue #205). |
 | 1.7 | 2026-10-18 | O `429` de `POST /auth/login` passa a vir de duas camadas (Nginx por IP e backend por usuário); `/auth/google` e `/auth/me` ficam sem limite de tentativas (issue #228). |
+| 1.8 | 2026-10-18 | `POST /users` e `DELETE /users/{id}` removidos (usuário só nasce no primeiro login Google, **sem perfil**, e nunca é excluído); `PATCH /users/{id}/activate` e `/deactivate` passam a exigir `ADMIN`; o campo `pendingGoogleLogin` sai de `UserDto` (issue #232). |

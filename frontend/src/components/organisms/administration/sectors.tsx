@@ -360,7 +360,15 @@ export const SectorsScreen = () => {
         onConfirm={changeActive}
         busy={busy}
         title={activation?.active ? 'Desativar setor' : 'Ativar setor'}
-        message={`Deseja ${activation?.active ? 'desativar' : 'ativar'} o setor "${activation?.name}"? As alocações existentes serão mantidas.`}
+        confirmLabel={activation?.active ? 'Desativar' : 'Ativar'}
+        tone={activation?.active ? 'destructive' : 'default'}
+        message={
+          <>
+            Deseja {activation?.active ? 'desativar' : 'ativar'} o setor{' '}
+            <strong className="font-semibold">{activation?.name}</strong>?
+          </>
+        }
+        details={['As alocações existentes serão mantidas.']}
       />
       {viewing && (
         <AdminModal
