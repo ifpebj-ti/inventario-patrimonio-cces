@@ -305,26 +305,12 @@ test('gestor consulta somente setores vinculados e não recebe controles adminis
     .getByRole('button', { name: 'Usuários associados' })
     .click()
   await expect(page.getByRole('dialog')).toContainText('Ana')
-  await page.goto('/users')
-  await expect(page.getByRole('heading', { name: 'Usuários' })).toBeVisible()
-  // O gestor lista só os usuários do seu setor e não vê o catálogo de perfis.
-  await expect(card(page, 'Ana')).toBeVisible()
-  await expect(card(page, 'Maria')).toHaveCount(0)
+  // O menu do gestor não tem Usuários nem o catálogo de perfis.
+  const menu = page.getByRole('navigation', { name: 'Menu principal' })
+  await expect(menu.getByRole('link', { name: 'Usuários' })).toHaveCount(0)
   await expect(
-    page.getByRole('link', { name: 'Perfis e permissões' }),
+    menu.getByRole('link', { name: 'Perfis e permissões' }),
   ).toHaveCount(0)
-  // Outro gestor do mesmo setor só pode ser alterado pelo administrador.
-  await expect(card(page, 'Ana')).toContainText(
-    'Somente o administrador altera este acesso.',
-  )
-  // Usuário só nasce no primeiro login pelo Google: não há cadastro na tela.
-  await expect(page.getByRole('button', { name: 'Novo usuário' })).toHaveCount(
-    0,
-  )
-  // O gestor só atribui Operador de Campo e Consulta, nunca gestor nem administrador.
-  await expect(card(page, 'Ana')).toContainText(
-    'Somente o administrador altera este acesso.',
-  )
 })
 
 test('gestor sem setor tem lista vazia', async ({ page }) => {
@@ -494,10 +480,10 @@ test('usuários filtram Sem perfil e enviam profileId ao servidor', async ({
   ).toBeGreaterThan(1)
 })
 
+// A lista abre ao clicar no campo vazio; clicar num setor o adiciona na hora.
 const addSector = async (modal: Locator, text: string) => {
-  await modal.getByLabel('Adicionar setor').fill(text)
+  await modal.getByLabel('Adicionar setor').click()
   await modal.getByRole('option', { name: new RegExp(text) }).click()
-  await modal.getByRole('button', { name: 'Adicionar', exact: true }).click()
 }
 
 test('perfil e setores ficam pendentes e são salvos de uma vez', async ({
@@ -524,7 +510,9 @@ test('perfil e setores ficam pendentes e são salvos de uma vez', async ({
   // Desfazer tira a inclusão da lista de pendências.
   await modal.getByRole('button', { name: 'Desfazer Patrimônio' }).click()
   await expect(modal).toContainText('2 alterações pendentes')
-  await expect(modal.getByText('Patrimônio')).toHaveCount(0)
+  await expect(
+    modal.getByRole('button', { name: 'Desfazer Patrimônio' }),
+  ).toHaveCount(0)
 
   await save.click()
   await expect(page.getByText('Alterações salvas.')).toBeVisible()
@@ -537,6 +525,37 @@ test('perfil e setores ficam pendentes e são salvos de uma vez', async ({
       .filter((r) => r.method !== 'GET')
       .map((r) => `${r.method} ${r.path}`),
   ).toEqual(['PATCH /users/2/profile', 'POST /users/2/sectors/3'])
+})
+
+test('adicionar setor abre a lista completa, filtra por nome ou sigla e segue aberta', async ({
+  page,
+}) => {
+  await setup(page)
+  await page.goto('/users')
+  await card(page, 'Maria')
+    .getByRole('button', { name: 'Gerenciar acesso' })
+    .click()
+  const modal = page.getByRole('dialog', { name: 'Acesso de Maria' })
+  const field = modal.getByLabel('Adicionar setor')
+  // Clicar no campo vazio lista todos os setores ativos (Biblioteca está inativa).
+  await field.click()
+  await expect(modal.getByText('2 setores disponíveis')).toBeVisible()
+  await expect(modal.getByRole('option')).toHaveCount(2)
+  // A busca vale para o nome e para a sigla.
+  await field.fill('ti')
+  await expect(modal.getByRole('option')).toHaveCount(1)
+  await expect(modal.getByRole('option', { name: /Tecnologia/ })).toBeVisible()
+  await field.fill('')
+  // Clicar adiciona o setor aos associados e a lista segue aberta com o que sobrou.
+  await modal.getByRole('option', { name: /Patrimônio/ }).click()
+  await expect(
+    modal.getByRole('heading', { name: /Setores associados \(1\)/ }),
+  ).toBeVisible()
+  await expect(
+    modal.getByRole('button', { name: 'Desfazer Patrimônio' }),
+  ).toBeVisible()
+  await expect(modal.getByText('1 setor disponível')).toBeVisible()
+  await expect(modal.getByRole('option')).toHaveCount(1)
 })
 
 test('remover um setor também só vale ao salvar, e setor inativo não aparece na busca', async ({
@@ -855,28 +874,25 @@ test('ninguém desativa a própria conta, nem pelo botão rápido', async ({
   await expect(page.getByText('própria conta')).toBeVisible()
 })
 
-test('gestor não ativa nem desativa usuários, nem do próprio setor', async ({
+test('gestor não acessa a tela de usuários, nem pelo endereço', async ({
   page,
 }) => {
   const state = fixture()
   state.admin = false
-  // Operador atuando só no setor do gestor (1): ainda assim só o administrador ativa ou desativa.
-  state.users[1].sectorIds = [1]
-  state.users[1].profileId = 13
   await setup(page, state)
   await page.goto('/users')
   await expect(
-    card(page, 'Maria').getByRole('button', { name: /^(Desativar|Ativar) / }),
-  ).toHaveCount(0)
-  await card(page, 'Maria')
-    .getByRole('button', { name: 'Gerenciar acesso' })
-    .click()
-  await expect(
-    page.getByRole('button', { name: /Desativar usuário|Reativar usuário/ }),
-  ).toHaveCount(0)
-  await expect(
-    page.getByText('Somente o administrador ativa ou desativa usuários.'),
+    page.getByRole('heading', { name: 'Acesso restrito' }),
   ).toBeVisible()
+  await expect(
+    page
+      .getByRole('navigation', { name: 'Menu principal' })
+      .getByRole('link', { name: 'Usuários', exact: true }),
+  ).toHaveCount(0)
+  // Nenhuma chamada de usuários é feita para quem não pode ver a tela.
+  expect(
+    state.requests.filter((r) => r.path.startsWith('/users')),
+  ).toHaveLength(0)
 })
 
 test('modal de acesso mostra quem é o usuário, orienta quem não tem perfil e deixa desativar por último', async ({

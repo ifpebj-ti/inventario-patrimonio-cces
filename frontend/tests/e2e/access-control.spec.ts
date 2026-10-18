@@ -93,8 +93,8 @@ test.describe('menu lateral por perfil', () => {
       hidden: [],
     },
     manager: {
-      visible: ['Setores', 'Usuários'],
-      hidden: ['Dashboard', 'Perfis e permissões'],
+      visible: ['Setores'],
+      hidden: ['Dashboard', 'Usuários', 'Perfis e permissões'],
     },
     operator: {
       visible: [],
@@ -240,7 +240,8 @@ test.describe('página do item', () => {
 })
 
 test.describe('telas restritas', () => {
-  for (const role of ['operator', 'consult'] as Role[]) {
+  // A tela de Usuários é só do administrador: nem o gestor entra.
+  for (const role of ['manager', 'operator', 'consult'] as Role[]) {
     test(`${role} não acessa usuários e é levado a Inventários fora do dashboard`, async ({
       page,
     }) => {

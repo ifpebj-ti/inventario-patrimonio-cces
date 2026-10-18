@@ -2,8 +2,7 @@
 // O back-end é quem de fato autoriza; aqui só escondemos o que o perfil não pode usar.
 //
 // - admin    (ADMIN_ORGANIZATION): vê e gerencia tudo.
-// - manager  (GESTOR_SETOR):       gerencia os inventários do seu setor e cadastra Operadores
-//                                  e Consulta.
+// - manager  (GESTOR_SETOR):       gerencia os inventários do seu setor.
 // - operator (OPERADOR_CAMPO):     vê o setor, escaneia, valida itens e adiciona observações.
 // - consult  (CONSULTA):           somente leitura no seu setor.
 export type AccessRole = 'admin' | 'manager' | 'operator' | 'consult'
@@ -24,8 +23,8 @@ export const capabilitiesOf = (role: AccessRole) => {
     canManageInventories: admin || manager,
     // Escanear, validar itens e registrar observações.
     canOperateItems: admin || manager || role === 'operator',
-    // Cadastrar usuários e gerenciar acessos (o gestor, só Operador e Consulta no seu setor).
-    canManageUsers: admin || manager,
+    // Tela de Usuários (perfil, setores, ativar e desativar): só o administrador.
+    canManageUsers: admin,
     // Tela de setores: admin gerencia, gestor consulta os seus.
     canReadSectors: admin || manager,
   }

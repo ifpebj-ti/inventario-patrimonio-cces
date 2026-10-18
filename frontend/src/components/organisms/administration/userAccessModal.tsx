@@ -1,10 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Building2, Plus, Search, TriangleAlert, X } from 'lucide-react'
+import { Building2, RotateCcw, TriangleAlert, X } from 'lucide-react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button as UiButton } from '@/components/ui/button'
-import { Input as UiInput } from '@/components/ui/input'
 import { Label as UiLabel } from '@/components/ui/label'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { profileLabel } from '@/lib/access-labels'
@@ -15,6 +14,7 @@ import type {
   Sector,
 } from '@/commons/models/administration'
 import { ErrorNotice } from './shared'
+import { SectorPicker } from './sectorPicker'
 
 // O que o administrador escolheu e ainda não foi enviado: o perfil novo (se mudou) e os setores a
 // incluir e a remover. É enviado de uma vez por "Salvar alterações".
@@ -62,8 +62,6 @@ export const UserAccessModal = ({
     user.profileId,
   )
   const [desiredSectors, setDesiredSectors] = useState<number[]>(user.sectorIds)
-  const [query, setQuery] = useState('')
-  const [picked, setPicked] = useState<number | null>(null)
 
   const sectorById = (id: number) => sectors.find((row) => row.id === id)
   const profileChanged =
@@ -90,32 +88,17 @@ export const UserAccessModal = ({
       .map((id) => ({ id, status: 'add' as const })),
   ]
 
-  const search = query.trim().toLocaleLowerCase()
-  const results = sectors
-    .filter(
-      (sector) =>
-        sector.active &&
-        !user.sectorIds.includes(sector.id) &&
-        !desiredSectors.includes(sector.id) &&
-        search !== '' &&
-        `${sector.name} ${sector.code ?? ''}`
-          .toLocaleLowerCase()
-          .includes(search),
-    )
-    .slice(0, 6)
-  const hasAvailable = sectors.some(
+  // Setores que ainda podem ser adicionados: ativos e fora da lista (nem pendentes de inclusão).
+  const available = sectors.filter(
     (sector) =>
       sector.active &&
       !user.sectorIds.includes(sector.id) &&
       !desiredSectors.includes(sector.id),
   )
-
-  const addPicked = (id: number | null) => {
-    if (id === null) return
-    setDesiredSectors((ids) => (ids.includes(id) ? ids : [...ids, id]))
-    setQuery('')
-    setPicked(null)
-  }
+  const addSector = (sector: Sector) =>
+    setDesiredSectors((ids) =>
+      ids.includes(sector.id) ? ids : [...ids, sector.id],
+    )
   const setStatus = (id: number, status: SectorRow['status']) =>
     setDesiredSectors((ids) =>
       status === 'remove'
@@ -141,7 +124,7 @@ export const UserAccessModal = ({
     >
       <DialogContent
         showCloseButton={false}
-        className="flex max-h-[92vh] flex-col gap-0 overflow-hidden rounded-xl p-0 sm:max-w-lg"
+        className="flex max-h-[92vh] flex-col gap-0 overflow-hidden rounded-xl p-0 sm:max-w-[40rem]"
       >
         <header className="flex shrink-0 items-start gap-3 border-b px-6 py-4">
           <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
@@ -258,7 +241,7 @@ export const UserAccessModal = ({
                 Nenhum setor associado.
               </p>
             ) : (
-              <ul className="space-y-2">
+              <ul className="flex flex-wrap gap-2">
                 {rows.map(({ id, status }) => {
                   const sector = sectorById(id)
                   const name = sector?.name || `Setor #${id}`
@@ -266,59 +249,61 @@ export const UserAccessModal = ({
                     <li
                       key={id}
                       className={cn(
-                        'flex items-center justify-between gap-2 rounded-lg border px-3 py-1.5 text-sm',
-                        status === 'remove' &&
-                          'border-destructive/30 bg-destructive/5',
-                        status === 'add' && 'border-primary/40 bg-primary/5',
+                        'inline-flex max-w-full items-center gap-1.5 rounded-full border py-1 pr-1 pl-3 text-sm',
+                        status === 'remove'
+                          ? 'border-destructive/30 bg-destructive/5 text-muted-foreground'
+                          : 'border-primary/30 bg-primary/10 text-foreground',
                       )}
                     >
-                      <span className="flex min-w-0 flex-wrap items-center gap-2">
-                        <Building2 className="size-4 shrink-0 text-muted-foreground" />
-                        <span
-                          className={cn(
-                            status === 'remove' &&
-                              'text-muted-foreground line-through',
-                          )}
-                        >
-                          {name}
-                        </span>
-                        {sector && !sector.active && (
-                          <StatusBadge tone="neutral">Inativo</StatusBadge>
+                      <span
+                        className={cn(
+                          'min-w-0 truncate font-medium',
+                          status === 'remove' && 'line-through',
                         )}
-                        {status === 'add' && (
-                          <StatusBadge tone="primary">Novo</StatusBadge>
-                        )}
-                        {status === 'remove' && (
-                          <StatusBadge tone="danger">Será removido</StatusBadge>
-                        )}
+                      >
+                        {name}
                       </span>
+                      {sector && !sector.active && (
+                        <span className="text-xs text-muted-foreground">
+                          Inativo
+                        </span>
+                      )}
+                      {status === 'add' && (
+                        <span className="text-xs font-medium text-primary">
+                          Novo
+                        </span>
+                      )}
+                      {status === 'remove' && (
+                        <span className="text-xs font-medium text-destructive">
+                          Será removido
+                        </span>
+                      )}
                       {status === 'keep' ? (
-                        <UiButton
-                          variant="ghost"
-                          size="sm"
+                        <button
                           type="button"
-                          className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                          className="flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-40"
                           disabled={busy || !sector || !canRemoveSector(id)}
                           onClick={() => setStatus(id, 'remove')}
                           aria-label={`Desalocar de ${name}`}
                         >
-                          Desalocar
-                        </UiButton>
+                          <X className="size-3.5" />
+                        </button>
                       ) : (
-                        <UiButton
-                          variant="ghost"
-                          size="sm"
+                        <button
                           type="button"
+                          className="flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
                           disabled={busy}
                           onClick={() =>
-                            status === 'add'
-                              ? setStatus(id, 'remove')
-                              : setStatus(id, 'add')
+                            setStatus(id, status === 'add' ? 'remove' : 'add')
                           }
                           aria-label={`Desfazer ${name}`}
                         >
-                          Desfazer
-                        </UiButton>
+                          {status === 'add' ? (
+                            <X className="size-3.5" />
+                          ) : (
+                            <RotateCcw className="size-3.5" />
+                          )}
+                        </button>
                       )}
                     </li>
                   )
@@ -326,89 +311,19 @@ export const UserAccessModal = ({
               </ul>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <UiLabel
                 htmlFor="access-sector-search"
                 className="flex-col items-stretch gap-1.5 text-sm"
               >
                 Adicionar setor
               </UiLabel>
-              <div className="flex gap-2">
-                <div className="relative min-w-0 flex-1">
-                  <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <UiInput
-                    id="access-sector-search"
-                    className="pl-9"
-                    placeholder="Buscar setor ativo pelo nome ou sigla"
-                    autoComplete="off"
-                    disabled={busy}
-                    value={query}
-                    onChange={(event) => {
-                      setQuery(event.target.value)
-                      setPicked(null)
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key !== 'Enter') return
-                      event.preventDefault()
-                      if (picked !== null) addPicked(picked)
-                      else if (results.length === 1) addPicked(results[0].id)
-                    }}
-                  />
-                </div>
-                <UiButton
-                  type="button"
-                  variant="outline"
-                  className="border-primary/40 text-primary"
-                  disabled={busy || picked === null}
-                  onClick={() => addPicked(picked)}
-                >
-                  <Plus /> Adicionar
-                </UiButton>
-              </div>
-              {results.length > 0 && (
-                <ul
-                  role="listbox"
-                  aria-label="Setores encontrados"
-                  className="max-h-44 overflow-y-auto rounded-lg border"
-                >
-                  {results.map((sector) => (
-                    <li
-                      key={sector.id}
-                      role="option"
-                      aria-selected={picked === sector.id}
-                    >
-                      <button
-                        type="button"
-                        className={cn(
-                          'flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-muted/60',
-                          picked === sector.id && 'bg-primary/10 font-medium',
-                        )}
-                        onClick={() => {
-                          setPicked(sector.id)
-                          setQuery(sector.name)
-                        }}
-                      >
-                        <span>{sector.name}</span>
-                        {sector.code && (
-                          <span className="text-xs text-muted-foreground">
-                            {sector.code}
-                          </span>
-                        )}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {search !== '' && results.length === 0 && picked === null && (
-                <p className="text-sm text-muted-foreground">
-                  Nenhum setor ativo encontrado para esta busca.
-                </p>
-              )}
-              {!hasAvailable && (
-                <p className="text-sm text-muted-foreground">
-                  Não há outros setores ativos disponíveis.
-                </p>
-              )}
+              <SectorPicker
+                id="access-sector-search"
+                available={available}
+                disabled={busy}
+                onPick={addSector}
+              />
             </div>
           </section>
 
