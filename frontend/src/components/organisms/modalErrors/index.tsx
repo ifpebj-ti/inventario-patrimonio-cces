@@ -1,5 +1,14 @@
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button as UiButton } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import type { SpreadsheetError } from '@/commons/models/spreadsheet'
-import React from 'react'
 
 // Define as propriedades que o modal de erros espera receber.
 interface ModalErrorsProps {
@@ -15,78 +24,61 @@ export const ModalErrorsSheet = ({
   title,
   errors,
 }: ModalErrorsProps) => {
-  // Função que permite fechar o modal ao clicar no fundo escuro (backdrop).
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose()
-    }
-  }
-
   return (
-    <>
-      {/* Backdrop - fundo escuro e com blur. */}
-      <div
-        className="fixed inset-0 bg-opacity-20 backdrop-blur-sm z-60"
-        onClick={handleBackdropClick}
-      />
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+    >
+      <DialogContent
+        showCloseButton={false}
+        aria-describedby={undefined}
+        className="max-h-[90vh] overflow-y-auto rounded-xl p-5 sm:max-w-2xl sm:p-8"
+      >
+        <DialogHeader>
+          <DialogTitle className="text-2xl font-semibold text-destructive">
+            {title || 'Erros da planilha'}
+          </DialogTitle>
+        </DialogHeader>
 
-      {/* Contêiner que centraliza o conteúdo do modal na tela. */}
-      <div className="fixed inset-0 flex justify-center items-center z-60 p-4">
-        {/* O painel branco principal do modal, com estilos de sombra, borda e rolagem. */}
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={title || 'Erros da planilha'}
-          className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-5 sm:p-8 relative w-full max-w-2xl max-h-[90vh] overflow-y-auto"
-        >
-          {/* Botão para fechar o modal no canto superior direito. */}
-          <button
-            className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 text-2xl font-bold transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl"
-            onClick={onClose}
-            aria-label="Fechar modal"
-          >
-            &times;
-          </button>
-
-          <h2 className="text-2xl text-red-500 font-semibold mb-6">{title}</h2>
-
-          {/* Renderiza a lista de erros apenas se o array 'errors' existir e não estiver vazio. */}
-          {errors && errors.length > 0 && (
-            <div className="space-y-6">
-              {/* Mapeia cada item de erro para criar um bloco de visualização. */}
-              {errors.map((item, index) => (
-                <div
-                  key={index}
-                  className="border border-red-200 bg-red-50 rounded-lg p-4"
-                >
-                  <p className="font-semibold text-red-700">
-                    Código: <span className="font-normal">{item.code}</span>
-                  </p>
-                  <p className="text-sm text-gray-600 mb-2">
+        {/* Renderiza a lista de erros apenas se o array 'errors' existir e não estiver vazio. */}
+        {errors && errors.length > 0 && (
+          <div className="space-y-4">
+            {/* Mapeia cada item de erro para criar um bloco de visualização. */}
+            {errors.map((item, index) => (
+              <Alert
+                key={index}
+                variant="destructive"
+                className="border-destructive/25 bg-destructive/10"
+              >
+                <AlertTitle>
+                  Código: <span className="font-normal">{item.code}</span>
+                </AlertTitle>
+                <AlertDescription>
+                  <p className="text-muted-foreground">
                     Linha da planilha: {item.line}
                   </p>
                   {/* Mapeia a lista de mensagens de erro para o item atual. */}
-                  <ul className="list-disc pl-5 text-sm text-red-600 space-y-1">
+                  <ul className="list-disc space-y-1 pl-5">
                     {item.errors.map((err, idx) => (
                       <li key={idx}>{err}</li>
                     ))}
                   </ul>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Seção com o botão para fechar o modal. */}
-          <div className="flex justify-center mt-8">
-            <button
-              onClick={onClose}
-              className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg transition-colors cursor-pointer"
-            >
-              Fechar
-            </button>
+                </AlertDescription>
+              </Alert>
+            ))}
           </div>
-        </div>
-      </div>
-    </>
+        )}
+
+        <DialogFooter className="sm:justify-center">
+          <DialogClose asChild>
+            <UiButton variant="outline" className="px-6">
+              Fechar
+            </UiButton>
+          </DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

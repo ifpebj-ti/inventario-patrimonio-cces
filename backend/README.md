@@ -5,8 +5,11 @@ Contrato de autenticação abaixo. Setor, usuário, perfil e permissão estão d
 
 # - Autenticação
 
-O login com Google é o jeito de entrar de todos os usuários. Não existe cadastro próprio,
-verificação de e-mail nem recuperação de senha. A única exceção é a **conta de sistema** (admin),
+O login com Google é o jeito de entrar dos usuários comuns. Admins e gestores de setor podem
+pré-cadastrar usuários por e-mail, com perfil e setores, em `POST /users` (o gestor, apenas Operador
+de Campo e Consulta nos seus próprios setores). Quem entra pela primeira vez sem pré-cadastro nasce
+como Consulta, e uma conta desativada não consegue entrar (nem manter a sessão aberta). Não há senha local para esses usuários,
+verificação de e-mail própria nem recuperação de senha. A exceção é a **conta de sistema** (admin),
 que entra por usuário e senha — veja "Conta de sistema" abaixo.
 
 O backend recebe o **ID token** que o Google Identity Services entrega ao frontend, valida a
@@ -65,21 +68,24 @@ A mensagem de 401 é única de propósito: distinguir os motivos revelaria quais
 qual verificação falhou. O frontend classifica pelo status, nunca pelo texto do corpo — e trata
 o 500 como "serviço indisponível", não como conta recusada.
 
-`GET /auth/me` devolve o usuário do token: `{ id, name, email }`.
+`GET /auth/me` devolve o DTO de sessão do token: `{ id, name, email, profileId, sectorIds,
+permissions }`. Ele não serializa a entidade `User` nem expõe campos internos de autenticação.
 
 ## Criação de conta
 
-Quem entra pela primeira vez tem a conta criada na hora, desde que o domínio do e-mail esteja
-permitido. Não há cadastro, aprovação nem confirmação por e-mail: o Google já provou a posse da
-caixa, e o `GoogleTokenProvider` recusa qualquer token com `email_verified: false`.
+Quem entra pela primeira vez sem pré-cadastro tem a conta criada na hora, desde que o domínio
+do e-mail esteja permitido. O admin também pode pré-cadastrar o e-mail, definindo perfil e setores
+antes do primeiro acesso. O Google prova a posse da caixa: o `GoogleTokenProvider` recusa qualquer
+token com `email_verified: false`. O pré-cadastro por ADMIN é uma autorização explícita e pode
+incluir domínios fora da lista de criação automática.
 
-Nos acessos seguintes o usuário é localizado pelo e-mail, normalizado em minúsculas — o Google
-devolve o e-mail canonicalizado, mas o índice único do Postgres é case-sensitive, e sem normalizar
-o mesmo dono viraria duas contas.
+O usuário é localizado pelo e-mail normalizado em minúsculas. A migration `3.0.xml` acrescenta
+um índice único sobre `lower(email)`, impedindo duplicidade por diferença entre maiúsculas e minúsculas.
 
-A coluna `google_id` guarda o `sub` do Google e **não é consultada para autenticar** — quem
-autentica é a assinatura do ID token. Ela só é nula na conta de sistema (veja abaixo); o banco
-garante isso: `google_id` nulo se e somente se `is_system_user` verdadeiro.
+A coluna `google_id` guarda o `sub` verificado do Google. No primeiro acesso de um pré-cadastro,
+esse valor é vinculado à conta e `pending_google_login` passa a falso, preservando ID, nome,
+perfil e setores. Nos acessos posteriores, o `sub` precisa coincidir com o registrado.
+O banco permite `google_id` nulo apenas para contas de sistema ou pré-cadastros pendentes.
 
 ## Conta de sistema
 
@@ -98,8 +104,9 @@ Uma conta (`admin` por padrão) que entra por usuário e senha, sem Google, com 
   pode ser renomeado, excluído nem perder a permissão `ADMIN` pela API (409), e `/permissions` é
   somente leitura. Assim ninguém, nem outro admin, consegue deixar o sistema sem acesso
   administrativo pela API. Qualquer outro usuário pode ter o perfil trocado por um admin.
-- `/profiles`, `/permissions` e `PATCH /users/{id}/profile` exigem `ADMIN`. Uma permissão nova não se
-  cria pela API: entra por migration do Liquibase.
+- `/profiles` e `/permissions` (somente leitura) exigem `ADMIN` ou `MANAGE_SECTOR`, e
+  `PATCH /users/{id}/profile` também: o gestor só atribui perfis sem permissão de gestão a usuários dos
+  seus setores. Uma permissão nova não se cria pela API: entra por migration do Liquibase.
 
 `POST /auth/login` — sem autenticação.
 
@@ -120,28 +127,33 @@ A mensagem de 401 é única de propósito, igual ao `/auth/google`.
 
 ### Limite de tentativas
 
-O login por senha tem bloqueio temporário contra força bruta, com contadores **em memória** (a
-aplicação roda numa instância; reiniciar o backend zera os contadores):
+O login por senha tem duas camadas contra força bruta:
 
-- **Por usuário**: 5 falhas em 15 min bloqueiam aquele usuário por 15 min, de qualquer IP. Usuário
-  inexistente conta igual, então a resposta não revela quais usuários existem.
-- **Por IP**: 10 falhas em 15 min bloqueiam aquele IP por 15 min, para qualquer usuário.
-- Durante o bloqueio a resposta é `429` **mesmo com a senha certa** (e sem gastar BCrypt). Pedidos
-  bloqueados não prolongam o bloqueio, e requisições com campos vazios (400) não contam.
-- Um login com sucesso zera o contador do usuário, mas não o do IP.
+- **Backend, por usuário** (contador **em memória**: a aplicação roda numa instância e reiniciar o
+  backend zera os contadores): 5 falhas em 15 min bloqueiam aquele usuário por 15 min, de qualquer IP.
+  Usuário inexistente conta igual, então a resposta não revela quais usuários existem.
+- **Nginx, por IP, só no `/auth/login`**: freio de taxa (zona `auth`, 10 requisições por minuto com
+  rajada de 10; passou disso, `429` até o ritmo cair). Não é bloqueio de 15 min: limita a velocidade de
+  quem tenta. Ver `infra/nginx/app-vm/sites-tls/21-api.conf`. O `/auth/google` e o `/auth/me` ficam só na
+  zona geral do Nginx (20 req/s), sem limite de tentativas.
+- Durante o bloqueio por usuário a resposta é `429` **mesmo com a senha certa** (e sem gastar BCrypt).
+  Pedidos bloqueados não prolongam o bloqueio, e requisições com campos vazios (400) não contam.
+- Um login com sucesso zera o contador do usuário.
+- Os dois `429` trazem `Retry-After` e CORS (o do Nginx vem de `snippets/login-rate-limited.conf`).
 - O bloqueio é temporário de propósito: bloqueio permanente permitiria a qualquer um travar o
   `admin`. Contrapartida: quem insistir consegue manter o `admin` indisponível, sem afetar o login
   Google dos demais.
 
-Os limites são configuráveis: `AUTH_LOGIN_USER_MAX_FAILURES`, `AUTH_LOGIN_IP_MAX_FAILURES`,
-`AUTH_LOGIN_WINDOW` e `AUTH_LOGIN_BLOCK_DURATION` (ex.: `15m`).
+Os limites do backend são configuráveis: `AUTH_LOGIN_USER_MAX_FAILURES`, `AUTH_LOGIN_WINDOW` e
+`AUTH_LOGIN_BLOCK_DURATION` (ex.: `15m`). Os do Nginx ficam em `infra/nginx` e mudam com
+`infra/scripts/deploy-nginx.sh`.
 
-**IP do cliente.** O limite por IP usa o IP de quem conecta. Atrás de um proxy (nginx) esse seria o
-IP do proxy, e todos os clientes dividiriam o mesmo contador. Nesse caso o proxy precisa
-**sobrescrever** o `X-Forwarded-For` (não anexar ao que veio do cliente) e o backend precisa de
-`FORWARD_HEADERS_STRATEGY=native`. Sem proxy confiável deixe o padrão (`none`): o cabeçalho viria do
-cliente e seria falsificável. O `/auth/google` não tem esse limite: não há segredo para adivinhar
-(o que entra é um ID token assinado pelo Google).
+**IP do cliente.** Quem enxerga o IP real é o Nginx, por isso o limite por IP é dele: o backend não lê
+o IP no login. Em desenvolvimento, sem Nginx na frente, só vale o bloqueio por usuário.
+`FORWARD_HEADERS_STRATEGY=native` (padrão de produção, com o Nginx sobrescrevendo o
+`X-Forwarded-For`) faz o backend enxergar o IP, o esquema e o host reais, mas o limitador de login não
+depende dele. O `/auth/google` não tem limite de tentativas: não há segredo para adivinhar (o que
+entra é um ID token assinado pelo Google).
 
 
 # - Limpeza de Dados com clear-all-data.sh

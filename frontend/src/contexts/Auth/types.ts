@@ -1,10 +1,13 @@
 import { ReactNode } from 'react'
 
-// Exatamente o que o backend devolve em /auth/me, /auth/google e /auth/login.
+// Dados de sessão; não confundir com UserDto das listagens administrativas.
 export type User = {
   id: number
   name: string
   email: string
+  profileId: number | null
+  sectorIds: number[]
+  permissions: string[]
 }
 
 // Tipo para o contexto de autenticação, importante para usar atributos e métodos
@@ -17,6 +20,7 @@ export type AuthContextType = {
   signInWithGoogle: (credential: string) => Promise<void>
   // Login da conta de sistema (usuário e senha, sem Google).
   signInWithPassword: (username: string, password: string) => Promise<void>
+  refreshSession: () => Promise<User>
   signOut: () => void
 }
 

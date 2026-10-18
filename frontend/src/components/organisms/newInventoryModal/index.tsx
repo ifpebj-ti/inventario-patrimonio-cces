@@ -1,14 +1,31 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { InputField, Modal } from '@/components/organisms/modal'
-import { useForm } from 'react-hook-form'
+'use client'
+
+import { SelectField } from '@/components/ui/select-field'
+import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { toast } from 'react-hot-toast'
+import { toast } from 'sonner'
+import { useEffect, useState } from 'react'
 import inventory from '@/validations/inventory'
 import {
   CreateInventoryRequest,
   createInventoryRequest,
 } from '@/services/inventory'
-import React from 'react'
+import { listSectors } from '@/services/administration'
+import type { Sector } from '@/commons/models/administration'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
+import { Label } from '@/components/ui/label'
+
+// Data mínima aceita para a data prevista (hoje).
+const currentDate = new Date().toISOString().slice(0, 10)
 
 // Define as propriedades que o componente NewInventoryModal espera receber.
 interface ModalProps {
@@ -16,109 +33,163 @@ interface ModalProps {
   onInventoryCreated: () => void
 }
 
-// Array de configuração que descreve os campos do formulário a serem renderizados.
-// Isso permite que o formulário seja gerado dinamicamente.
-const inventoryFields: InputField[] = [
-  {
-    name: 'name',
-    placeholder: 'Nome do inventário...',
-    type: 'text',
-    required: true,
-    autoComplete: 'name',
-  },
-  {
-    name: 'description',
-    placeholder: 'Descrição...',
-    type: 'text',
-    required: false,
-    autoComplete: 'description',
-  },
-]
-
-// Associa o schema de validação Zod para ser usado com o react-hook-form.
-const newInventoryFormSchema = inventory
-
 // Componente de modal específico para a criação de um novo inventário.
 export const NewInventoryModal = ({
   onClose,
   onInventoryCreated,
 }: ModalProps) => {
-  // Função que permite fechar o modal ao clicar no fundo escuro (backdrop).
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose()
-    }
-  }
-
+  const [sectors, setSectors] = useState<Sector[]>([])
   // Hook 'react-hook-form' para gerenciar o estado, validação e submissão do formulário.
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<CreateInventoryRequest>({
     mode: 'all',
     criteriaMode: 'all',
-    resolver: zodResolver(newInventoryFormSchema),
+    resolver: zodResolver(inventory),
   })
+
+  useEffect(() => {
+    const controller = new AbortController()
+    listSectors(controller.signal)
+      .then((data) => setSectors(data.filter((sector) => sector.active)))
+      .catch(() => {
+        if (!controller.signal.aborted)
+          toast.error('Não foi possível carregar os setores.')
+      })
+    return () => controller.abort()
+  }, [])
 
   // Função executada quando o formulário é submetido com dados válidos.
   const createInventory = async (data: CreateInventoryRequest) => {
     try {
-      console.log('Dados do formulário:', data)
-      // Chama a função de serviço para enviar os dados para a API.
       await createInventoryRequest(data)
-      // Exibe uma notificação de sucesso.
       toast.success('Inventário criado com sucesso!')
-      // Chama as funções de callback do componente pai para atualizar a UI e fechar o modal.
       onInventoryCreated()
       onClose()
     } catch (error) {
-      // Desativa a regra do linter para permitir o tipo 'any' no erro.
-      const axiosError = error as any
       // Extrai a mensagem de erro da resposta da API ou usa uma mensagem padrão.
-      const errorMessage =
-        axiosError?.response?.data?.message || 'Erro ao criar inventário.'
-      // Exibe uma notificação de erro.
-      toast.error(errorMessage)
+      const axiosError = error as { response?: { data?: { message?: string } } }
+      toast.error(
+        axiosError?.response?.data?.message || 'Erro ao criar inventário.',
+      )
     }
   }
 
   return (
-    <>
-      {/* Backdrop - fundo escuro e com blur, que fecha o modal ao ser clicado. */}
-      <div
-        className="fixed inset-0 bg-opacity-20 backdrop-blur-sm z-60"
-        onClick={handleBackdropClick}
-      ></div>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !isSubmitting) onClose()
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Novo Inventário</DialogTitle>
+        </DialogHeader>
 
-      {/* Contêiner que centraliza o modal na tela. */}
-      <div className="fixed inset-0 flex justify-center items-center z-60 p-4">
-        {/* O painel branco do modal com a estilização principal. */}
-        <div className="bg-white rounded-3xl shadow-2xl flex justify-center flex-col gap-6 p-8 relative max-h-screen overflow-y-auto w-2/5 max-w-md">
-          {/* Botão para fechar o modal no canto superior direito. */}
-          <button
-            className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl font-bold transition-colors"
-            onClick={onClose}
-          >
-            ×
-          </button>
+        <form
+          onSubmit={handleSubmit(createInventory)}
+          className="flex flex-col gap-4"
+        >
+          <fieldset disabled={isSubmitting} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="name">Nome do inventário</Label>
+              <Input
+                id="name"
+                type="text"
+                placeholder="Nome do inventário..."
+                autoComplete="name"
+                required
+                {...register('name')}
+              />
+              {errors.name && (
+                <p className="text-sm text-destructive">
+                  {errors.name.message}
+                </p>
+              )}
+            </div>
 
-          {/* Componente de Modal genérico que renderiza a estrutura do formulário. */}
-          {/* Ele recebe a lógica e os campos como props, tornando-o reutilizável. */}
-          <Modal
-            onClose={onClose}
-            title="Novo Inventário"
-            buttonText="Criar Inventário"
-            fields={inventoryFields}
-            // O 'handleSubmit' do react-hook-form envolve a função 'createInventory'.
-            onSubmit={handleSubmit(createInventory)}
-            // As funções e estados do formulário são passados como props para o modal genérico.
-            register={register}
-            errors={errors}
-            isSubmitting={isSubmitting}
-          />
-        </div>
-      </div>
-    </>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="description">Descrição</Label>
+              <Input
+                id="description"
+                type="text"
+                placeholder="Descrição..."
+                autoComplete="description"
+                {...register('description')}
+              />
+              {errors.description && (
+                <p className="text-sm text-destructive">
+                  {errors.description.message}
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="sectorId">Setor responsável</Label>
+              <Controller
+                control={control}
+                name="sectorId"
+                render={({ field }) => (
+                  <SelectField
+                    id="sectorId"
+                    aria-label="Setor responsável"
+                    options={sectors.map((sector) => ({
+                      value: String(sector.id),
+                      label: sector.name,
+                    }))}
+                    value={field.value ? String(field.value) : ''}
+                    onValueChange={(value) => field.onChange(Number(value))}
+                    placeholder="Selecione o setor"
+                  />
+                )}
+              />
+              {errors.sectorId && (
+                <p className="text-sm text-destructive">
+                  {errors.sectorId.message}
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="plannedEndDate">
+                Data prevista de finalização
+              </Label>
+              <Controller
+                control={control}
+                name="plannedEndDate"
+                render={({ field }) => (
+                  <DatePicker
+                    id="plannedEndDate"
+                    aria-label="Data prevista de finalização"
+                    value={field.value}
+                    onChange={field.onChange}
+                    min={currentDate}
+                  />
+                )}
+              />
+              {errors.plannedEndDate && (
+                <p className="text-sm text-destructive">
+                  {errors.plannedEndDate.message}
+                </p>
+              )}
+            </div>
+          </fieldset>
+
+          <DialogFooter>
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full sm:w-auto"
+            >
+              {isSubmitting ? 'Processando...' : 'Criar Inventário'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }

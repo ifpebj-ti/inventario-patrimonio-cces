@@ -31,6 +31,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/inventory")
@@ -57,11 +58,33 @@ public class InventoryController {
       Inventory newInventory =
           inventoryService.createInventory(inventoryDto, Long.parseLong(userId));
 
-      return ResponseEntity.status(HttpStatus.CREATED).body(InventoryDto.from(newInventory));
+      // Retorna o DTO enriquecido com status, setor e total de itens.
+      return ResponseEntity.status(HttpStatus.CREATED).body(inventoryService.toDto(newInventory));
+    } catch (ResponseStatusException e) {
+      throw e;
     } catch (RuntimeException e) {
       return ResponseEntity.status(HttpStatus.BAD_REQUEST)
           .body("Error creating inventory: " + e.getMessage());
     }
+  }
+
+  @GetMapping("/{inventoryId}")
+  public ResponseEntity<?> getInventory(
+      @PathVariable long inventoryId, @RequestHeader("Authorization") String authHeader) {
+    long userId = Long.parseLong(authenticationUtils.getUserIdFromToken(authHeader));
+    Inventory inventory = inventoryService.getAccessibleInventory(inventoryId, userId);
+    return ResponseEntity.ok(
+        Map.of(
+            "inventory", inventoryService.toDto(inventory),
+            "canFinalize", inventoryService.canFinalize(inventory, userId)));
+  }
+
+  @PostMapping("/{inventoryId}/finalize")
+  public ResponseEntity<InventoryDto> finishInventory(
+      @PathVariable long inventoryId, @RequestHeader("Authorization") String authHeader) {
+    long userId = Long.parseLong(authenticationUtils.getUserIdFromToken(authHeader));
+    return ResponseEntity.ok(
+        inventoryService.toDto(inventoryService.finishInventory(inventoryId, userId)));
   }
 
   @DeleteMapping("/{inventoryId}")
@@ -71,6 +94,8 @@ public class InventoryController {
     try {
       inventoryService.deleteInventory(inventoryId, Long.parseLong(userId));
       return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+    } catch (ResponseStatusException e) {
+      throw e;
     } catch (RuntimeException e) {
       return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
     }
@@ -85,7 +110,9 @@ public class InventoryController {
     try {
       Inventory updatedInventory =
           inventoryService.updateInventory(inventoryId, inventoryDto, Long.parseLong(userId));
-      return ResponseEntity.status(HttpStatus.OK).body(InventoryDto.from(updatedInventory));
+      return ResponseEntity.status(HttpStatus.OK).body(inventoryService.toDto(updatedInventory));
+    } catch (ResponseStatusException e) {
+      throw e;
     } catch (RuntimeException e) {
       return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
     }
@@ -93,10 +120,14 @@ public class InventoryController {
 
   @PostMapping("/add-single-item")
   public ResponseEntity<?> addOneItem(
-      @RequestParam("inventoryId") long inventoryId, @RequestBody Item item) {
+      @RequestParam("inventoryId") long inventoryId,
+      @RequestBody Item item,
+      HttpServletRequest request) {
     try {
-      inventoryService.addSingleItemToInventory(inventoryId, item);
+      inventoryService.addSingleItemToInventory(inventoryId, item, actingUserId(request));
       return ResponseEntity.status(HttpStatus.CREATED).body(item);
+    } catch (ResponseStatusException e) {
+      throw e;
     } catch (RuntimeException e) {
       return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
     }
@@ -106,7 +137,11 @@ public class InventoryController {
       value = "/add-items",
       consumes = {"multipart/form-data"})
   public ResponseEntity<?> addItemsToInventory(
-      @RequestParam("inventoryId") long inventoryId, @RequestParam("file") MultipartFile file) {
+      @RequestParam("inventoryId") long inventoryId,
+      @RequestParam("file") MultipartFile file,
+      HttpServletRequest request) {
+    // Só gestor/admin do setor importa, o inventário não pode estar finalizado nem ter itens.
+    inventoryService.requireImportAllowed(inventoryId, actingUserId(request));
     if (file.isEmpty()) {
       return ResponseEntity.status(HttpStatus.BAD_REQUEST)
           .body(Map.of("message", "O arquivo enviado está vazio."));
@@ -167,8 +202,7 @@ public class InventoryController {
         return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT).body(response);
       }
     } catch (IllegalArgumentException e) {
-      return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-          .body(Map.of("message", e.getMessage()));
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", e.getMessage()));
     } catch (Exception e) {
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body(Map.of("message", "Erro ao processar o arquivo CSV: " + e.getMessage()));
@@ -177,8 +211,9 @@ public class InventoryController {
 
   @DeleteMapping("/delete-item")
   public ResponseEntity<?> deleteItemToInventory(
-      @RequestParam long inventoryId, @RequestParam long itemId) {
-    boolean removed = inventoryService.removeItemFromInventory(inventoryId, itemId);
+      @RequestParam long inventoryId, @RequestParam long itemId, HttpServletRequest request) {
+    boolean removed =
+        inventoryService.removeItemFromInventory(inventoryId, itemId, actingUserId(request));
 
     if (removed) {
       return ResponseEntity.noContent().build();
@@ -188,8 +223,9 @@ public class InventoryController {
   }
 
   @DeleteMapping("/clear-items")
-  public ResponseEntity<?> clearInventoryItems(@RequestParam long inventoryId) {
-    boolean cleared = inventoryService.clearInventoryItems(inventoryId);
+  public ResponseEntity<?> clearInventoryItems(
+      @RequestParam long inventoryId, HttpServletRequest request) {
+    boolean cleared = inventoryService.clearInventoryItems(inventoryId, actingUserId(request));
 
     if (cleared) {
       return ResponseEntity.noContent().build();
@@ -201,7 +237,9 @@ public class InventoryController {
   @PostMapping(
       value = "/validate-sheet",
       consumes = {"multipart/form-data"})
-  public ResponseEntity<?> validateSheet(@RequestParam("file") MultipartFile file) {
+  public ResponseEntity<?> validateSheet(
+      @RequestParam("file") MultipartFile file, HttpServletRequest request) {
+    inventoryService.requireCanImport(actingUserId(request));
     if (file.isEmpty()) {
       return ResponseEntity.status(HttpStatus.BAD_REQUEST)
           .body(Map.of("message", "O arquivo enviado está vazio."));
@@ -247,8 +285,10 @@ public class InventoryController {
       String userId = request.getAttribute("id_user").toString();
       List<Inventory> inventories = inventoryService.getUserInventories(Long.parseLong(userId));
 
+      // A listagem devolve os dados necessários para filtros, ordenação e indicadores sem expor a
+      // entidade.
       List<InventoryDto> inventoryDtos =
-          inventories.stream().map(InventoryDto::from).collect(Collectors.toList());
+          inventories.stream().map(inventoryService::toDto).collect(Collectors.toList());
 
       return ResponseEntity.status(HttpStatus.OK).body(inventoryDtos);
     } catch (RuntimeException e) {
@@ -257,12 +297,25 @@ public class InventoryController {
     }
   }
 
+  @GetMapping("/sector-inventories")
+  public ResponseEntity<?> getSectorInventories(
+      @RequestParam("sectorId") long sectorId, HttpServletRequest request) {
+    List<Inventory> inventories =
+        inventoryService.getSectorInventories(sectorId, actingUserId(request));
+
+    List<InventoryDto> inventoryDtos =
+        inventories.stream().map(inventoryService::toDto).collect(Collectors.toList());
+
+    return ResponseEntity.status(HttpStatus.OK).body(inventoryDtos);
+  }
+
   @GetMapping("/inventory-items")
   public ResponseEntity<?> getItemsByInventory(
       @RequestParam("inventoryId") long inventoryId,
       @RequestParam("page") int page,
       @RequestParam("pageSize") int pageSize,
       HttpServletRequest request) {
+    inventoryService.requireInventoryView(inventoryId, actingUserId(request));
     try {
       Page<Item> items = itemService.listInventoryItems(inventoryId, page, pageSize);
 
@@ -273,6 +326,10 @@ public class InventoryController {
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("Error retrieving inventories: " + e.getMessage());
     }
+  }
+
+  private long actingUserId(HttpServletRequest request) {
+    return Long.parseLong(request.getAttribute("id_user").toString());
   }
 
   private ValidationResponse validateItems(List<Item> items) {
@@ -357,7 +414,10 @@ public class InventoryController {
             && (h.contains("resp") || h.contains("carga") || h.contains("detentor"))) {
           colResp = i;
         } else if (colPrice == -1
-            && (h.contains("val") || h.contains("prec") || h.contains("price") || h.contains("custo"))) {
+            && (h.contains("val")
+                || h.contains("prec")
+                || h.contains("price")
+                || h.contains("custo"))) {
           colPrice = i;
         } else if (colLocale == -1
             && (h.contains("sala")

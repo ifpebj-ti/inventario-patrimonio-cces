@@ -1,314 +1,344 @@
 'use client'
 
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { badgeVariant } from '@/lib/tone'
+import { Badge as UiBadge } from '@/components/ui/badge'
+import { Button as UiButton } from '@/components/ui/button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useAdministrationAccess } from '@/contexts/AdministrationAccess'
+import { Spinner } from '@/components/ui/spinner'
+
+import { Card as UiCard } from '@/components/ui/card'
+
+import { Label as UiLabel } from '@/components/ui/label'
+import { Input as UiInput } from '@/components/ui/input'
+import { Textarea as UiTextarea } from '@/components/ui/textarea'
+
 import { useParams } from 'next/navigation'
-import { useEffect, useState, useCallback } from 'react'
-import { Button } from '@/components/atoms/button'
-import { Item, Observation } from '@/commons/models/item'
+import { useEffect, useState } from 'react'
+import type { Item, Observation } from '@/commons/models/item'
 import {
   getItemByIdRequest,
   updateItemRequest,
   updateItemNotesRequest,
 } from '@/services/item'
-import { RiPencilFill } from 'react-icons/ri'
 import { ObservationModal } from '@/components/organisms/modalObservation'
+import { toast } from 'sonner'
 
-type EditableItemType = Omit<
-  Item,
-  'price' | 'locale' | 'notes' | 'description'
-> & {
-  price: number | string | null | undefined
-  locale: string | null | undefined
-  notes: string | null | undefined
-  description: string | undefined | null
+type Draft = {
+  code: string
+  description: string
+  responsible: string
+  locale: string
+  price: string
 }
+const draftFrom = (item: Item): Draft => ({
+  code: item.code,
+  description: item.description || '',
+  responsible: item.responsible || '',
+  locale: item.locale || '',
+  price: String(item.price ?? '').replace('.', ','),
+})
 
 export default function ItemDetailPage() {
   const { itemId } = useParams()
   const [item, setItem] = useState<Item | null>(null)
-  const [editableItem, setEditableItem] = useState<EditableItemType | null>(
-    null,
-  )
-  const [isLoading, setIsLoading] = useState(true)
+  const [draft, setDraft] = useState<Draft | null>(null)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isEditing, setIsEditing] = useState(false)
-  const [isObservationModalOpen, setIsObservationModalOpen] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [notesOpen, setNotesOpen] = useState(false)
+  // Editar dados do item: gestor/admin. Observações: também o operador. Consulta só lê.
+  const { canManageInventories, canOperateItems } = useAdministrationAccess()
 
-  const fetchItem = useCallback(async () => {
-    if (!itemId) {
-      setError('ID do item não fornecido. Não é possível carregar detalhes.')
-      setIsLoading(false)
-      return
-    }
-    try {
-      setIsLoading(true)
-      setError(null)
-      const response = await getItemByIdRequest(Number(itemId))
-      setItem(response)
-      setEditableItem({
-        ...response,
-        price: response.price?.toString().replace('.', ',') || '',
-        locale: response.locale || '',
-        notes: response.observations?.[0]?.content || '',
-        description: response.description || '',
+  useEffect(() => {
+    let active = true
+    setLoading(true)
+    setError(null)
+    setItem(null)
+    setDraft(null)
+    setNotesOpen(false)
+    getItemByIdRequest(Number(itemId))
+      .then((result) => {
+        if (active) setItem(result)
       })
-    } catch (err) {
-      console.error('Erro ao carregar o item:', err)
-      setError('Erro ao carregar o item. Por favor, tente novamente.')
-    } finally {
-      console.log('Item carregado:', editableItem?.notes)
-      setIsLoading(false)
+      .catch(() => {
+        if (active) setError('Não foi possível carregar o item.')
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
     }
   }, [itemId])
 
-  useEffect(() => {
-    fetchItem()
-  }, [fetchItem])
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-  ) => {
-    const { name, value } = e.target
-    setEditableItem((prev) => (prev ? { ...prev, [name]: value } : null))
-  }
-
-  const handleEditClick = () => setIsEditing(true)
-
-  const handleCancelClick = () => {
-    setIsEditing(false)
-    setEditableItem(
-      item
-        ? {
-            ...item,
-            price: item.price?.toString().replace('.', ',') || '',
-            locale: item.locale || '',
-            notes: item.observations?.[0]?.content || '',
-            description: item.description || '',
-          }
-        : null,
-    )
-  }
-
-  const handleSaveClick = async () => {
-    if (!editableItem || !editableItem.id) {
-      setError('Dados do item inválidos para salvar.')
+  const saveItem = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!item || !draft || busy) return
+    const price = Number(draft.price.trim().replace(',', '.'))
+    if (!draft.price.trim() || !Number.isFinite(price) || price < 0) {
+      setEditError('Informe um valor válido, maior ou igual a zero.')
       return
     }
-    // const cleanPriceString = String(editableItem.price).replace(',', '.')
-    const cleanPriceString = String(editableItem.price)
-      .replace(/[^\d,.-]/g, '') // remove tudo que não é dígito, vírgula, ponto ou sinal
-      .replace(',', '.')
-    const priceToSend = Number(cleanPriceString)
-    if (isNaN(priceToSend) || !isFinite(priceToSend)) {
-      setError('Valor do preço inválido.')
-      return
-    }
-
+    setBusy(true)
+    setEditError(null)
     try {
-      setIsLoading(true)
-      const savedItem = await updateItemRequest({
-        ...editableItem,
-        price: priceToSend,
-      } as Item)
-      setItem(savedItem)
-      setEditableItem({
-        ...savedItem,
-        price: savedItem.price?.toString().replace('.', ',') || '',
-        locale: savedItem.locale || '',
-        notes: savedItem.observations?.[0]?.content || '',
-        description: savedItem.description || '',
+      const saved = await updateItemRequest({
+        ...item,
+        ...draft,
+        code: draft.code.trim(),
+        price,
       })
-      setIsEditing(false)
-    } catch (err) {
-      console.error('Erro ao salvar item principal:', err)
-      setError('Falha ao salvar o item principal. Tente novamente.')
+      setItem(saved)
+      setDraft(null)
+      toast.success('Item atualizado com sucesso.')
+    } catch {
+      setEditError('Não foi possível salvar o item. Tente novamente.')
     } finally {
-      setError(null)
-      setIsLoading(false)
+      setBusy(false)
     }
   }
 
-  const openObservationModal = () => setIsObservationModalOpen(true)
-  const closeObservationModal = () => setIsObservationModalOpen(false)
-
-  const handleSaveNotes = async (updatedNotesArray: Observation[]) => {
-    if (!item || !item.id) {
-      setError('ID do item necessário para salvar observações.')
-      return
-    }
-    try {
-      setIsLoading(true)
-      const savedItem = await updateItemNotesRequest(item.id, updatedNotesArray)
-      setItem(savedItem)
-      setEditableItem({
-        ...savedItem,
-        price: savedItem.price?.toString().replace('.', ',') || '',
-        locale: savedItem.locale || '',
-        notes: savedItem.observations?.[0]?.content || '',
-        description: savedItem.description || '',
-      })
-      closeObservationModal()
-    } catch (err) {
-      console.error('Erro ao salvar observações:', err)
-      setError('Falha ao salvar observações. Tente novamente.')
-    } finally {
-      setError(null)
-      setIsLoading(false)
-    }
+  const saveNotes = async (notes: Observation[]) => {
+    if (!item) throw new Error('Item não encontrado.')
+    const saved = await updateItemNotesRequest(item.id, notes)
+    setItem(saved)
+    toast.success('Observações atualizadas com sucesso.')
   }
+
+  const change = (key: keyof Draft, value: string) =>
+    setDraft((previous) => (previous ? { ...previous, [key]: value } : null))
 
   return (
-    <div className="overflow-x-hidden flex flex-col justify-start items-center min-h-screen w-full px-2 sm:px-4 py-4 sm:py-6">
-      {/* Container principal da página de detalhes */}
-      <div className="flex flex-col items-center w-full max-w-4xl">
-        {isLoading && (
-          <p className="text-gray-500 text-lg mt-8">
-            Carregando detalhes do item...
-          </p>
-        )}
-        {error && <p className="text-red-500 text-lg mt-8">{error}</p>}
-        {item && editableItem && (
-          <div className="w-full bg-white shadow-md rounded-2xl p-4 sm:p-8 flex flex-col md:flex-row justify-center items-stretch md:items-start gap-8 md:gap-12">
-            <div className="flex-1 flex flex-col items-start min-w-0">
-              <div className="flex items-center gap-3 w-full">
-                <h2 className="text-2xl sm:text-4xl font-bold text-green-600 mr-2 break-all">
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      name="code"
-                      value={editableItem.code}
-                      onChange={handleChange}
-                      className="border-b border-gray-400 text-green-600 text-2xl sm:text-4xl font-bold w-full max-w-xs"
-                    />
-                  ) : (
-                    item.code
-                  )}
+    <div className="page-shell flex flex-col gap-6">
+      {loading && (
+        <p
+          role="status"
+          className="flex items-center gap-2 text-muted-foreground"
+        >
+          <Spinner className="text-primary" />
+          Carregando detalhes do item...
+        </p>
+      )}
+      {error && (
+        <Alert
+          variant="destructive"
+          className="border-destructive/25 bg-destructive/10"
+        >
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      {item && (
+        <>
+          <header className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Detalhes do item</p>
+              <h1 className="page-heading break-all">{item.code}</h1>
+            </div>
+            <UiBadge
+              variant={badgeVariant[item.isValid ? 'success' : 'danger']}
+              className="rounded-md font-semibold"
+            >
+              {item.isValid ? 'Verificado' : 'Pendente'}
+            </UiBadge>
+          </header>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <UiCard
+              role="region"
+              className="gap-0 p-6"
+              aria-label="Dados do item"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+                <h2 className="text-lg font-semibold text-foreground">
+                  Dados do item
                 </h2>
-                {!isEditing && (
-                  <button
-                    onClick={handleEditClick}
-                    aria-label="Editar item"
-                    title="Editar item"
-                    className="min-h-[44px] min-w-[44px] p-2 inline-flex items-center justify-center rounded-xl hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
-                  >
-                    <RiPencilFill
-                      className="text-gray-500 cursor-pointer"
-                      size={20}
-                    />
-                  </button>
-                )}
-              </div>
-              {isEditing ? (
-                <textarea
-                  name="description"
-                  value={editableItem.description || ''}
-                  onChange={handleChange}
-                  className="border-b border-gray-400 text-xl text-gray-800 w-full mt-4"
-                  rows={3}
-                />
-              ) : (
-                <p className="text-xl text-gray-800 mt-4">{item.description}</p>
-              )}
-              <p className="text-lg text-gray-700 mt-3">
-                Carga:{' '}
-                {isEditing ? (
-                  <input
-                    type="text"
-                    name="responsible"
-                    value={editableItem.responsible}
-                    onChange={handleChange}
-                    className="border-b border-gray-400 text-lg text-gray-700"
-                  />
-                ) : (
-                  item.responsible
-                )}
-              </p>
-              <p className="text-lg text-gray-700 mt-3">
-                Valor:{' '}
-                {isEditing ? (
-                  <input
-                    type="text"
-                    name="price"
-                    value={editableItem.price || ''}
-                    onChange={handleChange}
-                    className="border-b border-gray-400 text-lg text-gray-700"
-                  />
-                ) : (
-                  item.price?.toLocaleString('pt-BR', {
-                    style: 'currency',
-                    currency: 'BRL',
-                  })
-                )}
-              </p>
-              {item.locale && (
-                <p className="text-lg text-gray-700 mt-3">
-                  Sala:{' '}
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      name="locale"
-                      value={editableItem.locale || ''}
-                      onChange={handleChange}
-                      className="border-b border-gray-400 text-lg text-gray-700"
-                    />
-                  ) : (
-                    item.locale
-                  )}
-                </p>
-              )}
-            </div>
-            <div className="flex-1 p-6 rounded-lg shadow-md">
-              <h3 className="text-md font-semibold text-gray-600 mb-2">
-                Observações
-              </h3>
-              <div className="min-h-[80px] border border-gray-200 rounded p-3 text-gray-700 text-sm mt-2 w-full">
-                {item.observations && item.observations.length > 0
-                  ? item.observations.map((obs, index) => (
-                      <p key={index}>{obs.content}</p>
-                    ))
-                  : 'Nenhuma observação.'}
-              </div>
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-4 w-full">
-                {isEditing ? (
-                  <>
-                    <Button
-                      text="Salvar"
-                      type="button"
-                      onClick={handleSaveClick}
-                      width="w-full"
-                      variant={3}
-                      accessKey="s"
-                    />
-                    <Button
-                      text="Cancelar"
-                      type="button"
-                      onClick={handleCancelClick}
-                      width="w-full"
-                      variant={2}
-                      accessKey="x"
-                    />
-                  </>
-                ) : (
-                  <Button
-                    text="Editar Observações"
+                {canManageInventories && (
+                  <UiButton
+                    variant="default"
+                    className="w-auto"
                     type="button"
-                    onClick={openObservationModal}
-                    width="w-full"
-                  />
+                    onClick={() => {
+                      setEditError(null)
+                      setDraft(draftFrom(item))
+                    }}
+                  >
+                    Editar item
+                  </UiButton>
                 )}
               </div>
-            </div>
+              <dl className="space-y-4 text-sm">
+                {[
+                  ['Descrição', item.description],
+                  ['Carga (responsável)', item.responsible],
+                  ['Sala / Local', item.locale],
+                  [
+                    'Valor',
+                    Number(item.price).toLocaleString('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL',
+                    }),
+                  ],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <dt className="font-medium text-muted-foreground">
+                      {label}
+                    </dt>
+                    <dd className="mt-1 text-foreground break-words">
+                      {value || 'Não informado'}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </UiCard>
+            <UiCard
+              role="region"
+              className="gap-0 p-6"
+              aria-label="Observações do item"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+                <h2 className="text-lg font-semibold text-foreground">
+                  Observações
+                </h2>
+                {canOperateItems && (
+                  <UiButton
+                    variant={'outline'}
+                    className="w-auto"
+                    type="button"
+                    onClick={() => setNotesOpen(true)}
+                  >
+                    Editar observações
+                  </UiButton>
+                )}
+              </div>
+              <div className="space-y-3 text-sm text-foreground">
+                {item.observations?.length ? (
+                  item.observations.map((note, index) => (
+                    <p
+                      key={
+                        note.id != null ? `note-${note.id}` : `draft-${index}`
+                      }
+                      className="rounded-lg bg-muted p-3 break-words"
+                    >
+                      {note.content}
+                    </p>
+                  ))
+                ) : (
+                  <p className="text-muted-foreground">
+                    Nenhuma observação registrada.
+                  </p>
+                )}
+              </div>
+            </UiCard>
           </div>
-        )}
-        {!isLoading && !error && !item && (
-          <p className="text-gray-600 text-lg mt-8">Item não encontrado.</p>
-        )}
-      </div>
-      <ObservationModal
-        isOpen={isObservationModalOpen}
-        onClose={closeObservationModal}
-        currentNotes={item?.observations || []}
-        onSave={handleSaveNotes}
-      />
+        </>
+      )}
+      {draft && (
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open && !busy) (() => setDraft(null))()
+          }}
+        >
+          <DialogContent
+            showCloseButton={false}
+            className="flex max-h-[90vh] flex-col overflow-y-auto rounded-xl gap-0 p-6 sm:max-w-lg sm:p-8"
+          >
+            <DialogTitle className="sr-only">Editar item</DialogTitle>
+            <h2 className="text-xl font-bold text-foreground mb-2">
+              Editar item
+            </h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              Atualize os dados cadastrais deste patrimônio.
+            </p>
+            <form onSubmit={saveItem} className="space-y-4">
+              <fieldset disabled={busy} className="space-y-4">
+                <UiLabel className="flex-col items-stretch gap-1.5 text-sm font-medium text-foreground">
+                  Código patrimonial
+                  <UiInput
+                    required
+                    value={draft.code}
+                    onChange={(event) => change('code', event.target.value)}
+                  />
+                </UiLabel>
+                <UiLabel className="flex-col items-stretch gap-1.5 text-sm font-medium text-foreground">
+                  Descrição
+                  <UiTextarea
+                    rows={3}
+                    value={draft.description}
+                    onChange={(event) =>
+                      change('description', event.target.value)
+                    }
+                  />
+                </UiLabel>
+                <UiLabel className="flex-col items-stretch gap-1.5 text-sm font-medium text-foreground">
+                  Carga (responsável)
+                  <UiInput
+                    value={draft.responsible}
+                    onChange={(event) =>
+                      change('responsible', event.target.value)
+                    }
+                  />
+                </UiLabel>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <UiLabel className="flex-col items-stretch gap-1.5 text-sm font-medium text-foreground">
+                    Sala / Local
+                    <UiInput
+                      value={draft.locale}
+                      onChange={(event) => change('locale', event.target.value)}
+                    />
+                  </UiLabel>
+                  <UiLabel className="flex-col items-stretch gap-1.5 text-sm font-medium text-foreground">
+                    Valor (R$)
+                    <UiInput
+                      required
+                      inputMode="decimal"
+                      value={draft.price}
+                      onChange={(event) => change('price', event.target.value)}
+                    />
+                  </UiLabel>
+                </div>
+              </fieldset>
+              {editError && (
+                <Alert
+                  variant="destructive"
+                  className="border-destructive/25 bg-destructive/10"
+                >
+                  <AlertDescription>{editError}</AlertDescription>
+                </Alert>
+              )}
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-4">
+                <UiButton
+                  variant={'outline'}
+                  className="w-full sm:w-auto"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setDraft(null)}
+                >
+                  Cancelar
+                </UiButton>
+                <UiButton
+                  variant="default"
+                  className="w-full sm:w-auto"
+                  type="submit"
+                  disabled={busy}
+                >
+                  {busy ? 'Salvando...' : 'Salvar item'}
+                </UiButton>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+      {item && (
+        <ObservationModal
+          isOpen={notesOpen}
+          onClose={() => setNotesOpen(false)}
+          currentNotes={item.observations || []}
+          onSave={saveNotes}
+        />
+      )}
     </div>
   )
 }

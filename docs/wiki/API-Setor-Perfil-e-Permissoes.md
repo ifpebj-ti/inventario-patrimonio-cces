@@ -43,16 +43,16 @@ Hoje existem só 3 permissões, seedadas automaticamente, e cada perfil seedado 
 
 | Permissão | Perfil que tem | O que libera hoje |
 | --- | --- | --- |
-| `ADMIN` | `ADMIN_ORGANIZATION` | Escrita e leitura em `/sectors`; alocar/desalocar qualquer usuário em qualquer setor; `GET /users`; tudo em `/profiles` e `/permissions` (leitura); `PATCH /users/{id}/profile`. |
-| `MANAGE_SECTOR` | `GESTOR_SETOR` | Leitura em `/sectors`; alocar/desalocar usuário **só nos setores em que o próprio ator está alocado**. |
-| `MANAGE_ITEM` | `OPERADOR_CAMPO` | Seedada, mas **nenhum endpoint checa essa permissão ainda** (Item/Inventory ficam para uma etapa futura). |
-| (nenhuma) | `CONSULTA` | Não dá acesso a nada que exija permissão. |
+| `ADMIN` | `ADMIN_ORGANIZATION` | Vê e gerencia tudo: setores, usuários (cadastro, perfil, alocação, desativar e excluir), catálogos, inventários e itens de qualquer setor. |
+| `MANAGE_SECTOR` | `GESTOR_SETOR` | Vê os setores e inventários a que está vinculado; cria, edita, finaliza e exclui inventários desses setores, importa e limpa itens; cadastra usuários **só com perfil sem permissão de gestão** (Operador e Consulta) e **só nos próprios setores**; lê os catálogos de perfis e permissões. |
+| `MANAGE_ITEM` | `OPERADOR_CAMPO` | Vê os inventários do seu setor e opera os itens: valida (escaneia) e registra observações. Não cria, edita nem finaliza inventários e não altera os dados do item. |
+| (nenhuma) | `CONSULTA` | Somente leitura nos inventários e setores a que está vinculado. |
 
-Um usuário sem perfil atribuído (`profileId: null`) não tem nenhuma permissão. **Perfis** são
-configuráveis via `/profiles` (um perfil pode ter qualquer combinação de permissões), mas
-**permissões não**: elas são definidas em código e `/permissions` é só leitura. Uma permissão nova
-só entra por task + migration. A tabela acima é o estado do seed dos perfis, não uma regra fixa no
-código — exceto `ADMIN_ORGANIZATION`, que é protegido (ver `/profiles`).
+Todo usuário tem perfil: o cadastro e a troca de perfil exigem `profileId` (`400` sem ele) e quem entra
+pela primeira vez com Google nasce como `CONSULTA`. Contas antigas ainda podem vir com `profileId: null`
+e não têm nenhuma permissão. Perfis e permissões são definidos pelas migrations e seus catálogos são
+somente para consulta. Alterações na política entram por código e migration. O admin pode atribuir um
+perfil existente ao usuário em `/users`, mas não mudar as permissões daquele perfil pela API.
 
 **A conta de sistema (`admin`) nunca perde o perfil `ADMIN_ORGANIZATION` nem a permissão `ADMIN`,
 por ação de ninguém, nem de outro admin.** Qualquer outro usuário, mesmo com `ADMIN`, pode ter o
@@ -77,10 +77,14 @@ Google (`POST /auth/google`). Sem `Authorization`.
 - `401`: usuário inexistente, senha errada **ou** login por senha desligado no backend (sem senha
   configurada). A resposta é a mesma nos três casos, de propósito.
 - `429`: muitas tentativas. Corpo `Too many attempts` e cabeçalho `Retry-After` (segundos até poder
-  tentar de novo). O bloqueio vale por usuário (5 falhas em 15 min) e por IP (10 falhas em 15 min),
-  dura 15 min e vale **mesmo com a senha certa**. Mostre uma mensagem própria ("Muitas tentativas,
-  tente de novo em N minutos") em vez de tratar como erro genérico. O `Retry-After` é legível pelo
-  navegador (CORS expõe o cabeçalho).
+  tentar de novo). Vem de **duas camadas**, ambas com `Retry-After` e CORS: o **backend** bloqueia o
+  usuário por 15 min depois de 5 falhas em 15 min (vale **mesmo com a senha certa**, de qualquer IP); o
+  **Nginx** freia o IP que faz muitas requisições seguidas ao `/auth/login` (10 por minuto, rajada de
+  10; passou disso, `429` com `Retry-After` curto até o ritmo cair, sem bloqueio longo).
+  `/auth/google` e `/auth/me` **não** têm limite de tentativas. Mostre uma mensagem própria (o
+  frontend usa "Conta bloqueada, tente novamente mais tarde.", sem informar o
+  tempo) em vez de tratar como erro genérico. O `Retry-After` é legível pelo navegador (CORS expõe o
+  cabeçalho), caso a tela queira usá-lo.
 - A senha e o identificador vêm de `SYSTEM_ADMIN_PASSWORD`/`SYSTEM_ADMIN_USERNAME` no `.env` do
   backend; o front não tem como saber se o login por senha está ligado, só tentar.
 - Essa conta **não aparece** em `GET /users` nem em `GET /sectors/{id}/users`, e as rotas que mexem em
@@ -94,12 +98,12 @@ Google (`POST /auth/google`). Sem `Authorization`.
 | Método e rota | Permissão exigida | Sucesso |
 | --- | --- | --- |
 | `POST /sectors` | `ADMIN` | `201` |
-| `GET /sectors` | `ADMIN` ou `MANAGE_SECTOR` | `200` |
-| `GET /sectors/{id}` | `ADMIN` ou `MANAGE_SECTOR` | `200` |
+| `GET /sectors` | qualquer usuário autenticado (`ADMIN` vê todos; os demais, os setores a que estão vinculados) | `200` |
+| `GET /sectors/{id}` | `ADMIN` ou usuário vinculado ao setor | `200` |
 | `PUT /sectors/{id}` | `ADMIN` | `200` |
 | `PATCH /sectors/{id}/activate` | `ADMIN` | `200` |
 | `PATCH /sectors/{id}/deactivate` | `ADMIN` | `200` |
-| `GET /sectors/{id}/users` | `ADMIN` ou `MANAGE_SECTOR` | `200` |
+| `GET /sectors/{id}/users` | `ADMIN` ou `MANAGE_SECTOR` vinculado ao setor | `200` |
 
 **Não existe `DELETE /sectors/{id}`.** Setor nunca é removido — só ativado/desativado via os dois
 `PATCH` acima. Não implemente um botão de "excluir setor" na UI.
@@ -143,10 +147,9 @@ no front — a API não tem um parâmetro para isso hoje.
 
 ### `GET /sectors/{id}/users` — usuários alocados a este setor
 
-Mesma permissão de leitura de `/sectors` (`ADMIN` ou `MANAGE_SECTOR`, sem precisar estar alocado
-nesse setor específico — é a mesma regra de `GET /sectors/{id}`). É a rota para a tela de setor
-abrir a aba lateral com quem está alocado ali. Devolve um array no mesmo formato do `GET /users`
-(ver seção `/users` abaixo). `404` se o setor não existe.
+Exige `ADMIN` ou `MANAGE_SECTOR` vinculado a esse setor (operador e consulta recebem `403`). É a rota
+para a tela de setor abrir a aba lateral com quem está alocado ali. Devolve um array no mesmo formato
+do `GET /users` (ver seção `/users` abaixo). `404` se o setor não existe.
 
 ---
 
@@ -157,7 +160,8 @@ Um usuário pode estar alocado a **vários setores ao mesmo tempo** (tabela `im_
 
 ### `GET /users?profileId=`
 
-**Permissão: `ADMIN`.** Devolve um array de usuário no formato:
+**Permissão: `ADMIN` ou `MANAGE_SECTOR`.** O admin recebe todos os usuários; o gestor recebe apenas os usuários
+alocados a algum dos seus setores. Devolve um array de usuário no formato:
 
 ```json
 {
@@ -165,12 +169,15 @@ Um usuário pode estar alocado a **vários setores ao mesmo tempo** (tabela `im_
   "name": "Maria Silva",
   "email": "maria.silva@ifpe.edu.br",
   "sectorIds": [1, 4],
-  "profileId": 2
+  "profileId": 2,
+  "pendingGoogleLogin": false,
+  "active": true
 }
 ```
 
 `sectorIds` é sempre uma lista (vazia se o usuário não estiver alocado a nenhum setor).
-`profileId` vem `null` quando o usuário não tem perfil. `googleId`, `createdAt` e `updatedAt`
+`profileId` vem `null` apenas em contas antigas sem perfil. `pendingGoogleLogin` indica pré-cadastro que ainda não
+fez o primeiro acesso; `active` é `false` para conta desativada. `googleId`, `createdAt` e `updatedAt`
 nunca aparecem no JSON de usuário (isso já era assim antes, não é uma mudança desta revisão).
 
 **Não existe mais filtro por setor aqui** (`?sectorId=` saiu). Para ver quem está alocado a um
@@ -179,13 +186,14 @@ setor específico, use `GET /sectors/{id}/users`.
 A conta de sistema (`admin`) **não vem na lista**, nem com `?profileId=` do perfil
 `ADMIN_ORGANIZATION`. Não conte com ela para saber quem é administrador.
 
-Erro: `403` se quem está autenticado não tem `ADMIN`.
+Erro: `403` para quem não é `ADMIN` nem `MANAGE_SECTOR`.
 
 ### `POST /users/{id}/sectors/{sectorId}` — alocar usuário a um setor
 
 Sem corpo. **Permissão**: autorizado se quem está autenticado tem `ADMIN` (qualquer setor), **ou**
 tem `MANAGE_SECTOR` e já está alocado nesse mesmo `{sectorId}` — ou seja, um `GESTOR_SETOR` só
-aloca gente nos setores em que ele próprio está. Sem nenhuma das duas condições, `403`.
+aloca gente nos setores em que ele próprio está. Sem nenhuma das duas condições, `403`. O gestor só vincula usuários sem permissão de gestão
+(Operador e Consulta); para os demais, `403`.
 **Recomendação de UX**: para um usuário `GESTOR_SETOR`, só ofereça na UI os setores em que ele
 está alocado como opção de destino — a chamada para qualquer outro setor vai dar 403.
 
@@ -205,90 +213,77 @@ Remove só a alocação para `{sectorId}` — os outros setores do usuário, se 
 Resposta: o `User` atualizado (`200`). Erros: `404` usuário ou setor não existe (ou o usuário é a
 conta de sistema); `403` conforme acima.
 
-### `PATCH /users/{id}/profile` — alocar ou desvincular perfil
+### `PATCH /users/{id}/profile` — atribuir perfil
 
-Corpo: `{ "profileId": 5 }` ou `{ "profileId": null }` para desvincular.
+Corpo: `{ "profileId": 5 }`. O `profileId` é obrigatório: `null` responde `400`, porque não existe usuário
+sem perfil.
 
-**Permissão: `ADMIN`.** Quem não tem `ADMIN` recebe `403`, inclusive para tentar mudar o próprio
-perfil (não dá para "se promover"). Esconda essa ação na UI para quem não for `ADMIN`.
+**Permissão: `ADMIN` ou `MANAGE_SECTOR`.** O admin atribui qualquer perfil a qualquer usuário, inclusive a
+outro admin e a si mesmo. O gestor só altera usuários **sem permissão de gestão que compartilham um setor
+com ele** e só atribui perfis **sem permissão de gestão** (Operador e Consulta); fora disso, `403`. Operador
+e consulta recebem `403`. **A conta de sistema é a exceção**: o perfil dela não pode ser alterado por aqui
+(responde `404`, como se ela não existisse — ela também não aparece em `GET /users`).
 
-Um admin pode trocar ou remover o perfil de qualquer outro usuário, inclusive de outro admin e de si
-mesmo. **A conta de sistema é a exceção**: o perfil dela não pode ser alterado por aqui (responde `404`,
-como se ela não existisse — ela também não aparece em `GET /users`).
+Resposta: o `User` atualizado. Erros: `403` sem permissão; `404` usuário não existe (ou é a conta de
+sistema); `400` `profileId` ausente ou inexistente.
 
-Resposta: o `User` atualizado. Erros: `403` sem `ADMIN`; `404` usuário não existe (ou é a conta de
-sistema); `400` `profileId` enviado não existe.
+### `POST /users` — cadastrar usuário
+
+Corpo: `{ "email": "...", "name": "opcional", "profileId": 3, "sectorIds": [1] }`. Cria um pré-cadastro que
+é vinculado ao Google no primeiro acesso. `profileId` é obrigatório (`400`); e-mail duplicado responde `409`;
+setor inexistente ou inativo, `400`.
+
+**Permissão: `ADMIN` ou `MANAGE_SECTOR`.** O gestor só cadastra perfis sem permissão de gestão (nunca gestor
+nem admin, `403`), precisa informar ao menos um setor (`400`) e só pode vincular aos setores a que ele
+próprio está alocado (`403`). Resposta: `201` com o usuário.
+
+### `PATCH /users/{id}/deactivate` e `PATCH /users/{id}/activate`
+
+Desativar bloqueia o acesso imediatamente (sessões abertas passam a responder `401` e o login pelo Google é
+recusado) e preserva o histórico; ativar devolve o acesso. Resposta: o `User` atualizado, com `active`.
+
+### `DELETE /users/{id}` — excluir usuário
+
+Remove a conta e as alocações a setores (`204`). Quem criou inventários não pode ser excluído (`409`):
+desative a conta para preservar o histórico.
+
+**Regras de `deactivate`, `activate` e `DELETE`:** exigem `ADMIN` ou `MANAGE_SECTOR`; ninguém age sobre a
+própria conta (`409`); o gestor só age sobre usuários sem permissão de gestão que atuam **exclusivamente**
+nos setores dele (`403` se também atuam em outros setores); a conta de sistema responde `404`.
 
 ---
 
-## `/profiles`
+## `/profiles` — somente leitura
 
-**Todas as rotas exigem `ADMIN`**, inclusive as de leitura (`403` para qualquer outro perfil). Não
-mostre a tela de perfis para quem não for `ADMIN`.
+A consulta exige `ADMIN` ou `MANAGE_SECTOR` (o gestor usa o catálogo ao cadastrar usuários); operador e
+consulta recebem `403`.
 
-| Método e rota | O que faz | Sucesso |
-| --- | --- | --- |
-| `POST /profiles` | Cria perfil | `201` |
-| `GET /profiles` | Lista todos | `200` |
-| `GET /profiles/{id}` | Busca por id | `200` |
-| `PUT /profiles/{id}` | Edita nome/descrição | `200` |
-| `DELETE /profiles/{id}` | Remove (só se nenhum usuário estiver com esse perfil) | `204` |
-| `POST /profiles/{id}/permissions/{permissionId}` | Associa uma permissão ao perfil | `200` com o perfil |
-| `DELETE /profiles/{id}/permissions/{permissionId}` | Remove a associação | `200` com o perfil |
-
-Corpo de `POST`/`PUT`: `{ "name": "GESTOR_SETOR", "description": "..." }` — `name` obrigatório,
-único, máximo 100 caracteres (espaços nas pontas são removidos antes de validar e gravar, então
-`"X "` e `"X"` são o mesmo nome); `description` opcional, máximo 255 caracteres. A unicidade do nome
-diferencia maiúsculas de minúsculas.
-
-Resposta (`ProfileDto`):
-
-```json
-{
-  "id": 2,
-  "name": "GESTOR_SETOR",
-  "description": "Gerencia inventarios e usuarios do proprio setor.",
-  "permissionIds": [2],
-  "createdAt": "2026-10-03T20:21:58.123",
-  "updatedAt": "2026-10-03T20:21:58.123"
-}
-```
-
-`POST`/`DELETE .../permissions/{permissionId}` são idempotentes: adicionar uma permissão já
-associada, ou remover uma que não está associada, devolve `200` normalmente (sem erro), só não
-muda nada. Excluir um perfil **não** apaga as permissões dele, só o vínculo.
-
-### Erros
-
-| Status | Quando |
+| Método e rota | Comportamento |
 | --- | --- |
-| `400` | nome vazio, ausente, duplicado ou com mais de 100 caracteres; descrição com mais de 255 |
-| `403` | quem chama não tem `ADMIN` |
-| `404` | perfil ou permissão não existe |
-| `409` | o perfil de administrador foi alvo de uma operação proibida, **ou** o perfil a excluir ainda tem usuários (veja abaixo) |
+| `GET /profiles` | Lista os perfis, descrições e permissionIds (`200`) |
+| `GET /profiles/{id}` | Consulta um perfil (`200` ou `404`) |
+| `POST /profiles` | Cadastro indisponível (`405` para ADMIN) |
+| `PUT/PATCH/DELETE /profiles/{id}` | Alterações indisponíveis (`405` para ADMIN) |
+| `POST/DELETE /profiles/{id}/permissions/{permissionId}` | Associação e remoção indisponíveis (`405` para ADMIN) |
 
-O `409` tem **dois significados** e o corpo do erro não diz qual (ver "O corpo de erro nunca tem um
-campo `message`"). Diferencie pelo perfil:
+Os quatro perfis nativos são `ADMIN_ORGANIZATION`, `GESTOR_SETOR`, `OPERADOR_CAMPO`
+e `CONSULTA`. O catálogo e seus vínculos de permissões são definidos pelas migrations.
+Dados existentes são preservados; não há exclusão ou redefinição automática de perfis legados.
 
-- **Perfil `ADMIN_ORGANIZATION` (protegido).** É o perfil da conta de sistema, e o backend depende
-  dele para subir. Não pode ser **renomeado** (a descrição pode), **excluído** nem **perder a
-  permissão `ADMIN`** (`DELETE .../permissions/{id da ADMIN}`). Adicionar outras permissões a ele e
-  remover essas extras é permitido. Na UI, não ofereça renomear, excluir nem remover `ADMIN` desse
-  perfil.
-- **Qualquer outro perfil, ao excluir:** `409` quer dizer que ainda há usuário com esse perfil
-  (inclusive a conta de sistema). Para a tela já poder avisar antes, use
-  `GET /users?profileId=<id>` (só `ADMIN`; a conta de sistema não aparece nessa lista, então um `409`
-  pode ocorrer mesmo com a lista vazia — trate o `409` de qualquer forma).
+`ProfileDto` retorna `id`, `name`, `description`, `permissionIds`, `createdAt` e `updatedAt`.
+A interface exibe uma tabela com busca e um link para gerenciar usuários. A atribuição de
+perfil ao usuário continua em `PATCH /users/{id}/profile` (ver as regras acima).
 
-Perfis seedados hoje: `ADMIN_ORGANIZATION`, `GESTOR_SETOR`, `OPERADOR_CAMPO`, `CONSULTA` (ver
-tabela de permissões acima). Só o `ADMIN_ORGANIZATION` é protegido; os outros três podem ser
-editados e excluídos (se sem usuário).
+Este bloqueio protege o catálogo. As regras de acesso a inventários e itens são aplicadas em cada
+rota: leitura por setor para todo perfil; criar, editar, finalizar, excluir, importar e limpar itens só para
+`ADMIN` ou gestor do setor; validar itens e registrar observações também para o operador. Inventário
+finalizado não aceita validação, importação, remoção nem limpeza de itens, e cada inventário aceita uma única
+importação (para importar outra planilha, limpe os itens antes).
 
 ---
-
 ## `/permissions` — somente leitura
 
-**Exige `ADMIN`** (`403` para os demais). Não existe criar, editar nem excluir permissão pela API:
+**Exige `ADMIN` ou `MANAGE_SECTOR`** (`403` para os demais). Não existe criar, editar nem excluir permissão pela API:
 `POST /permissions`, `PUT /permissions/{id}` e `DELETE /permissions/{id}` **foram removidos e
 respondem `405`**. As permissões são definidas em código; uma nova entra por task + migration, não
 por tela.
@@ -323,8 +318,6 @@ Para quem já tinha algo montado em cima da versão anterior:
 
 - Endpoint para listar ou contar os usuários de um perfil (use `GET /users?profileId=`, que não
   traz a conta de sistema).
-- Qualquer vínculo entre `Inventory`/`Item` e `Sector`, ou autorização por setor nessas rotas —
-  `MANAGE_ITEM` existe no seed mas nenhum endpoint a verifica ainda.
 - Histórico/fluxo de validação entre setores.
 
 ## Histórico
@@ -338,3 +331,4 @@ Para quem já tinha algo montado em cima da versão anterior:
 | 1.4 | 2026-10-11 | `POST /auth/login` passa a responder `429` com `Retry-After` após falhas repetidas (issue #201). |
 | 1.5 | 2026-10-11 | A conta de sistema sai de `GET /users` e `GET /sectors/{id}/users`, e as rotas de perfil e alocação respondem `404` para ela (issue #202). |
 | 1.6 | 2026-10-11 | `/profiles`, `/permissions` e `PATCH /users/{id}/profile` passam a exigir `ADMIN`; `/permissions` vira somente leitura (`POST`/`PUT`/`DELETE` removidos); o perfil `ADMIN_ORGANIZATION` fica protegido (409); nome de perfil com `trim` (issue #205). |
+| 1.7 | 2026-10-18 | O `429` de `POST /auth/login` passa a vir de duas camadas (Nginx por IP e backend por usuário); `/auth/google` e `/auth/me` ficam sem limite de tentativas (issue #228). |

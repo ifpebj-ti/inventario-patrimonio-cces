@@ -5,7 +5,8 @@ import './globals.css'
 // Importa o provedor de contexto de autenticação.
 import { AuthProvider } from '@/contexts/Auth'
 // Importa o componente que renderiza as notificações (toasts).
-import { Toaster } from 'react-hot-toast'
+import { Toaster } from '@/components/ui/sonner'
+import { TooltipProvider } from '@/components/ui/tooltip'
 // Importa o wrapper que controla as animações de transição de página.
 import MotionWrapper from '@/components/template/motion'
 
@@ -30,19 +31,21 @@ export default function RootLayout({
       <body className="antialiased min-h-screen overflow-x-hidden w-full">
         {/* AuthProvider: Fornece o contexto de autenticação (usuário, status de login, etc.)
             para todos os componentes filhos. Deve ser um dos wrappers mais externos. */}
-        <AuthProvider>
-          {/* MotionWrapper: Componente responsável por aplicar as animações de transição
+        <TooltipProvider>
+          <AuthProvider>
+            {/* MotionWrapper: Componente responsável por aplicar as animações de transição
               quando o usuário navega entre as páginas. */}
-          <MotionWrapper>
-            <div className="w-full min-h-screen">
-              {/* '{children}' é onde o conteúdo da página específica (ex: Dashboard, Login) será inserido. */}
-              {children}
-              {/* Toaster: Componente para exibir notificações (toasts) em toda a aplicação.
+            <MotionWrapper>
+              <div className="w-full min-h-screen">
+                {/* '{children}' é onde o conteúdo da página específica (ex: Dashboard, Login) será inserido. */}
+                {children}
+                {/* Toaster: Componente para exibir notificações (toasts) em toda a aplicação.
                   Colocá-lo aqui garante que ele esteja sempre presente e pronto para ser usado. */}
-              <Toaster position="top-right" />
-            </div>
-          </MotionWrapper>
-        </AuthProvider>
+                <Toaster position="top-right" />
+              </div>
+            </MotionWrapper>
+          </AuthProvider>
+        </TooltipProvider>
       </body>
     </html>
   )

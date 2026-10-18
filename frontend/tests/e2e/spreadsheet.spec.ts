@@ -39,7 +39,13 @@ const select = (page: Page, content = csv, name = 'patrimonio.csv') =>
     .getByLabel('Arquivo CSV', { exact: true })
     .setInputFiles({ name, mimeType: 'text/csv', buffer: Buffer.from(content) })
 
+// Itens que a API devolve para o inventário; só os testes de limpeza começam com itens.
+let hasItems = false
+let finalized = false
+
 test.beforeEach(async ({ page, context }) => {
+  hasItems = false
+  finalized = false
   await context.addCookies([
     {
       name: 'inventarium.token',
@@ -56,6 +62,7 @@ test.beforeEach(async ({ page, context }) => {
         id: 1,
         name: 'Camille',
         email: 'test@example.com',
+        permissions: ['ADMIN'],
       })
     if (pathname === '/inventory/user-inventories')
       return respond(route, 200, [
@@ -66,8 +73,25 @@ test.beforeEach(async ({ page, context }) => {
           createdAt: '2026-10-12',
         },
       ])
+    if (pathname === '/inventory/1')
+      return respond(route, 200, {
+        inventory: {
+          id: 1,
+          name: 'Teste CSV',
+          description: 'Teste',
+          createdAt: '12/10/2026',
+          updatedAt: null,
+          plannedEndDate: '2026-10-30',
+          completedAt: finalized ? '2026-10-13T14:30:00' : null,
+          status: finalized ? 'CONCLUIDO' : 'EM_ANDAMENTO',
+          sectorId: 1,
+          sectorName: 'Biblioteca',
+          itemCount: 0,
+        },
+        canFinalize: false,
+      })
     if (pathname === '/inventory/inventory-items')
-      return respond(route, 200, [item])
+      return respond(route, 200, hasItems ? [item] : [])
     if (pathname === '/inventory/validate-sheet')
       return respond(route, 200, valid)
     if (pathname === '/inventory/add-items')
@@ -432,6 +456,8 @@ test('limpeza requer confirmação; cancelamento e erro preservam itens; sucesso
   page,
 }) => {
   let clears = 0
+  hasItems = true
+  await page.reload()
   await page.route('**/inventory/clear-items?*', async (route) => {
     clears++
     if (clears === 1) await respond(route, 403, { message: 'Recusado' })
@@ -534,7 +560,7 @@ test('importação em andamento bloqueia troca de arquivo e limpeza', async ({
   ).toBeDisabled()
   await expect(page.getByLabel('Arquivo CSV', { exact: true })).toBeDisabled()
   await expect(
-    page.getByRole('button', { name: 'Limpar todos os itens do inventário' }),
+    page.getByRole('button', { name: 'Inventário já está vazio' }),
   ).toBeDisabled()
   release?.()
   await expect(page.getByTestId('import-counters')).toBeVisible()
@@ -582,6 +608,8 @@ test('limpeza em andamento bloqueia cliques repetidos e só remove itens após s
   page,
 }) => {
   let clears = 0
+  hasItems = true
+  await page.reload()
   let release: (() => void) | undefined
   const pending = new Promise<void>((resolve) => {
     release = resolve
@@ -630,4 +658,46 @@ test('contadores inconsistentes não viram sucesso', async ({ page }) => {
     page.getByRole('button', { name: 'Validar novamente' }),
   ).toBeVisible()
   await expect(page.getByTestId('import-counters')).toHaveCount(0)
+})
+
+test('inventário com itens importados bloqueia nova importação até limpar os itens', async ({
+  page,
+}) => {
+  hasItems = true
+  await page.reload()
+  await expect(page.getByLabel('Arquivo CSV', { exact: true })).toBeDisabled()
+  await expect(
+    page.getByRole('button', { name: 'Importar Planilha CSV' }),
+  ).toBeDisabled()
+  await expect(
+    page.getByText(/já tem itens importados.*exclua primeiro todos os itens/),
+  ).toBeVisible()
+})
+
+test('inventário finalizado bloqueia importar e escanear', async ({ page }) => {
+  finalized = true
+  await page.reload()
+  await expect(
+    page.getByText(
+      'Inventário finalizado: não é possível importar novas planilhas.',
+    ),
+  ).toBeVisible()
+  await expect(
+    page.getByText('Inventário finalizado: não é possível escanear itens.'),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Importar Planilha CSV' }),
+  ).toBeDisabled()
+  await expect(
+    page.getByRole('button', { name: 'Escanear ou digitar código' }),
+  ).toBeDisabled()
+})
+
+test('inventário vazio e em andamento permite importar e escanear', async ({
+  page,
+}) => {
+  await expect(page.getByLabel('Arquivo CSV', { exact: true })).toBeEnabled()
+  await expect(
+    page.getByRole('button', { name: 'Escanear ou digitar código' }),
+  ).toBeEnabled()
 })

@@ -30,7 +30,8 @@ public class PermissionService {
   }
 
   public List<Permission> listAllPermissions(long actingUserId) {
-    authorizationService.requirePermission(actingUserId, "ADMIN");
+    authorizationService.requireAnyPermission(
+        actingUserId, AuthorizationService.ADMIN, AuthorizationService.MANAGE_SECTOR);
     return permissionRepository.findAll();
   }
 }

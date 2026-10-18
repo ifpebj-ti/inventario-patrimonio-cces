@@ -125,8 +125,8 @@ class PermissionE2ETest {
   }
 
   @Test
-  void list_asNonAdmin_returns403() {
-    for (String profileName : List.of("CONSULTA", "GESTOR_SETOR", "OPERADOR_CAMPO")) {
+  void list_asConsultaOrOperator_returns403() {
+    for (String profileName : List.of("CONSULTA", "OPERADOR_CAMPO")) {
       var response =
           restTemplate.exchange(
               "/permissions",
@@ -136,6 +136,18 @@ class PermissionE2ETest {
 
       assertThat(response.getStatusCode()).as(profileName).isEqualTo(HttpStatus.FORBIDDEN);
     }
+  }
+
+  @Test
+  void list_asManager_isReadOnlyAndAllowed() {
+    var response =
+        restTemplate.exchange(
+            "/permissions",
+            HttpMethod.GET,
+            new HttpEntity<>(headersFor(createUserWithProfile("GESTOR_SETOR"))),
+            Map[].class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
   }
 
   @Test

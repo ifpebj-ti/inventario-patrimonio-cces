@@ -11,8 +11,6 @@ export class AuthError extends Error {
   constructor(
     public readonly kind: AuthErrorKind,
     message: string,
-    // Só no 429: segundos até poder tentar de novo, vindos do Retry-After.
-    public readonly retryAfterSeconds?: number,
   ) {
     super(message)
     this.name = 'AuthError'

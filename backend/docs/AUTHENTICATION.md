@@ -1,8 +1,11 @@
 # Autenticação
 
 O Inventarium usa **login com Google** (OAuth 2.0 / OpenID Connect, fluxo de ID token). Não há
-cadastro próprio, verificação de e-mail nem recuperação de senha: toda conta de usuário nasce e se
-autentica pelo Google. A única exceção é a **conta de sistema** (`POST /auth/login`, usuário e
+senha local, verificação de e-mail própria nem recuperação de senha para usuários comuns. O admin
+(ou o gestor de setor, só Operador e Consulta nos seus setores) pode pré-cadastrar e-mail, perfil e
+setores via `POST /users`; quem entra sem pré-cadastro nasce com o perfil `CONSULTA` e conta
+desativada (`active = false`) não entra e perde a sessão aberta; a identidade é vinculada no primeiro
+login verificado com Google. A exceção é a **conta de sistema** (`POST /auth/login`, usuário e
 senha, perfil `ADMIN_ORGANIZATION`), que serve ao primeiro acesso e tem limite de tentativas
 contra força bruta. Ela está descrita em [`backend/README.md`](../README.md#conta-de-sistema); o
 resto deste documento trata do fluxo Google.
@@ -39,7 +42,17 @@ POST /auth/google  { "credential": "<ID token>" }
         │    (se o domínio for permitido)
         │ 5. Emite o JWT próprio da aplicação (HS256, 24h)
         ▼
-200 { "token": "<JWT da aplicação>", "user": { id, name, email } }
+200 {
+  "token": "<JWT da aplicação>",
+  "user": {
+    "id": 2,
+    "name": "Fulano de Tal",
+    "email": "fulano@ifpe.edu.br",
+    "profileId": 3,
+    "sectorIds": [4, 8],
+    "permissions": ["MANAGE_SECTOR"]
+  }
+}
         │
         │ 6. Frontend guarda o token num cookie e passa a
         │    enviá-lo como Authorization: Bearer em cada requisição
@@ -138,31 +151,29 @@ na config trancando todo mundo de uma vez).
 
 ## Modelo de dados
 
-A tabela `im_user` tem seis colunas:
+A tabela `im_user` mantém a identidade, o perfil e o estado do primeiro acesso:
 
 ```
 id          bigint        PK
 name        varchar(100)  NOT NULL
 email       varchar(255)  NOT NULL, UNIQUE
-google_id   varchar(255)  NOT NULL, UNIQUE
+google_id   varchar(255)  UNIQUE, nullable conforme o tipo de conta
+id_profile  bigint        FK, nullable
+is_system_user boolean    NOT NULL
+pending_google_login boolean NOT NULL
+password_hash varchar(100) nullable, somente conta de sistema
 created_at  timestamp     NOT NULL
 updated_at  timestamp     NOT NULL
 ```
 
-Não existem colunas de senha, verificação ou telefone, nem tabela de tokens de e-mail — esse
-modelo foi removido junto com o login por senha (não há dado legado; o sistema nunca chegou a ser
-lançado com ele).
+O banco exige que a conta comum tenha um `google_id`, exceto quando está pré-cadastrada com
+`pending_google_login = true`. A conta de sistema deve manter `google_id` nulo e não pode ser
+pendente. Senhas permanecem exclusivas da conta de sistema.
 
-`google_id` (o claim `sub` do ID token) é `NOT NULL` porque `findOrCreateGoogleUser` é o único
-caminho de inserção em `im_user`. Vale registrar o que essa constraint garante e o que não
-garante:
-
-- **Garante:** se algum dia surgir um segundo caminho de criação de usuário (script de seed,
-  endpoint de admin, outro provedor de login) e ele esquecer de preencher `google_id`, o INSERT
-  falha na hora, na linha de código culpada. É proteção contra bug, não contra ataque.
-- **Não garante:** que o valor seja um `sub` real do Google. Quem tem acesso de escrita ao banco
-  sempre pode inserir qualquer string ali. **A coluna nunca é consultada para autenticar** — quem
-  autentica é a assinatura do ID token, verificada a cada login pelo `GoogleTokenProvider`.
+O primeiro login de um pré-cadastro vincula o `sub` somente após a validação do ID token e do
+e-mail verificado pelo `GoogleTokenProvider`. A consulta usa bloqueio de escrita para serializar
+essa vinculação. Perfil, nome e setores são preservados. Depois da vinculação, outro `sub` não
+pode usar a mesma conta. O índice único em `lower(email)` impede cadastros duplicados por caixa.
 
 ---
 
@@ -201,7 +212,14 @@ Requer `Authorization: Bearer <JWT da aplicação>`.
 
 ```json
 // 200
-{ "id": 2, "name": "Fulano de Tal", "email": "fulano@ifpe.edu.br" }
+{
+  "id": 2,
+  "name": "Fulano de Tal",
+  "email": "fulano@ifpe.edu.br",
+  "profileId": 3,
+  "sectorIds": [4, 8],
+  "permissions": ["MANAGE_SECTOR"]
+}
 ```
 
 Retorna 400 se o header estiver ausente, malformado, ou se o token não validar.

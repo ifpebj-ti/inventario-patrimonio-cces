@@ -1,9 +1,10 @@
 'use client'
+import { homeRoute } from '@/lib/home-route'
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { setCookie, parseCookies, destroyCookie } from 'nookies'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 
 import { AuthContext } from './context'
 import { ProviderProps, User } from './types'
@@ -35,6 +36,12 @@ export const AuthProvider = ({ children }: ProviderProps) => {
 
   const isAuthenticated = !!user
 
+  const refreshSession = useCallback(async () => {
+    const response = await recoverUserInformation()
+    setUser(response.data)
+    return response.data
+  }, [])
+
   // Roda uma única vez para restaurar a sessão a partir do cookie.
   useEffect(() => {
     const { [TOKEN_COOKIE]: token } = parseCookies()
@@ -44,21 +51,20 @@ export const AuthProvider = ({ children }: ProviderProps) => {
       return
     }
 
-    recoverUserInformation()
-      .then((response) => setUser(response.data))
+    refreshSession()
       .catch(() => {
         destroyCookie(undefined, TOKEN_COOKIE, { path: '/' })
         setUser(null)
       })
       .finally(() => setLoading(false))
-  }, [])
+  }, [refreshSession])
 
   // Parte comum aos dois logins: o backend devolve o mesmo { token, user }.
   const startSession = useCallback(
     (token: string, user: User) => {
       setCookie(undefined, TOKEN_COOKIE, token, COOKIE_OPTIONS)
       setUser(user)
-      router.replace('/dashboard')
+      router.replace(homeRoute(user.permissions))
     },
     [router],
   )
@@ -97,6 +103,7 @@ export const AuthProvider = ({ children }: ProviderProps) => {
         isAuthenticated,
         signInWithGoogle,
         signInWithPassword,
+        refreshSession,
         signOut,
       }}
     >

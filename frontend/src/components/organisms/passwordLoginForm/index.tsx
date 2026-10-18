@@ -1,30 +1,20 @@
 'use client'
 
+import { Input as UiInput } from '@/components/ui/input'
+import { Button as UiButton } from '@/components/ui/button'
+import { Label as UiLabel } from '@/components/ui/label'
+
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 
-import { Input } from '@/components/atoms/input'
-import { Button } from '@/components/atoms/button'
 import { useAuth } from '@/hooks/useAuth'
 import { AuthError, AuthErrorKind } from '@/commons/exceptions/AuthError'
 import loginSchema from '@/validations/login'
 
 type LoginFormData = z.infer<typeof loginSchema>
-
-// O tempo vem do Retry-After do backend; sem ele (ou se o navegador não deixar
-// ler o cabeçalho) a mensagem fica genérica.
-const rateLimitedMessage = (retryAfterSeconds?: number) => {
-  if (!retryAfterSeconds) {
-    return 'Muitas tentativas. Tente novamente em alguns minutos.'
-  }
-
-  const minutes = Math.ceil(retryAfterSeconds / 60)
-
-  return `Muitas tentativas. Tente novamente em ${minutes} ${minutes === 1 ? 'minuto' : 'minutos'}.`
-}
 
 const MESSAGES: Record<AuthErrorKind, string> = {
   // O 401 do backend cobre usuário inexistente, senha errada e login por senha
@@ -32,7 +22,9 @@ const MESSAGES: Record<AuthErrorKind, string> = {
   unauthorized: 'Usuário ou senha incorretos.',
   unavailable:
     'O serviço de autenticação está indisponível no momento. Tente novamente em alguns minutos.',
-  rateLimited: rateLimitedMessage(),
+  // 429 do backend (usuário bloqueado) ou do Nginx (muitas requisições do mesmo IP). Sem o tempo
+  // restante de propósito: não vale expor a janela de bloqueio na tela.
+  rateLimited: 'Conta bloqueada, tente novamente mais tarde.',
   unexpected: 'Falha inesperada ao entrar. Tente novamente.',
 }
 
@@ -59,11 +51,7 @@ export const PasswordLoginForm = () => {
       toast.success('Bem-vindo ao Inventarium!')
     } catch (err) {
       const message =
-        err instanceof AuthError
-          ? err.kind === 'rateLimited'
-            ? rateLimitedMessage(err.retryAfterSeconds)
-            : MESSAGES[err.kind]
-          : MESSAGES.unexpected
+        err instanceof AuthError ? MESSAGES[err.kind] : MESSAGES.unexpected
 
       // O erro fica inline além do toast, para poder ser relido depois que o
       // toast some sozinho.
@@ -80,57 +68,63 @@ export const PasswordLoginForm = () => {
       noValidate
     >
       <div>
-        <label
+        <UiLabel
           htmlFor="username"
-          className="block text-sm font-medium text-slate-700 mb-1"
+          className="block text-sm font-medium text-foreground mb-1"
         >
           Usuário
-        </label>
-        <Input
+        </UiLabel>
+        <UiInput
+          className="w-full"
           id="username"
           type="text"
           autoComplete="username"
           placeholder="Usuário"
           {...register('username')}
-          width="w-full"
         />
         {errors.username && (
-          <p className="text-red-500 text-sm mt-1">{errors.username.message}</p>
+          <p className="text-destructive text-sm mt-1">
+            {errors.username.message}
+          </p>
         )}
       </div>
 
       <div>
-        <label
+        <UiLabel
           htmlFor="password"
-          className="block text-sm font-medium text-slate-700 mb-1"
+          className="block text-sm font-medium text-foreground mb-1"
         >
           Senha
-        </label>
-        <Input
+        </UiLabel>
+        <UiInput
+          className="w-full"
           id="password"
           type="password"
           autoComplete="current-password"
           placeholder="Senha"
           {...register('password')}
-          width="w-full"
         />
         {errors.password && (
-          <p className="text-red-500 text-sm mt-1">{errors.password.message}</p>
+          <p className="text-destructive text-sm mt-1">
+            {errors.password.message}
+          </p>
         )}
       </div>
 
       {error && (
-        <p role="alert" className="text-red-500 text-[14px] text-center">
+        <p role="alert" className="text-destructive text-[14px] text-center">
           {error}
         </p>
       )}
 
-      <Button
+      <UiButton
+        variant="default"
+        className="w-full"
         type="submit"
-        text={isSubmitting ? 'Entrando...' : 'Entrar'}
         disabled={isSubmitting}
-        width="w-full"
-      />
+      >
+        {isSubmitting ? 'Entrando...' : 'Entrar'}
+      </UiButton>
     </form>
   )
 }

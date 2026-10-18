@@ -17,6 +17,7 @@ import { useAuth } from '@/hooks/useAuth'
 interface InventoryContextData {
   inventories: InventoryResponse[]
   isLoading: boolean
+  error: string | null
   refreshInventories: () => Promise<InventoryResponse[]>
 }
 
@@ -44,16 +45,19 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated, user } = useAuth()
   const [inventories, setInventories] = useState<InventoryResponse[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const refreshInventories = useCallback(async () => {
     try {
       setIsLoading(true)
+      setError(null)
       const data = await getUserInventoriesRequest()
       const list = parseInventoriesList(data)
       setInventories(list)
       return list
     } catch (error) {
       console.error('Erro ao buscar inventários:', error)
+      setError('Não foi possível carregar os inventários. Tente novamente.')
       return []
     } finally {
       setIsLoading(false)
@@ -90,7 +94,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
 
   return (
     <InventoryContext.Provider
-      value={{ inventories, isLoading, refreshInventories }}
+      value={{ inventories, isLoading, error, refreshInventories }}
     >
       {children}
     </InventoryContext.Provider>

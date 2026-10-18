@@ -1,9 +1,14 @@
 'use client'
+import { homeRoute } from '@/lib/home-route'
+
+import { Card as UiCard } from '@/components/ui/card'
+
+import { Button as UiButton } from '@/components/ui/button'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 
 import { useAuth } from '@/hooks/useAuth'
 import { AuthError } from '@/commons/exceptions/AuthError'
@@ -18,7 +23,7 @@ const MESSAGES = {
   unauthorized: 'Não foi possível entrar. Use sua conta institucional.',
   unavailable:
     'O serviço de autenticação está indisponível no momento. Tente novamente em alguns minutos.',
-  rateLimited: 'Muitas tentativas. Tente novamente em alguns minutos.',
+  rateLimited: 'Conta bloqueada, tente novamente mais tarde.',
   unexpected: 'Falha inesperada ao entrar. Tente novamente.',
   google:
     'Não foi possível concluir o login com o Google. Verifique sua conexão e tente de novo.',
@@ -27,7 +32,7 @@ const MESSAGES = {
 }
 
 export const LoginForm = () => {
-  const { signInWithGoogle, isAuthenticated, loading } = useAuth()
+  const { signInWithGoogle, isAuthenticated, loading, user } = useAuth()
   const router = useRouter()
 
   const [submitting, setSubmitting] = useState(false)
@@ -38,8 +43,9 @@ export const LoginForm = () => {
 
   // Quem já tem sessão válida não precisa ver o botão de login.
   useEffect(() => {
-    if (!loading && isAuthenticated) router.replace('/dashboard')
-  }, [loading, isAuthenticated, router])
+    if (!loading && isAuthenticated)
+      router.replace(homeRoute(user?.permissions))
+  }, [loading, isAuthenticated, router, user])
 
   const handleCredential = async (credential?: string) => {
     if (!credential) {
@@ -67,7 +73,7 @@ export const LoginForm = () => {
   }
 
   const googleLogin = !GOOGLE_CLIENT_ID ? (
-    <p className="text-red-500 text-[14px] text-center max-w-xs px-4">
+    <p className="text-destructive text-[14px] text-center max-w-xs px-4">
       {MESSAGES.misconfigured}
     </p>
   ) : (
@@ -79,7 +85,7 @@ export const LoginForm = () => {
       {/* min-h evita o card pular quando o botão vira o texto de progresso */}
       <div className="flex flex-col items-center gap-4 min-h-[44px]">
         {submitting ? (
-          <p className="text-gray-500">Entrando...</p>
+          <p className="text-muted-foreground">Entrando...</p>
         ) : (
           <GoogleLogin
             onSuccess={(response) => handleCredential(response.credential)}
@@ -100,10 +106,10 @@ export const LoginForm = () => {
   }
 
   return (
-    <div className="w-full h-full xl:w-2/3 bg-white flex justify-center items-center flex-col gap-6 xl:h-3/4 rounded-3xl shadow-2xl">
-      <h2 className="text-3xl text-blue-600">Seja Bem-vindo</h2>
+    <UiCard className="w-full h-full xl:w-2/3 justify-center items-center gap-6 xl:h-3/4 shadow-2xl">
+      <h2 className="text-3xl text-primary">Boas-vindas</h2>
 
-      <p className="text-center text-gray-600 max-w-xs px-4">
+      <p className="text-center text-muted-foreground max-w-xs px-4">
         Entre com sua conta institucional para acessar o Inventarium.
       </p>
 
@@ -112,7 +118,7 @@ export const LoginForm = () => {
       {error && (
         <p
           role="alert"
-          className="text-red-500 text-[14px] text-center max-w-xs px-4"
+          className="text-destructive text-[14px] text-center max-w-xs px-4"
         >
           {error}
         </p>
@@ -120,14 +126,15 @@ export const LoginForm = () => {
 
       {/* Fora do ternário do Google de propósito: sem client id o aviso aparece
           e este link continua sendo a única forma de entrar. */}
-      <button
+      <UiButton
+        variant="link"
         type="button"
         onClick={togglePasswordForm}
         aria-expanded={showPasswordForm}
-        className="text-sm text-gray-500 underline hover:text-gray-700 cursor-pointer min-h-[44px]"
+        className="min-h-11 text-muted-foreground underline hover:text-foreground"
       >
         {showPasswordForm ? 'Voltar' : 'Entrar com usuário e senha'}
-      </button>
-    </div>
+      </UiButton>
+    </UiCard>
   )
 }

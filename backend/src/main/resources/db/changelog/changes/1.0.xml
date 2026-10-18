@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Armazena o prazo usado para validar a criação e classificar atrasos. -->
+    <changeSet id="20261013-01" author="inventarium">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="im_inventory" columnName="planned_end_date"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="im_inventory">
+            <column name="planned_end_date" type="DATE"/>
+        </addColumn>
+    </changeSet>
+    <changeSet id="20261013-03" author="inventarium">
+        <addColumn tableName="im_inventory">
+            <column name="completed_at" type="TIMESTAMP"/>
+            <column name="status" type="VARCHAR(20)" defaultValue="EM_ANDAMENTO">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <sql>ALTER TABLE im_inventory ADD CONSTRAINT ck_inventory_completion
+            CHECK ((status = 'EM_ANDAMENTO' AND completed_at IS NULL)
+                OR (status = 'CONCLUIDO' AND completed_at IS NOT NULL))</sql>
+    </changeSet>
+
+</databaseChangeLog>

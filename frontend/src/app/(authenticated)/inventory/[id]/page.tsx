@@ -3,6 +3,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { Table } from '@/components/organisms/table'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  getInventoryRequest,
   getInventoryItemsRequest,
   InventoryResponse,
   deleteItemFromInventory,
@@ -10,6 +11,7 @@ import {
 } from '@/services/inventory'
 import { FileUploadComponent } from '@/components/molecules/fileUploadComponet'
 import { InventoryItemsStatus } from '@/components/molecules/inventoryItemsStatus'
+import { InventoryCompletion } from '@/components/organisms/inventoryCompletion'
 import { Item } from '@/commons/models/item'
 import {
   generateItemsSheet,
@@ -17,19 +19,27 @@ import {
   sendSheetByEmail,
   updateItemRequest,
 } from '@/services/item'
-import { toast } from 'react-hot-toast'
+import { toast } from 'sonner'
+import { Spinner } from '@/components/ui/spinner'
 import { SendEmailSheetModal } from '@/components/organisms/sendEmailSheetModal'
 import { ConfirmationModal } from '@/components/organisms/modalConfirmation'
 import { ScannerCard } from '@/components/molecules/scannerCard'
 import { BarcodeQrScannerModal } from '@/components/organisms/barcodeQrScannerModal'
 import { ItemDetailDrawer } from '@/components/organisms/itemDetailDrawer'
 import { useSpreadsheetImport } from '@/hooks/useSpreadsheetImport'
+import { useAdministrationAccess } from '@/contexts/AdministrationAccess'
 import { getSpreadsheetFailure } from '@/commons/utils/spreadsheet'
 
 export default function Inventory() {
   const { id } = useParams()
   const router = useRouter() // useRouter é usado para navegar entre páginas
   const [itemData, setItemData] = useState<Item[]>([])
+  // Gestor/admin gerenciam o inventário; operador também escaneia e valida; consulta só lê.
+  const { canManageInventories, canOperateItems } = useAdministrationAccess()
+  // Só libera a importação depois de saber se o inventário já tem itens.
+  const [itemsLoaded, setItemsLoaded] = useState(false)
+  // Inventário finalizado não aceita novos escaneamentos nem importações.
+  const [finalized, setFinalized] = useState(false)
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false)
   const [isDeleteItemModalOpen, setIsDeleteItemModalOpen] = useState(false)
   const [isClearAllModalOpen, setIsClearAllModalOpen] = useState(false)
@@ -51,6 +61,7 @@ export default function Inventory() {
       const page = 0
       const pageSize = 2000
 
+      setItemsLoaded(false)
       setItemData([])
       const response = await getInventoryItemsRequest(
         inventoryId,
@@ -60,6 +71,8 @@ export default function Inventory() {
       setItemData(response)
     } catch (error) {
       console.error('Erro ao carregar itens do inventário:', error)
+    } finally {
+      setItemsLoaded(true)
     }
   }, [id]) // useCallback é usado para memorizar a função e evitar recriações desnecessárias
 
@@ -72,19 +85,30 @@ export default function Inventory() {
   }
 
   const handleSendEmail = async (formData: SendEmailSheetRequest) => {
-    const inventoryId = Number(id)
-
-    try {
-      await sendSheetByEmail(inventoryId, formData)
-      toast.success('Email enviado com sucesso!')
-      setIsEmailModalOpen(false)
-    } catch (error) {
-      toast.error('Erro ao enviar o email.')
-      console.error(error)
-    }
+    await sendSheetByEmail(Number(id), formData)
+    toast.success('Solicitação de envio recebida pelo Inventarium.')
   }
 
   const spreadsheet = useSpreadsheetImport(Number(id), fetchItemsByInventory)
+
+  // Regras de bloqueio: finalizado não escaneia nem importa; e só existe uma
+  // importação por vez (para importar outra planilha, limpe os itens antes).
+  const hasItems = itemData.length > 0
+  const importBlocked =
+    !canManageInventories || finalized || hasItems || !itemsLoaded
+  const importBlockedMessage = !canManageInventories
+    ? 'Seu perfil não permite importar planilhas.'
+    : finalized
+      ? 'Inventário finalizado: não é possível importar novas planilhas.'
+      : hasItems
+        ? 'Este inventário já tem itens importados. Para importar outra planilha, exclua primeiro todos os itens do inventário.'
+        : undefined
+  const scanBlocked = finalized || !canOperateItems
+  const scanBlockedMessage = !canOperateItems
+    ? 'Seu perfil é somente leitura: não é possível escanear itens.'
+    : finalized
+      ? 'Inventário finalizado: não é possível escanear itens.'
+      : undefined
 
   useEffect(() => {
     fetchItemsByInventory()
@@ -113,12 +137,18 @@ export default function Inventory() {
     const inventoryId = Number(id)
 
     try {
+      const { inventory } = await getInventoryRequest(inventoryId)
       const sheetBlob = await generateItemsSheet(inventoryId)
 
       const url = window.URL.createObjectURL(sheetBlob)
       const link = document.createElement('a')
       link.href = url
-      link.setAttribute('download', 'patrimonio.xlsx')
+      const filename =
+        inventory.name
+          .replace(/[<>:"/\\|?*]/g, '_')
+          .trim()
+          .replace(/[. ]+$/, '') || `inventario-${inventoryId}`
+      link.setAttribute('download', `${filename}.xlsx`)
       document.body.appendChild(link)
       link.click() // ⬅️ inicia o download
       link.remove()
@@ -209,7 +239,7 @@ export default function Inventory() {
   const handleScanSuccess = useCallback(
     async (decodedCode: string) => {
       const rawCode = decodedCode.replace(/[\r\n\t]/g, '').trim()
-      if (!rawCode) return
+      if (!rawCode || scanBlocked) return
 
       // Debounce de 1.5s para evitar avisos repetidos caso ocorram disparos simultâneos
       const now = Date.now()
@@ -305,13 +335,19 @@ export default function Inventory() {
         })
       }
     },
-    [itemData, handleItemUpdated],
+    [itemData, handleItemUpdated, scanBlocked],
   )
 
   return (
-    <div className="w-full max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 flex flex-col gap-6 min-h-screen">
+    <div className="page-shell flex min-h-screen flex-col gap-6">
+      <InventoryCompletion
+        key={String(id)}
+        inventoryId={Number(id)}
+        disabled={isUploading || spreadsheet.state.status === 'importing'}
+        onCompletedChange={setFinalized}
+      />
       {/* Topo da Página: Três Cards com mesma altura e padrão visual (Design System do Inventarium) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 w-full items-stretch">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 w-full items-stretch">
         {/* Card 1: Estatísticas (Contadores dinâmicos + texto de orientação) */}
         <div className="h-full">
           <InventoryItemsStatus content={itemData} />
@@ -319,7 +355,11 @@ export default function Inventory() {
 
         {/* Card 2: Escaneamento (Código de Barras e QR Code via Câmera) */}
         <div className="h-full">
-          <ScannerCard onOpenScanner={() => setIsScannerOpen(true)} />
+          <ScannerCard
+            onOpenScanner={() => !scanBlocked && setIsScannerOpen(true)}
+            disabled={scanBlocked}
+            disabledMessage={scanBlockedMessage}
+          />
         </div>
 
         {/* Card 3: Importação de Planilha (Upload e Drag-and-drop) */}
@@ -329,7 +369,8 @@ export default function Inventory() {
             onSelect={spreadsheet.select}
             onRemove={spreadsheet.remove}
             onProcess={spreadsheet.process}
-            disabled={isUploading}
+            disabled={isUploading || importBlocked}
+            blockedMessage={importBlockedMessage}
           />
         </div>
       </div>
@@ -353,16 +394,21 @@ export default function Inventory() {
           showExportButtons={true}
           onClearInventory={handleOpenClearInventoryModal}
           disableClear={isUploading || spreadsheet.state.status === 'importing'}
+          hideClear={!canManageInventories}
           onExportSheet={handleExportSheet}
           onSendEmailSheet={handleOpenEmailModal}
-          onDeleteItem={handleOpenDeleteItemModal}
+          onDeleteItem={
+            canManageInventories ? handleOpenDeleteItemModal : undefined
+          }
         />
       </div>
 
       {isUploading && (
-        <div className="fixed inset-0 bg-opacity-20 backdrop-blur-sm flex flex-col items-center justify-center z-50">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-gray-500 border-solid mb-4"></div>
-          <p className="text-gray-500 text-lg">Carregando planilha...</p>
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-background/60 backdrop-blur-sm">
+          <Spinner className="size-12 text-primary" />
+          <p className="text-lg text-muted-foreground">
+            Carregando planilha...
+          </p>
         </div>
       )}
 
@@ -400,7 +446,7 @@ export default function Inventory() {
 
       {/* Modal do Scanner de Câmera Web */}
       <BarcodeQrScannerModal
-        isOpen={isScannerOpen}
+        isOpen={isScannerOpen && !scanBlocked}
         onClose={() => setIsScannerOpen(false)}
         onScanSuccess={handleScanSuccess}
       />
@@ -414,7 +460,7 @@ export default function Inventory() {
         isResponsibleLocked={true}
         onScanNext={() => {
           setIsDrawerOpen(false)
-          setIsScannerOpen(true)
+          if (!scanBlocked) setIsScannerOpen(true)
         }}
       />
     </div>

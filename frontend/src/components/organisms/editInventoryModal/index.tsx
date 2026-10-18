@@ -1,21 +1,40 @@
 'use client'
 
-import { useForm } from 'react-hook-form'
+import { SelectField } from '@/components/ui/select-field'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Input as UiInput } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
+
+import { Button as UiButton } from '@/components/ui/button'
+import { X } from 'lucide-react'
+import { Label as UiLabel } from '@/components/ui/label'
+
+import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Input } from '@/components/atoms/input'
-import { Button } from '@/components/atoms/button'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { InventoryResponse } from '@/services/inventory'
+import { listSectors, administrationFailure } from '@/services/administration'
+import type { Sector } from '@/commons/models/administration'
 
 // Schema de validação do formulário de edição, utilizando a biblioteca Zod.
 const editInventorySchema = z.object({
   name: z.string().min(3, 'O nome deve ter pelo menos 3 caracteres.'),
   description: z.string().optional(),
+  sectorId: z.coerce.number().int().positive('Selecione o setor responsável.'),
+  plannedEndDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Informe uma data válida'),
 })
 
 // Extrai o tipo TypeScript a partir do schema Zod para garantir a segurança de tipos.
 type EditFormData = z.infer<typeof editInventorySchema>
+
+const toDateInputValue = (date: string | null | undefined) => {
+  if (!date) return undefined
+  const parts = date.split('/')
+  return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : date
+}
 
 // Define as propriedades (props) que o componente de modal espera receber do componente pai.
 interface EditInventoryModalProps {
@@ -32,11 +51,35 @@ export const EditInventoryModal = ({
   onConfirmEdit,
   inventory,
 }: EditInventoryModalProps) => {
+  const creationDate = toDateInputValue(inventory?.createdAt)
+  const [sectors, setSectors] = useState<Sector[]>([])
+  const [sectorError, setSectorError] = useState<string | null>(null)
+  const [sectorLoading, setSectorLoading] = useState(true)
+  const [sectorReload, setSectorReload] = useState(0)
+  useEffect(() => {
+    if (!isOpen) return
+    const controller = new AbortController()
+    setSectorLoading(true)
+    setSectorError(null)
+    listSectors(controller.signal)
+      .then((rows) => {
+        if (!controller.signal.aborted) setSectors(rows)
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted)
+          setSectorError(administrationFailure(error).message)
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setSectorLoading(false)
+      })
+    return () => controller.abort()
+  }, [isOpen, sectorReload])
   // Hook 'react-hook-form' para gerenciar o estado, validação e submissão do formulário.
   const {
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<EditFormData>({
     resolver: zodResolver(editInventorySchema),
@@ -49,6 +92,8 @@ export const EditInventoryModal = ({
       reset({
         name: inventory.name,
         description: inventory.description,
+        plannedEndDate: inventory.plannedEndDate || '',
+        sectorId: inventory.sectorId || 0,
       })
     }
   }, [inventory, reset])
@@ -58,19 +103,29 @@ export const EditInventoryModal = ({
 
   return (
     // O contêiner do modal, que inclui o fundo escuro (backdrop) e o painel centralizado.
-    <div className="fixed inset-0 bg-opacity-30 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-      {/* O painel branco do modal com a estilização principal. */}
-      <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-xl w-full max-w-lg relative max-h-[90vh] overflow-y-auto">
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !isSubmitting) onClose()
+      }}
+    >
+      <DialogContent
+        showCloseButton={false}
+        className="flex max-h-[90vh] flex-col overflow-y-auto rounded-xl gap-0 p-6 sm:max-w-lg sm:p-8"
+      >
+        <DialogTitle className="sr-only">Editar Inventário</DialogTitle>
         {/* Botão para fechar o modal no canto superior direito. */}
-        <button
+        <UiButton
+          variant="ghost"
+          size="icon-sm"
           onClick={onClose}
-          className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 text-3xl cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl"
+          className="absolute top-4 right-4 text-muted-foreground"
           aria-label="Fechar modal"
         >
-          &times;
-        </button>
+          <X />
+        </UiButton>
 
-        <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mb-6">
+        <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-6">
           Editar Inventário
         </h2>
 
@@ -81,66 +136,150 @@ export const EditInventoryModal = ({
           className="flex flex-col gap-4"
         >
           <div>
-            <label
+            <UiLabel
               htmlFor="name"
-              className="block text-sm font-medium text-slate-700 mb-1"
+              className="block text-sm font-medium text-foreground mb-1"
             >
               Nome
-            </label>
+            </UiLabel>
             {/* Componente de Input para o nome, conectado ao formulário via 'register'. */}
-            <Input
+            <UiInput
+              className="w-full"
               id="name"
               type="text"
               placeholder="Nome do inventário"
               {...register('name')}
-              width="w-full"
             />
             {/* Exibe a mensagem de erro para o campo 'name', se houver. */}
             {errors.name && (
-              <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>
+              <p className="text-destructive text-sm mt-1">
+                {errors.name.message}
+              </p>
             )}
           </div>
 
           <div>
-            <label
+            <UiLabel
               htmlFor="description"
-              className="block text-sm font-medium text-slate-700 mb-1"
+              className="block text-sm font-medium text-foreground mb-1"
             >
               Descrição
-            </label>
+            </UiLabel>
             {/* Componente de Input para a descrição. */}
-            <Input
+            <UiInput
+              className="w-full"
               id="description"
               type="text"
               placeholder="Descrição do inventário"
               {...register('description')}
-              width="w-full"
             />
             {errors.description && (
-              <p className="text-red-500 text-sm mt-1">
+              <p className="text-destructive text-sm mt-1">
                 {errors.description.message}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <UiLabel
+              htmlFor="edit-sectorId"
+              className="block text-sm font-medium text-foreground mb-1"
+            >
+              Setor responsável
+            </UiLabel>
+            <Controller
+              control={control}
+              name="sectorId"
+              render={({ field }) => (
+                <SelectField
+                  id="edit-sectorId"
+                  aria-label="Setor responsável"
+                  options={sectors
+                    .filter(
+                      (sector) =>
+                        sector.active || sector.id === inventory?.sectorId,
+                    )
+                    .map((sector) => ({
+                      value: String(sector.id),
+                      label: `${sector.name}${sector.active ? '' : ' (inativo)'}`,
+                    }))}
+                  value={field.value ? String(field.value) : ''}
+                  onValueChange={(value) => field.onChange(Number(value))}
+                  placeholder={
+                    sectorLoading ? 'Carregando setores…' : 'Selecione o setor'
+                  }
+                  disabled={sectorLoading || isSubmitting || !!sectorError}
+                />
+              )}
+            />
+            {errors.sectorId && (
+              <p role="alert" className="text-destructive text-sm mt-1">
+                {errors.sectorId.message}
+              </p>
+            )}
+            {sectorError && (
+              <div role="alert" className="text-destructive text-sm mt-1">
+                <p>{sectorError}</p>
+                <UiButton
+                  variant="link"
+                  type="button"
+                  className="h-auto p-0 text-destructive"
+                  onClick={() => setSectorReload((value) => value + 1)}
+                >
+                  Tentar carregar setores novamente
+                </UiButton>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <UiLabel
+              htmlFor="plannedEndDate"
+              className="block text-sm font-medium text-foreground mb-1"
+            >
+              Data prevista de finalização
+            </UiLabel>
+            <Controller
+              control={control}
+              name="plannedEndDate"
+              render={({ field }) => (
+                <DatePicker
+                  id="plannedEndDate"
+                  aria-label="Data prevista de finalização"
+                  value={field.value}
+                  onChange={field.onChange}
+                  min={creationDate}
+                />
+              )}
+            />
+            {errors.plannedEndDate && (
+              <p className="text-destructive text-sm mt-1">
+                {errors.plannedEndDate.message}
               </p>
             )}
           </div>
 
           {/* Seção com os botões de ação do formulário. */}
           <div className="mt-6 flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4">
-            <Button
+            <UiButton
+              variant={'outline'}
+              className="w-full sm:w-auto"
               type="button"
-              text="Cancelar"
-              variant={2}
               onClick={onClose}
-              width="w-full sm:w-auto"
-            />
-            <Button
+            >
+              Cancelar
+            </UiButton>
+            <UiButton
+              variant="default"
+              className="w-full sm:w-auto"
               type="submit"
-              text={isSubmitting ? 'Salvando...' : 'Salvar Alterações'}
-              disabled={isSubmitting}
-              width="w-full sm:w-auto"
-            />
+              disabled={isSubmitting || sectorLoading || !!sectorError}
+            >
+              {isSubmitting ? 'Salvando...' : 'Salvar Alterações'}
+            </UiButton>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

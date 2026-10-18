@@ -3,6 +3,7 @@
 import { useAuth } from '@/hooks/useAuth'
 import { useRouter } from 'next/navigation'
 import { JSX, useEffect } from 'react'
+import { Spinner } from '@/components/ui/spinner'
 
 type Props = {
   children: JSX.Element
@@ -35,7 +36,10 @@ function AuthenticatedOnlyFeature({ children }: Props): JSX.Element {
         role="status"
         aria-live="polite"
       >
-        <p className="text-blue-400 text-2xl">Carregando...</p>
+        <p className="flex items-center gap-3 text-2xl text-primary">
+          <Spinner className="size-6" />
+          Carregando...
+        </p>
       </div>
     )
   }

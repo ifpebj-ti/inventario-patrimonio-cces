@@ -133,7 +133,10 @@ class SystemAdminLoginE2ETest {
     @SuppressWarnings("unchecked")
     Map<String, Object> user = (Map<String, Object>) response.getBody().get("user");
     assertThat(user.get("email")).isEqualTo("admin");
-    assertThat(user).doesNotContainKeys("passwordHash", "googleId", "systemUser");
+    assertThat(user)
+        .containsEntry("sectorIds", java.util.List.of())
+        .containsEntry("permissions", java.util.List.of("ADMIN"))
+        .doesNotContainKeys("passwordHash", "googleId", "systemUser", "profile");
 
     var headers = new HttpHeaders();
     headers.setBearerAuth(token);
@@ -142,7 +145,7 @@ class SystemAdminLoginE2ETest {
         restTemplate.exchange("/auth/me", HttpMethod.GET, new HttpEntity<>(headers), Map.class);
     assertThat(me.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(me.getBody().get("email")).isEqualTo("admin");
-    assertThat(me.getBody()).doesNotContainKeys("passwordHash", "googleId", "systemUser");
+    assertThat(me.getBody()).isEqualTo(user);
 
     var users =
         restTemplate.exchange("/users", HttpMethod.GET, new HttpEntity<>(headers), String.class);

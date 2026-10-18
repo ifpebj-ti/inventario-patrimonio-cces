@@ -2,10 +2,10 @@ package clp.inventory.controller;
 
 import clp.inventory.dto.GoogleAuthDto;
 import clp.inventory.dto.LoginDto;
+import clp.inventory.service.AuthenticatedUserService;
 import clp.inventory.service.UserService;
 import clp.inventory.service.auth.AuthenticationService;
 import clp.inventory.service.auth.LoginAttemptLimiter;
-import jakarta.servlet.http.HttpServletRequest;
 import java.time.Duration;
 import javax.security.sasl.AuthenticationException;
 import org.springframework.http.HttpHeaders;
@@ -19,14 +19,17 @@ public class AuthController {
 
   private final AuthenticationService authenticationService;
   private final UserService userService;
+  private final AuthenticatedUserService authenticatedUserService;
   private final LoginAttemptLimiter loginAttemptLimiter;
 
   public AuthController(
       AuthenticationService authenticationService,
       UserService userService,
+      AuthenticatedUserService authenticatedUserService,
       LoginAttemptLimiter loginAttemptLimiter) {
     this.authenticationService = authenticationService;
     this.userService = userService;
+    this.authenticatedUserService = authenticatedUserService;
     this.loginAttemptLimiter = loginAttemptLimiter;
   }
 
@@ -49,8 +52,7 @@ public class AuthController {
   }
 
   @PostMapping("/login")
-  public ResponseEntity<Object> loginWithPassword(
-      @RequestBody LoginDto loginDto, HttpServletRequest request) {
+  public ResponseEntity<Object> loginWithPassword(@RequestBody LoginDto loginDto) {
     if (loginDto == null
         || loginDto.username() == null
         || loginDto.username().isBlank()
@@ -59,11 +61,9 @@ public class AuthController {
       return ResponseEntity.badRequest().body("Missing credentials");
     }
 
-    // O IP é o do peer, ou o do X-Forwarded-For quando server.forward-headers-strategy está ligado.
-    String ip = request.getRemoteAddr();
-
-    // Antes de conferir a senha: o bloqueio vale mesmo com a senha certa e poupa o BCrypt.
-    var blocked = loginAttemptLimiter.blockedFor(ip, loginDto.username());
+    // Antes de conferir a senha: o bloqueio vale mesmo com a senha certa e poupa o BCrypt. O limite
+    // por IP não é daqui, é do Nginx (zona auth no /auth/login).
+    var blocked = loginAttemptLimiter.blockedFor(loginDto.username());
     if (blocked.isPresent()) {
       return tooManyAttempts(blocked.get());
     }
@@ -74,7 +74,7 @@ public class AuthController {
 
       return ResponseEntity.ok().body(response);
     } catch (AuthenticationException e) {
-      loginAttemptLimiter.recordFailure(ip, loginDto.username());
+      loginAttemptLimiter.recordFailure(loginDto.username());
 
       // Mensagem única: não revela se o usuário existe nem se a conta tem senha.
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials");
@@ -90,7 +90,7 @@ public class AuthController {
 
     try {
       var user = userService.getCurrentUser(authHeader);
-      return ResponseEntity.ok().body(user);
+      return ResponseEntity.ok().body(authenticatedUserService.getById(user.getId()));
     } catch (RuntimeException e) {
       return ResponseEntity.badRequest().body("Invalid authorization header");
     }

@@ -38,11 +38,11 @@ public class SectorAllocationService {
             .findById(userId)
             .filter(found -> !found.isSystemUser())
             .orElseThrow(() -> new NoSuchElementException("User not found with id: " + userId));
+    authorizationService.requireAllocatable(actingUserId, user);
     Sector sector =
         sectorRepository
             .findById(sectorId)
-            .orElseThrow(
-                () -> new NoSuchElementException("Sector not found with id: " + sectorId));
+            .orElseThrow(() -> new NoSuchElementException("Sector not found with id: " + sectorId));
     if (!sectorAllocationRepository.existsByUser_IdAndSector_Id(userId, sectorId)) {
       sectorAllocationRepository.save(new SectorAllocation(user, sector));
     }
@@ -57,6 +57,7 @@ public class SectorAllocationService {
             .findById(userId)
             .filter(found -> !found.isSystemUser())
             .orElseThrow(() -> new NoSuchElementException("User not found with id: " + userId));
+    authorizationService.requireAllocatable(actingUserId, user);
     if (!sectorRepository.existsById(sectorId)) {
       throw new NoSuchElementException("Sector not found with id: " + sectorId);
     }

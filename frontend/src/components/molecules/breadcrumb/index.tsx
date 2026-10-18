@@ -1,9 +1,21 @@
 'use client'
 
+import { Button as UiButton } from '@/components/ui/button'
+import {
+  Breadcrumb as UiBreadcrumb,
+  BreadcrumbItem as UiBreadcrumbItem,
+  BreadcrumbLink as UiBreadcrumbLink,
+  BreadcrumbList as UiBreadcrumbList,
+  BreadcrumbPage as UiBreadcrumbPage,
+  BreadcrumbSeparator as UiBreadcrumbSeparator,
+} from '@/components/ui/breadcrumb'
+import { Fragment } from 'react'
+
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Home, ChevronRight, ArrowLeft } from 'lucide-react'
+import { Home, ArrowLeft } from 'lucide-react'
 import { useInventory } from '@/contexts/InventoryContext'
+import { useAuth } from '@/hooks/useAuth'
 
 export interface BreadcrumbItem {
   label: string
@@ -19,6 +31,9 @@ export interface BreadcrumbProps {
 }
 
 const ROUTE_LABELS: Record<string, string> = {
+  sectors: 'Setores',
+  users: 'Usuários',
+  profiles: 'Perfis e permissões',
   dashboard: 'Início',
   inicio: 'Início',
   inventory: 'Inventários',
@@ -59,6 +74,8 @@ export function Breadcrumb({
   const pathname = usePathname()
   const router = useRouter()
   const { inventories } = useInventory()
+  const { user } = useAuth()
+  const hasDashboard = !!user?.permissions?.includes('ADMIN')
 
   const cleanPath = (pathname || '').replace(/\/+$/, '')
   const isDashboard = cleanPath === '' || cleanPath === '/dashboard'
@@ -82,13 +99,15 @@ export function Breadcrumb({
       isHome: true,
     })
   } else {
-    // Adiciona o nó raiz "Início" apontando para /dashboard
-    items.push({
-      label: 'Início',
-      href: '/dashboard',
-      isCurrent: false,
-      isHome: true,
-    })
+    // Adiciona o nó raiz "Início" apontando para o dashboard, que só administradores têm.
+    if (hasDashboard) {
+      items.push({
+        label: 'Início',
+        href: '/dashboard',
+        isCurrent: false,
+        isHome: true,
+      })
+    }
 
     const rawSegments = cleanPath.split('/').filter(Boolean)
 
@@ -96,7 +115,7 @@ export function Breadcrumb({
       const isOnlyInventory = rawSegments.length === 1
       items.push({
         label: 'Inventários',
-        href: '/dashboard',
+        href: '/inventory',
         isCurrent: isOnlyInventory,
       })
 
@@ -167,68 +186,59 @@ export function Breadcrumb({
     >
       {/* Botão de voltar: exibido quando não estiver na raiz do sistema */}
       {showBackButton && !isDashboard && (
-        <button
+        <UiButton
+          variant="ghost"
+          size="icon"
           onClick={handleBack}
           type="button"
           aria-label="Voltar para a página anterior"
           title="Voltar para a página anterior"
           accessKey="b"
-          className="p-2 text-gray-500 hover:text-blue-400 hover:bg-blue-50 rounded-xl transition-all duration-200 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-blue-400 shrink-0"
+          className="shrink-0 text-muted-foreground"
         >
-          <ArrowLeft className="w-5 h-5 shrink-0" aria-hidden="true" />
-        </button>
+          <ArrowLeft className="size-5" aria-hidden="true" />
+        </UiButton>
       )}
 
       {/* Trilha de navegação semântica */}
-      <nav aria-label="breadcrumb" className="min-w-0 flex-1">
-        <ol className="flex items-center flex-wrap gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-600 font-medium">
-          {items.map((item, index) => {
-            return (
-              <li
-                key={`${item.href}-${item.label}-${index}`}
-                className="inline-flex items-center gap-1.5 sm:gap-2 min-w-0"
-              >
-                {index > 0 && (
-                  <ChevronRight
-                    className="w-4 h-4 text-gray-400 shrink-0"
-                    aria-hidden="true"
-                  />
-                )}
-
+      <UiBreadcrumb className="min-w-0 flex-1">
+        <UiBreadcrumbList className="text-xs sm:text-sm font-medium">
+          {items.map((item, index) => (
+            <Fragment key={`${item.href}-${item.label}-${index}`}>
+              {index > 0 && <UiBreadcrumbSeparator />}
+              <UiBreadcrumbItem className="min-w-0">
                 {item.isCurrent ? (
-                  <span
-                    aria-current="page"
-                    className="font-semibold text-gray-900 truncate max-w-[180px] sm:max-w-xs md:max-w-md inline-flex items-center gap-1.5"
+                  <UiBreadcrumbPage
+                    className="font-semibold inline-flex items-center gap-1.5 max-w-[180px] sm:max-w-xs md:max-w-md"
                     title={item.label}
                   >
                     {item.isHome && (
                       <Home
-                        className="w-4 h-4 text-blue-400 shrink-0"
+                        className="size-4 text-primary shrink-0"
                         aria-hidden="true"
                       />
                     )}
                     <span className="truncate">{item.label}</span>
-                  </span>
+                  </UiBreadcrumbPage>
                 ) : (
-                  <Link
-                    href={item.href}
-                    className="group text-gray-600 hover:text-blue-400 transition-colors duration-150 inline-flex items-center gap-1.5 truncate max-w-[140px] sm:max-w-xs hover:underline decoration-blue-200 underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-blue-400 rounded-md"
-                    title={item.label}
-                  >
-                    {item.isHome && (
-                      <Home
-                        className="w-4 h-4 text-gray-400 group-hover:text-blue-400 transition-colors shrink-0"
-                        aria-hidden="true"
-                      />
-                    )}
-                    <span className="truncate">{item.label}</span>
-                  </Link>
+                  <UiBreadcrumbLink asChild>
+                    <Link
+                      href={item.href}
+                      className="inline-flex items-center gap-1.5 max-w-[140px] sm:max-w-xs"
+                      title={item.label}
+                    >
+                      {item.isHome && (
+                        <Home className="size-4 shrink-0" aria-hidden="true" />
+                      )}
+                      <span className="truncate">{item.label}</span>
+                    </Link>
+                  </UiBreadcrumbLink>
                 )}
-              </li>
-            )
-          })}
-        </ol>
-      </nav>
+              </UiBreadcrumbItem>
+            </Fragment>
+          ))}
+        </UiBreadcrumbList>
+      </UiBreadcrumb>
     </div>
   )
 }

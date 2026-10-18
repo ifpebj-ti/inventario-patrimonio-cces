@@ -10,4 +10,9 @@ import org.springframework.stereotype.Repository;
 public interface ItemRepository extends JpaRepository<Item, Long> {
 
   Page<Item> findByInventory_Id(Long inventoryId, Pageable pageable);
+
+  // Contagens usadas para o status do inventário e os indicadores do dashboard.
+  long countByInventory_Id(Long inventoryId);
+
+  long countByInventory_IdAndIsValidTrue(Long inventoryId);
 }

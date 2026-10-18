@@ -83,6 +83,51 @@ class GoogleLoginE2ETest {
 
   @Autowired UserRepository userRepository;
 
+  @Autowired clp.inventory.repository.ProfileRepository profileRepository;
+  @Autowired clp.inventory.repository.SectorRepository sectorRepository;
+  @Autowired clp.inventory.repository.SectorAllocationRepository allocationRepository;
+  @Autowired clp.inventory.service.AdminUserService adminUserService;
+
+  @Test
+  void firstGoogleLoginPreservesPreRegisteredUserProfileAndSectors() throws Exception {
+    var admin = new clp.inventory.model.User();
+    admin.setName("Admin");
+    admin.setEmail("pre-registration-admin@ifpe.edu.br");
+    admin.setGoogleId("pre-registration-admin-sub");
+    admin.setProfile(
+        profileRepository.findAll().stream()
+            .filter(p -> p.name().equals("ADMIN_ORGANIZATION"))
+            .findFirst()
+            .orElseThrow());
+    userRepository.save(admin);
+    var profile =
+        profileRepository.findAll().stream()
+            .filter(p -> p.name().equals("GESTOR_SETOR"))
+            .findFirst()
+            .orElseThrow();
+    var sector =
+        sectorRepository.save(new clp.inventory.model.Sector("Pre-registration sector", null));
+    String email = "pre-registered@ifpe.edu.br";
+    var pending =
+        adminUserService.create(
+            new clp.inventory.dto.CreateUserDto(
+                "Nome definido pelo admin", email, profile.id(), java.util.List.of(sector.id())),
+            admin.getId());
+    var response =
+        restTemplate.postForEntity(
+            "/auth/google", Map.of("credential", signToken(email)), Map.class);
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    var sessionUser = (Map<?, ?>) response.getBody().get("user");
+    assertThat(sessionUser.get("id")).isEqualTo(pending.getId().intValue());
+    assertThat(sessionUser.get("name")).isEqualTo("Nome definido pelo admin");
+    assertThat(sessionUser.get("profileId")).isEqualTo((int) profile.id());
+    assertThat(sessionUser.get("permissions")).isEqualTo(java.util.List.of("MANAGE_SECTOR"));
+    var stored = userRepository.findById(pending.getId()).orElseThrow();
+    assertThat(stored.isPendingGoogleLogin()).isFalse();
+    assertThat(stored.getGoogleId()).isEqualTo("google-sub-" + email);
+    assertThat(allocationRepository.findByUser_Id(pending.getId())).hasSize(1);
+  }
+
   private String signToken(String email) throws JOSEException {
     var now = Instant.now();
     var claims =
@@ -113,8 +158,19 @@ class GoogleLoginE2ETest {
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     String appToken = (String) response.getBody().get("token");
     assertThat(appToken).isNotBlank();
+    @SuppressWarnings("unchecked")
+    Map<String, Object> sessionUser = (Map<String, Object>) response.getBody().get("user");
+    assertThat(sessionUser)
+        .containsEntry("email", ALLOWED_EMAIL)
+        .containsEntry("sectorIds", java.util.List.of())
+        .containsEntry("permissions", java.util.List.of())
+        .doesNotContainKeys("googleId", "systemUser", "passwordHash", "profile");
 
-    assertThat(userRepository.findByEmail(ALLOWED_EMAIL)).isPresent();
+    // Quem entra pela primeira vez nasce com o perfil de consulta (somente leitura).
+    var created = userRepository.findByEmail(ALLOWED_EMAIL).orElseThrow();
+    assertThat(created.getProfile().name()).isEqualTo("CONSULTA");
+    assertThat(((Number) sessionUser.get("profileId")).longValue())
+        .isEqualTo(created.getProfileId());
 
     var meHeaders = new HttpHeaders();
     meHeaders.setBearerAuth(appToken);
@@ -123,6 +179,7 @@ class GoogleLoginE2ETest {
 
     assertThat(meResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(meResponse.getBody().get("email")).isEqualTo(ALLOWED_EMAIL);
+    assertThat(meResponse.getBody()).isEqualTo(sessionUser);
   }
 
   @Test

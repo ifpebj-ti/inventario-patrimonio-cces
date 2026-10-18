@@ -23,13 +23,7 @@ const toAuthError = (
     }
 
     if (status === 429) {
-      const retryAfter = Number(error.response?.headers?.['retry-after'])
-
-      return new AuthError(
-        'rateLimited',
-        'Muitas tentativas de login',
-        Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined,
-      )
+      return new AuthError('rateLimited', 'Muitas tentativas de login')
     }
 
     if (!error.response || (status && status >= 500)) {
