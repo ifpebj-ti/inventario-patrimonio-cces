@@ -216,11 +216,11 @@ export const AdminConfirmation = ({
         showCloseButton={false}
         className="gap-0 overflow-hidden rounded-xl p-0 sm:max-w-md"
       >
-        <div className="flex gap-4 p-6">
+        <header className="flex items-center gap-3 border-b px-6 py-4">
           <span
             aria-hidden="true"
             className={cn(
-              'flex size-10 shrink-0 items-center justify-center rounded-full',
+              'flex size-9 shrink-0 items-center justify-center rounded-full',
               destructive
                 ? 'bg-destructive/10 text-destructive'
                 : 'bg-primary/10 text-primary',
@@ -228,22 +228,20 @@ export const AdminConfirmation = ({
           >
             {destructive ? <TriangleAlert /> : <HelpCircle />}
           </span>
-          <div className="min-w-0 space-y-2">
-            <DialogTitle className="text-lg leading-snug">{title}</DialogTitle>
-            <DialogDescription asChild>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                <p className="text-foreground">{message}</p>
-                {details && details.length > 0 && (
-                  <ul className="list-disc space-y-1 pl-4">
-                    {details.map((detail) => (
-                      <li key={detail}>{detail}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </DialogDescription>
+          <DialogTitle className="text-lg leading-snug">{title}</DialogTitle>
+        </header>
+        <DialogDescription asChild>
+          <div className="space-y-3 px-6 py-5 text-sm text-muted-foreground">
+            <p className="text-base text-foreground">{message}</p>
+            {details && details.length > 0 && (
+              <ul className="list-disc space-y-1.5 pl-5">
+                {details.map((detail) => (
+                  <li key={detail}>{detail}</li>
+                ))}
+              </ul>
+            )}
           </div>
-        </div>
+        </DialogDescription>
         <div className="flex flex-col-reverse gap-2 border-t bg-muted/40 px-6 py-4 sm:flex-row sm:justify-end">
           <UiButton
             variant="outline"
@@ -258,6 +256,11 @@ export const AdminConfirmation = ({
             type="button"
             onClick={onConfirm}
             disabled={busy}
+            // O app não tem tema escuro: sem isto o `dark:` do botão destrutivo o deixa desbotado
+            // quando o sistema do usuário está em modo escuro.
+            className={cn(
+              destructive && 'dark:bg-destructive dark:hover:bg-destructive/90',
+            )}
           >
             {busy ? 'Aguarde...' : confirmLabel}
           </UiButton>
