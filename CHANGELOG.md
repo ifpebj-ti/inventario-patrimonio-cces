@@ -12,6 +12,7 @@ O histórico é atualizado manualmente na própria pull request antes do merge e
 
 ### Added
 
+- Adicionado, na lista de Usuários, o botão rápido **Desativar/Ativar** ao lado de "Gerenciar acesso" (só administrador): desativar pede confirmação e reativar executa direto, com aviso de sucesso ou erro.
 - Adicionados testes Playwright do fluxo CSV no navegador e execução no workflow Quality, com respostas de API simuladas e cache Next isolado.
 - Adicionada verificação local de códigos vazios/longos, duplicatas no CSV, preço inválido/negativo, aspas e linhas físicas antes da pré-validação remota.
 - Adicionados modelo CSV para download, verificação de extensão/cabeçalho no frontend, parsing CSV no backend, mensagens do fluxo de validação/importação e limpeza dos itens com confirmação na interface.
@@ -26,6 +27,7 @@ O histórico é atualizado manualmente na própria pull request antes do merge e
 
 ### Changed
 
+- Só quem tem a permissão `ADMIN` ativa ou desativa usuários (`PATCH /users/{id}/activate` e `/deactivate` respondem `403` ao gestor). O usuário criado no primeiro login com Google passa a nascer **sem perfil** (antes `CONSULTA`); um administrador atribui o perfil e os setores depois. Contas já existentes não mudam.
 - A importação no frontend exige aprovação HTTP 200 explícita para o arquivo atual; troca/remoção invalida o resultado, respostas antigas são ignoradas e cliques repetidos não reenviam o arquivo. Erros HTTP, rede, leitura e contratos inesperados bloqueiam Processar sem inferência pelo texto.
 - Relatórios de importação total/parcial ou totalmente recusada preservam contadores atuais/legados e detalhes das falhas. A limpeza confirmada bloqueia ações simultâneas e só atualiza itens/seleção após sucesso.
 - O compose de produção passa a repassar `SYSTEM_ADMIN_*`, `FORWARD_HEADERS_STRATEGY` (padrão `native`), `AUTH_LOGIN_*` e `CORS_ALLOWED_ORIGINS`.
@@ -34,6 +36,11 @@ O histórico é atualizado manualmente na própria pull request antes do merge e
 - A VM da aplicação nasce sem IP efêmero e usa IPs privados fixos; o `user_data` vai comprimido e a VM ignora mudanças de cloud-init (atualizações do Nginx usam `deploy-nginx.sh`). O Terraform exige versão 1.12 ou superior.
 - A modelagem de ameaças ganhou a revisão `2026-10-11` (ameaça 15 mitigada); a revisão `2026-09-14` volta a ser a original.
 - O CORS da API passa a ser global e configurável por `CORS_ALLOWED_ORIGINS` (padrão `http://localhost:3000`), no lugar do `@CrossOrigin(origins = "*")` de cada controller. Apenas os headers `Authorization` e `Content-Type` são aceitos; `Retry-After` e `Content-Disposition` continuam legíveis pelo navegador.
+
+### Removed
+
+- Removidos `POST /users` e `DELETE /users/{id}`, o `AdminUserService` e a tela de cadastro e exclusão de usuário: usuário só nasce no primeiro login com Google e nunca é excluído, só desativado (o histórico é preservado).
+- Removido o pré-cadastro de usuário: a migration `6.0.xml` apaga a coluna `pending_google_login` (e quaisquer pré-cadastros ainda pendentes e suas alocações) e devolve `ck_user_system_google` à forma estrita; o campo `pendingGoogleLogin` sai do `UserDto` e o selo "Aguardando primeiro acesso" sai da tela.
 
 ### Security
 

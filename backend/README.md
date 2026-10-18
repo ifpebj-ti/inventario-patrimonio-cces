@@ -5,11 +5,11 @@ Contrato de autenticação abaixo. Setor, usuário, perfil e permissão estão d
 
 # - Autenticação
 
-O login com Google é o jeito de entrar dos usuários comuns. Admins e gestores de setor podem
-pré-cadastrar usuários por e-mail, com perfil e setores, em `POST /users` (o gestor, apenas Operador
-de Campo e Consulta nos seus próprios setores). Quem entra pela primeira vez sem pré-cadastro nasce
-como Consulta, e uma conta desativada não consegue entrar (nem manter a sessão aberta). Não há senha local para esses usuários,
-verificação de e-mail própria nem recuperação de senha. A exceção é a **conta de sistema** (admin),
+O login com Google é o jeito de entrar dos usuários comuns e a **única forma de um usuário ser criado**:
+não há cadastro nem pré-cadastro pela API. Quem entra pela primeira vez nasce **sem perfil** e sem nenhuma
+permissão; um administrador atribui o perfil e os setores depois. Usuário nunca é excluído, só desativado
+(`PATCH /users/{id}/deactivate`, só administrador): uma conta desativada não consegue entrar nem manter a sessão
+aberta. Não há senha local para esses usuários, verificação de e-mail própria nem recuperação de senha. A exceção é a **conta de sistema** (admin),
 que entra por usuário e senha — veja "Conta de sistema" abaixo.
 
 O backend recebe o **ID token** que o Google Identity Services entrega ao frontend, valida a
@@ -73,19 +73,16 @@ permissions }`. Ele não serializa a entidade `User` nem expõe campos internos 
 
 ## Criação de conta
 
-Quem entra pela primeira vez sem pré-cadastro tem a conta criada na hora, desde que o domínio
-do e-mail esteja permitido. O admin também pode pré-cadastrar o e-mail, definindo perfil e setores
-antes do primeiro acesso. O Google prova a posse da caixa: o `GoogleTokenProvider` recusa qualquer
-token com `email_verified: false`. O pré-cadastro por ADMIN é uma autorização explícita e pode
-incluir domínios fora da lista de criação automática.
+Quem entra pela primeira vez tem a conta criada na hora, **sem perfil**, desde que o domínio do e-mail
+esteja permitido; um administrador atribui perfil e setores depois. O Google prova a posse da caixa: o
+`GoogleTokenProvider` recusa qualquer token com `email_verified: false`.
 
 O usuário é localizado pelo e-mail normalizado em minúsculas. A migration `3.0.xml` acrescenta
 um índice único sobre `lower(email)`, impedindo duplicidade por diferença entre maiúsculas e minúsculas.
 
-A coluna `google_id` guarda o `sub` verificado do Google. No primeiro acesso de um pré-cadastro,
-esse valor é vinculado à conta e `pending_google_login` passa a falso, preservando ID, nome,
-perfil e setores. Nos acessos posteriores, o `sub` precisa coincidir com o registrado.
-O banco permite `google_id` nulo apenas para contas de sistema ou pré-cadastros pendentes.
+A coluna `google_id` guarda o `sub` verificado do Google, e nos acessos seguintes o `sub` precisa coincidir com o
+registrado. O banco permite `google_id` nulo apenas para a conta de sistema (migration `6.0.xml`, que removeu o
+antigo pré-cadastro e a coluna `pending_google_login`).
 
 ## Conta de sistema
 
