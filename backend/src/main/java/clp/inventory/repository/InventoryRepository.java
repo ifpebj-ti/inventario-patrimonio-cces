@@ -21,6 +21,8 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
 
   List<Inventory> findBySector_Id(long sectorId);
 
+  boolean existsBySector_Id(long sectorId);
+
   // Quem não é admin enxerga os inventários dos setores a que está alocado. Inventários antigos
   // sem setor continuam visíveis apenas para quem os criou.
   @Query(

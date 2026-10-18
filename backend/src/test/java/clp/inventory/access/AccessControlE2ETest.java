@@ -451,7 +451,7 @@ class AccessControlE2ETest {
   }
 
   @Test
-  void onlyAdminCreatesAndDeactivatesSectors() {
+  void onlyAdminCreatesDeactivatesAndDeletesSectors() {
     Scenario s = new Scenario();
     Map<String, Object> body = Map.of("name", "Novo setor " + System.nanoTime());
 
@@ -459,8 +459,13 @@ class AccessControlE2ETest {
       assertThat(status(user, HttpMethod.POST, "/sectors", body)).isEqualTo(HttpStatus.FORBIDDEN);
       assertThat(status(user, HttpMethod.PATCH, "/sectors/" + s.sectorA.id() + "/deactivate", null))
           .isEqualTo(HttpStatus.FORBIDDEN);
+      assertThat(status(user, HttpMethod.DELETE, "/sectors/" + s.sectorA.id(), null))
+          .isEqualTo(HttpStatus.FORBIDDEN);
     }
     assertThat(status(s.admin, HttpMethod.POST, "/sectors", body)).isEqualTo(HttpStatus.CREATED);
+    // O setor A tem gente alocada: nem o admin o exclui.
+    assertThat(status(s.admin, HttpMethod.DELETE, "/sectors/" + s.sectorA.id(), null))
+        .isEqualTo(HttpStatus.CONFLICT);
   }
 
   // ---------------------------------------------------------------- usuários

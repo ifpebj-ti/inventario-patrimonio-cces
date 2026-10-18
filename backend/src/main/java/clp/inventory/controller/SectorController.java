@@ -14,9 +14,10 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Criar, editar, ativar e desativar setor exige a permissão ADMIN; listar e buscar por id exige
- * ADMIN ou MANAGE_SECTOR com vínculo ao setor; gestores só listam seus setores (ver
- * AuthorizationService e docs/wiki/Proposta-de-Modelagem-Organizacoes-Setores-e-Permissoes.md).
+ * Criar, editar, ativar, desativar e excluir setor exige a permissão ADMIN (a exclusão só vale para
+ * setor sem usuário, inventário nem auditoria; senão 409); listar e buscar por id exige ADMIN ou
+ * MANAGE_SECTOR com vínculo ao setor; gestores só listam seus setores (ver AuthorizationService e
+ * docs/wiki/Proposta-de-Modelagem-Organizacoes-Setores-e-Permissoes.md).
  */
 @RestController
 @RequestMapping("/sectors")
@@ -35,7 +36,7 @@ public class SectorController {
   public ResponseEntity<SectorDto> create(@RequestBody SectorDto dto, HttpServletRequest request) {
     try {
       Sector created = sectorService.createSector(dto, actingUserId(request));
-      return ResponseEntity.status(HttpStatus.CREATED).body(SectorDto.from(created));
+      return ResponseEntity.status(HttpStatus.CREATED).body(toDto(created));
     } catch (IllegalArgumentException e) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
     }
@@ -44,15 +45,14 @@ public class SectorController {
   @GetMapping
   public ResponseEntity<List<SectorDto>> list(HttpServletRequest request) {
     List<SectorDto> dtos =
-        sectorService.listAllSectors(actingUserId(request)).stream().map(SectorDto::from).toList();
+        sectorService.listAllSectors(actingUserId(request)).stream().map(this::toDto).toList();
     return ResponseEntity.ok(dtos);
   }
 
   @GetMapping("/{id}")
   public ResponseEntity<SectorDto> getById(@PathVariable long id, HttpServletRequest request) {
     try {
-      return ResponseEntity.ok(
-          SectorDto.from(sectorService.findSectorById(id, actingUserId(request))));
+      return ResponseEntity.ok(toDto(sectorService.findSectorById(id, actingUserId(request))));
     } catch (NoSuchElementException e) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
     }
@@ -62,8 +62,7 @@ public class SectorController {
   public ResponseEntity<SectorDto> update(
       @PathVariable long id, @RequestBody SectorDto dto, HttpServletRequest request) {
     try {
-      return ResponseEntity.ok(
-          SectorDto.from(sectorService.updateSector(id, dto, actingUserId(request))));
+      return ResponseEntity.ok(toDto(sectorService.updateSector(id, dto, actingUserId(request))));
     } catch (NoSuchElementException e) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
     } catch (IllegalArgumentException e) {
@@ -74,8 +73,7 @@ public class SectorController {
   @PatchMapping("/{id}/activate")
   public ResponseEntity<SectorDto> activate(@PathVariable long id, HttpServletRequest request) {
     try {
-      return ResponseEntity.ok(
-          SectorDto.from(sectorService.activateSector(id, actingUserId(request))));
+      return ResponseEntity.ok(toDto(sectorService.activateSector(id, actingUserId(request))));
     } catch (NoSuchElementException e) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
     }
@@ -84,8 +82,17 @@ public class SectorController {
   @PatchMapping("/{id}/deactivate")
   public ResponseEntity<SectorDto> deactivate(@PathVariable long id, HttpServletRequest request) {
     try {
-      return ResponseEntity.ok(
-          SectorDto.from(sectorService.deactivateSector(id, actingUserId(request))));
+      return ResponseEntity.ok(toDto(sectorService.deactivateSector(id, actingUserId(request))));
+    } catch (NoSuchElementException e) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+    }
+  }
+
+  @DeleteMapping("/{id}")
+  public ResponseEntity<Void> delete(@PathVariable long id, HttpServletRequest request) {
+    try {
+      sectorService.deleteSector(id, actingUserId(request));
+      return ResponseEntity.noContent().build();
     } catch (NoSuchElementException e) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
     }
@@ -105,6 +112,10 @@ public class SectorController {
     } catch (NoSuchElementException e) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
     }
+  }
+
+  private SectorDto toDto(Sector sector) {
+    return SectorDto.from(sector, sectorService.isDeletable(sector.id()));
   }
 
   private long actingUserId(HttpServletRequest request) {
