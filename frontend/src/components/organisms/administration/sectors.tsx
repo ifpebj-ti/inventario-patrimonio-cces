@@ -18,6 +18,7 @@ import {
 import { useAdministrationAccess } from '@/contexts/AdministrationAccess'
 import {
   administrationFailure,
+  deleteSector,
   listSectors,
   listSectorUsers,
   saveSector,
@@ -42,6 +43,7 @@ export const SectorsScreen = () => {
   const [form, setForm] = useState({ name: '', code: '' })
   const [formError, setFormError] = useState<string | null>(null)
   const [activation, setActivation] = useState<Sector | null>(null)
+  const [removal, setRemoval] = useState<Sector | null>(null)
   const [viewing, setViewing] = useState<Sector | null>(null)
   const [members, setMembers] = useState<ManagedUser[]>([])
   const [membersLoading, setMembersLoading] = useState(false)
@@ -156,6 +158,27 @@ export const SectorsScreen = () => {
         if (problem.status === 403) await refresh()
       }
     })
+  const removeSector = () =>
+    run(async () => {
+      if (!isAdmin || !removal) return
+      try {
+        await deleteSector(removal.id)
+        setSectors((rows) => rows.filter((row) => row.id !== removal.id))
+        setRemoval(null)
+        toast.success('Setor excluído.')
+      } catch (failure) {
+        const problem = administrationFailure(
+          failure,
+          'O setor possui usuários ou inventários associados e não pode ser excluído. Desative-o em vez disso.',
+        )
+        setRemoval(null)
+        // Aviso em toast, para a lista continuar visível enquanto é atualizada.
+        toast.error(problem.message)
+        if (problem.status === 403) await refresh()
+        // 404/409: a lista local está desatualizada (setor removido ou com novo vínculo).
+        if (problem.status === 404 || problem.status === 409) await load()
+      }
+    })
   const visible = sectors
     .filter(
       (sector) =>
@@ -169,7 +192,7 @@ export const SectorsScreen = () => {
   return (
     <AdminPage
       title="Setores"
-      description="Consulte os setores e seus usuários. Setores são ativados ou desativados, preservando suas associações."
+      description="Consulte os setores e seus usuários. Setores com usuários ou inventários associados só podem ser ativados ou desativados."
       action={
         isAdmin ? (
           <UiButton
@@ -286,6 +309,16 @@ export const SectorsScreen = () => {
                         >
                           {sector.active ? 'Desativar' : 'Ativar'}
                         </UiButton>
+                        {sector.deletable && (
+                          <UiButton
+                            variant="outline"
+                            type="button"
+                            disabled={busy}
+                            onClick={() => setRemoval(sector)}
+                          >
+                            Excluir
+                          </UiButton>
+                        )}
                       </>
                     )}
                   </div>
@@ -369,6 +402,25 @@ export const SectorsScreen = () => {
           </>
         }
         details={['As alocações existentes serão mantidas.']}
+      />
+      <AdminConfirmation
+        isOpen={!!removal}
+        onClose={() => setRemoval(null)}
+        onConfirm={removeSector}
+        busy={busy}
+        title="Excluir setor"
+        confirmLabel="Excluir"
+        tone="destructive"
+        message={
+          <>
+            Deseja excluir o setor{' '}
+            <strong className="font-semibold">{removal?.name}</strong>?
+          </>
+        }
+        details={[
+          'Esta ação não pode ser desfeita.',
+          'Só é possível excluir setor sem usuários e sem inventários associados.',
+        ]}
       />
       {viewing && (
         <AdminModal
