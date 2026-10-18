@@ -27,7 +27,7 @@ O histórico é atualizado manualmente na própria pull request antes do merge e
 
 ### Changed
 
-- A confirmação das telas administrativas (desativar/reativar usuário e setor, alterar perfil, alocar/desalocar) ganhou ícone, nome em destaque, lista das consequências e botão com o verbo da ação (vermelho quando tira acesso ou desfaz algo); o foco inicial fica em "Cancelar" e saiu o botão "Fechar" redundante.
+- A confirmação das telas administrativas (desativar/reativar usuário e setor, alterar perfil, alocar/desalocar) ganhou cabeçalho próprio para o título, nome em destaque, lista das consequências e botão com o verbo da ação (vermelho quando tira acesso ou desfaz algo); o foco inicial fica em "Cancelar" e saiu o botão "Fechar" redundante.
 - Só quem tem a permissão `ADMIN` ativa ou desativa usuários (`PATCH /users/{id}/activate` e `/deactivate` respondem `403` ao gestor). O usuário criado no primeiro login com Google passa a nascer **sem perfil** (antes `CONSULTA`); um administrador atribui o perfil e os setores depois. Contas já existentes não mudam.
 - A importação no frontend exige aprovação HTTP 200 explícita para o arquivo atual; troca/remoção invalida o resultado, respostas antigas são ignoradas e cliques repetidos não reenviam o arquivo. Erros HTTP, rede, leitura e contratos inesperados bloqueiam Processar sem inferência pelo texto.
 - Relatórios de importação total/parcial ou totalmente recusada preservam contadores atuais/legados e detalhes das falhas. A limpeza confirmada bloqueia ações simultâneas e só atualiza itens/seleção após sucesso.

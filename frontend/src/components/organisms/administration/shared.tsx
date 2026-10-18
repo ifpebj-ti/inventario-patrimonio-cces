@@ -9,7 +9,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button as UiButton } from '@/components/ui/button'
 import { ErrorState } from '@/components/ui/error-state'
-import { HelpCircle, TriangleAlert } from 'lucide-react'
+import { TriangleAlert } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 import Link from 'next/link'
@@ -177,7 +177,7 @@ export const AdminModal = ({
 
 /**
  * Confirmação de uma ação. `tone="destructive"` é para o que tira acesso ou desfaz algo (desativar,
- * desalocar): ícone de alerta e botão vermelho. O foco inicial cai em "Cancelar" (o primeiro botão),
+ * desalocar): botão vermelho. O foco inicial cai em "Cancelar" (o primeiro botão),
  * então um Enter distraído não confirma. Esc e clique fora também cancelam, por isso não há "Fechar".
  */
 export const AdminConfirmation = ({
@@ -216,18 +216,7 @@ export const AdminConfirmation = ({
         showCloseButton={false}
         className="gap-0 overflow-hidden rounded-xl p-0 sm:max-w-md"
       >
-        <header className="flex items-center gap-3 border-b px-6 py-4">
-          <span
-            aria-hidden="true"
-            className={cn(
-              'flex size-9 shrink-0 items-center justify-center rounded-full',
-              destructive
-                ? 'bg-destructive/10 text-destructive'
-                : 'bg-primary/10 text-primary',
-            )}
-          >
-            {destructive ? <TriangleAlert /> : <HelpCircle />}
-          </span>
+        <header className="border-b px-6 py-4">
           <DialogTitle className="text-lg leading-snug">{title}</DialogTitle>
         </header>
         <DialogDescription asChild>
