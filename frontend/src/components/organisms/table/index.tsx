@@ -655,14 +655,8 @@ export const Table = ({
                       </div>
                     </div>
 
-                    {/* Botões de Ação do Card: Visualizar (Olho), Editar e Excluir com touch target >= 44x44px */}
+                    {/* Botões de Ação do Card: Editar e Excluir (visualizar é o botão "Ver detalhes") com touch target >= 44x44px */}
                     <div className="flex items-center gap-1 shrink-0">
-                      {onRowDoubleClick && (
-                        <ViewActionEyeButton
-                          onClick={() => handleRowDoubleClick(item)}
-                          title={`Visualizar e editar ${displayName}`}
-                        />
-                      )}
                       {onEditItem && 'name' in item && (
                         <UiButton
                           variant="ghost"
@@ -727,17 +721,34 @@ export const Table = ({
                         })
                       }
 
+                      // Status de inventário: mesmo selo colorido da tabela.
+                      const statusView =
+                        col.key === 'status'
+                          ? inventoryStatusView[
+                              val as keyof typeof inventoryStatusView
+                            ]
+                          : undefined
+
                       return (
                         <div
                           key={col.key}
-                          className="flex items-baseline justify-between gap-2 border-b border-border/50 py-1"
+                          className="flex items-center justify-between gap-2 border-b border-border/50 py-1"
                         >
                           <span className="font-semibold text-muted-foreground shrink-0">
                             {col.headerText}:
                           </span>
-                          <span className="text-foreground text-right truncate max-w-[220px]">
-                            {formattedVal}
-                          </span>
+                          {statusView ? (
+                            <StatusBadge
+                              tone={statusView.tone}
+                              icon={<Clock3 />}
+                            >
+                              {statusView.label}
+                            </StatusBadge>
+                          ) : (
+                            <span className="text-foreground text-right truncate max-w-[220px]">
+                              {formattedVal}
+                            </span>
+                          )}
                         </div>
                       )
                     })}
