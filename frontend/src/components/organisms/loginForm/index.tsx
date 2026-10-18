@@ -23,7 +23,7 @@ const MESSAGES = {
   unauthorized: 'Não foi possível entrar. Use sua conta institucional.',
   unavailable:
     'O serviço de autenticação está indisponível no momento. Tente novamente em alguns minutos.',
-  rateLimited: 'Muitas tentativas. Tente novamente em alguns minutos.',
+  rateLimited: 'Conta bloqueada, tente novamente mais tarde.',
   unexpected: 'Falha inesperada ao entrar. Tente novamente.',
   google:
     'Não foi possível concluir o login com o Google. Verifique sua conexão e tente de novo.',

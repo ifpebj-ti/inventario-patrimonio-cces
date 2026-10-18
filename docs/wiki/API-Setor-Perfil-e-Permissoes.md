@@ -81,9 +81,10 @@ Google (`POST /auth/google`). Sem `Authorization`.
   usuário por 15 min depois de 5 falhas em 15 min (vale **mesmo com a senha certa**, de qualquer IP); o
   **Nginx** freia o IP que faz muitas requisições seguidas ao `/auth/login` (10 por minuto, rajada de
   10; passou disso, `429` com `Retry-After` curto até o ritmo cair, sem bloqueio longo).
-  `/auth/google` e `/auth/me` **não** têm limite de tentativas. Mostre uma mensagem própria ("Muitas
-  tentativas, tente de novo em N minutos") em vez de tratar como erro genérico. O `Retry-After` é
-  legível pelo navegador (CORS expõe o cabeçalho).
+  `/auth/google` e `/auth/me` **não** têm limite de tentativas. Mostre uma mensagem própria (o
+  frontend usa "Conta bloqueada, tente novamente mais tarde.", sem informar o
+  tempo) em vez de tratar como erro genérico. O `Retry-After` é legível pelo navegador (CORS expõe o
+  cabeçalho), caso a tela queira usá-lo.
 - A senha e o identificador vêm de `SYSTEM_ADMIN_PASSWORD`/`SYSTEM_ADMIN_USERNAME` no `.env` do
   backend; o front não tem como saber se o login por senha está ligado, só tentar.
 - Essa conta **não aparece** em `GET /users` nem em `GET /sectors/{id}/users`, e as rotas que mexem em
