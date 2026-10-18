@@ -255,3 +255,22 @@ for (const viewport of viewports.slice(0, 2)) {
     })
   })
 }
+
+// Com a sidebar fixa (>= 1024px), os três cards do topo do inventário só cabem lado a lado
+// a partir de xl; antes disso ficavam estreitos, com títulos e botões sobrepostos.
+test.describe('cards do inventário no tablet', () => {
+  test.use({ viewport: { width: 1024, height: 768 } })
+
+  test('não ficam espremidos', async ({ page }) => {
+    await mock(page)
+    await page.goto('/inventory/10')
+    for (const name of ['Estatísticas', 'Escaneamento', 'Importação']) {
+      const card = page
+        .locator('[data-slot="card"]')
+        .filter({ has: page.getByRole('heading', { name }) })
+      const box = await card.first().boundingBox()
+      expect(box, `card ${name}`).not.toBeNull()
+      expect(box!.width, `largura do card ${name}`).toBeGreaterThanOrEqual(280)
+    }
+  })
+})
