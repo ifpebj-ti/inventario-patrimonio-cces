@@ -2,13 +2,10 @@ package clp.inventory.inventory;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import clp.inventory.model.Sector;
-import clp.inventory.model.SectorAllocation;
-import clp.inventory.model.User;
-import clp.inventory.repository.ProfileRepository;
 import clp.inventory.repository.SectorAllocationRepository;
 import clp.inventory.repository.SectorRepository;
 import clp.inventory.repository.UserRepository;
+import clp.inventory.testsupport.TestAccess;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import java.time.Duration;
@@ -53,30 +50,18 @@ class InventorySectorE2ETest {
 
   @Autowired UserRepository userRepository;
 
-  @Autowired ProfileRepository profileRepository;
+  @Autowired TestAccess access;
 
   @Autowired SectorRepository sectorRepository;
 
   @Autowired SectorAllocationRepository sectorAllocationRepository;
 
-  private long createUserWithProfile(String email, String profileName) {
-    var profile =
-        profileRepository.findAll().stream()
-            .filter(p -> profileName.equals(p.name()))
-            .findFirst()
-            .orElseThrow();
-    User user = new User();
-    user.setName("Test User");
-    user.setEmail(email);
-    user.setGoogleId("google-" + email);
-    user.setProfile(profile);
-    return userRepository.save(user).getId();
+  private long createUserWithProfile(String email, String roleName) {
+    return access.user(email, roleName).getId();
   }
 
   private void allocate(long userId, long sectorId) {
-    User user = userRepository.findById(userId).orElseThrow();
-    Sector sector = sectorRepository.findById(sectorId).orElseThrow();
-    sectorAllocationRepository.save(new SectorAllocation(user, sector));
+    access.allocate(userId, sectorId);
   }
 
   private HttpHeaders authHeaders(long userId) {
@@ -92,8 +77,7 @@ class InventorySectorE2ETest {
   }
 
   private long adminUserId() {
-    return createUserWithProfile(
-        "admin-" + System.nanoTime() + "@ifpe.edu.br", "ADMIN_ORGANIZATION");
+    return createUserWithProfile("admin-" + System.nanoTime() + "@ifpe.edu.br", TestAccess.ADMIN);
   }
 
   private long createSector(long adminId, String name) {
@@ -146,7 +130,7 @@ class InventorySectorE2ETest {
     long sectorId = createSector(adminId, "Setor Alocado " + System.nanoTime());
     createInventory(adminId, "Inventario Alocado", sectorId);
     long manager =
-        createUserWithProfile("gestor-" + System.nanoTime() + "@ifpe.edu.br", "GESTOR_SETOR");
+        createUserWithProfile("gestor-" + System.nanoTime() + "@ifpe.edu.br", TestAccess.MANAGER);
     allocate(manager, sectorId);
 
     var response = listBySector(manager, sectorId, List.class);
@@ -160,7 +144,7 @@ class InventorySectorE2ETest {
     long adminId = adminUserId();
     long sectorId = createSector(adminId, "Setor Alheio " + System.nanoTime());
     long outsider =
-        createUserWithProfile("gestor-" + System.nanoTime() + "@ifpe.edu.br", "GESTOR_SETOR");
+        createUserWithProfile("gestor-" + System.nanoTime() + "@ifpe.edu.br", TestAccess.MANAGER);
 
     var response = listBySector(outsider, sectorId, Map.class);
 

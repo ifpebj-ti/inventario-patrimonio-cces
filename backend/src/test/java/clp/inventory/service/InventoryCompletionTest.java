@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -39,10 +40,22 @@ class InventoryCompletionTest {
     when(inventories.save(inventory)).thenReturn(inventory);
   }
 
+  private Role grantedRole;
+
   private void grant(String permission) {
-    Profile profile = new Profile("TEST", "");
-    profile.addPermission(new Permission(permission, ""));
-    actor.setProfile(profile);
+    if ("ADMIN".equals(permission)) {
+      actor.setAdministrator(true);
+      return;
+    }
+    grantedRole = new Role("TEST", "");
+    grantedRole.setPermissions(Set.of(new Permission(permission, "")));
+  }
+
+  /** Aloca o usuário no setor do inventário (id 3) com o cargo concedido em {@link #grant}. */
+  private void allocateInSector() {
+    SectorAllocation allocation = new SectorAllocation(actor, inventory.sector(), grantedRole);
+    when(allocations.findByUser_IdAndSector_Id(7L, 3L)).thenReturn(Optional.of(allocation));
+    when(allocations.existsByUser_IdAndSector_Id(7L, 3L)).thenReturn(true);
   }
 
   private void assertStatus(Runnable action, HttpStatus status) {
@@ -66,7 +79,7 @@ class InventoryCompletionTest {
   @Test
   void managerOfInventorySectorCanFinish() {
     grant("MANAGE_SECTOR");
-    when(allocations.existsByUser_IdAndSector_Id(7L, 3L)).thenReturn(true);
+    allocateInSector();
     service.finishInventory(10L, 7L);
     assertThat(inventory.status()).isEqualTo(Inventory.Status.CONCLUIDO);
   }
@@ -82,7 +95,7 @@ class InventoryCompletionTest {
   @Test
   void ownerWithoutRequiredPermissionCannotFinish() {
     grant("MANAGE_ITEM");
-    when(allocations.existsByUser_IdAndSector_Id(7L, 3L)).thenReturn(true);
+    allocateInSector();
     assertStatus(() -> service.finishInventory(10L, 7L), HttpStatus.FORBIDDEN);
     verify(inventories, never()).save(any());
   }

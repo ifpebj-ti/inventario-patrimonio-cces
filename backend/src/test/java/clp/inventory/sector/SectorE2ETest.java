@@ -4,13 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import clp.inventory.model.Inventory;
 import clp.inventory.model.Sector;
-import clp.inventory.model.SectorAllocation;
-import clp.inventory.model.User;
 import clp.inventory.repository.InventoryRepository;
-import clp.inventory.repository.ProfileRepository;
 import clp.inventory.repository.SectorAllocationRepository;
 import clp.inventory.repository.SectorRepository;
 import clp.inventory.repository.UserRepository;
+import clp.inventory.testsupport.TestAccess;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import java.time.Duration;
@@ -35,8 +33,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 /**
  * Sobe a aplicação inteira (Postgres real via Testcontainers, HTTP real via TestRestTemplate).
  * Setor agora exige permissão de verdade (ADMIN para escrita, ADMIN ou MANAGE_SECTOR para leitura),
- * então os testes precisam de usuários reais com um dos perfis seedados (ADMIN_ORGANIZATION,
- * GESTOR_SETOR, OPERADOR_CAMPO, CONSULTA) em vez de um JWT genérico.
+ * então os testes precisam de usuários reais com um dos cargos seedados (Gestor de Setor, Operador
+ * de Campo, Consulta) ou administrador em vez de um JWT genérico.
  */
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -57,7 +55,7 @@ class SectorE2ETest {
 
   @Autowired UserRepository userRepository;
 
-  @Autowired ProfileRepository profileRepository;
+  @Autowired TestAccess access;
 
   @Autowired SectorRepository sectorRepository;
 
@@ -66,23 +64,11 @@ class SectorE2ETest {
   @Autowired InventoryRepository inventoryRepository;
 
   private void allocateSectorDirectly(long userId, long sectorId) {
-    User user = userRepository.findById(userId).orElseThrow();
-    Sector sector = sectorRepository.findById(sectorId).orElseThrow();
-    sectorAllocationRepository.save(new SectorAllocation(user, sector));
+    access.allocate(userId, sectorId);
   }
 
-  private long createUserWithProfile(String email, String profileName) {
-    var profile =
-        profileRepository.findAll().stream()
-            .filter(p -> profileName.equals(p.name()))
-            .findFirst()
-            .orElseThrow();
-    User user = new User();
-    user.setName("Test User");
-    user.setEmail(email);
-    user.setGoogleId("google-" + email);
-    user.setProfile(profile);
-    return userRepository.save(user).getId();
+  private long createUserWithProfile(String email, String roleName) {
+    return access.user(email, roleName).getId();
   }
 
   private String mintToken(long userId) {
@@ -102,8 +88,7 @@ class SectorE2ETest {
   }
 
   private long adminUserId() {
-    return createUserWithProfile(
-        "admin-" + System.nanoTime() + "@ifpe.edu.br", "ADMIN_ORGANIZATION");
+    return createUserWithProfile("admin-" + System.nanoTime() + "@ifpe.edu.br", TestAccess.ADMIN);
   }
 
   private Map<String, Object> sectorBody(String name, String code) {
@@ -153,7 +138,7 @@ class SectorE2ETest {
 
   @Test
   void create_asNonAdmin_returns403() {
-    long nonAdminId = createUserWithProfile("sem-admin-criar@ifpe.edu.br", "CONSULTA");
+    long nonAdminId = createUserWithProfile("sem-admin-criar@ifpe.edu.br", TestAccess.CONSULT);
 
     var response = create("Setor Sem Permissao", null, nonAdminId);
 
@@ -176,7 +161,7 @@ class SectorE2ETest {
 
   @Test
   void list_asGestorWithoutAllocation_returnsEmptyList() {
-    long gestorId = createUserWithProfile("gestor-listagem@ifpe.edu.br", "GESTOR_SETOR");
+    long gestorId = createUserWithProfile("gestor-listagem@ifpe.edu.br", TestAccess.MANAGER);
 
     var response =
         restTemplate.exchange(
@@ -196,7 +181,7 @@ class SectorE2ETest {
         ((Number) create("Setor Gestor Vinculado 2", null, adminId).getBody().get("id"))
             .longValue();
     create("Setor Gestor Sem Vinculo", null, adminId);
-    long managerId = createUserWithProfile("gestor-vinculado@ifpe.edu.br", "GESTOR_SETOR");
+    long managerId = createUserWithProfile("gestor-vinculado@ifpe.edu.br", TestAccess.MANAGER);
     allocateSectorDirectly(managerId, first);
     allocateSectorDirectly(managerId, second);
     Sector inactive = sectorRepository.findById(second).orElseThrow();
@@ -220,7 +205,7 @@ class SectorE2ETest {
     long sectorId =
         ((Number) create("Setor Acesso Direto Restrito", null, adminId).getBody().get("id"))
             .longValue();
-    long managerId = createUserWithProfile("gestor-acesso-direto@ifpe.edu.br", "GESTOR_SETOR");
+    long managerId = createUserWithProfile("gestor-acesso-direto@ifpe.edu.br", TestAccess.MANAGER);
     for (String suffix : List.of("", "/users")) {
       var response =
           restTemplate.exchange(
@@ -254,7 +239,7 @@ class SectorE2ETest {
 
   @Test
   void list_asConsultaWithoutAllocation_returnsEmptyList() {
-    long consultaId = createUserWithProfile("consulta-listagem@ifpe.edu.br", "CONSULTA");
+    long consultaId = createUserWithProfile("consulta-listagem@ifpe.edu.br", TestAccess.CONSULT);
 
     var response =
         restTemplate.exchange(
@@ -301,7 +286,7 @@ class SectorE2ETest {
     long adminId = adminUserId();
     var created = create("Setor Busca Sem Permissao", null, adminId);
     long id = ((Number) created.getBody().get("id")).longValue();
-    long operadorId = createUserWithProfile("operador-busca@ifpe.edu.br", "OPERADOR_CAMPO");
+    long operadorId = createUserWithProfile("operador-busca@ifpe.edu.br", TestAccess.OPERATOR);
 
     var response =
         restTemplate.exchange(
@@ -353,7 +338,7 @@ class SectorE2ETest {
     long adminId = adminUserId();
     var created = create("Setor Edicao Sem Permissao", null, adminId);
     long id = ((Number) created.getBody().get("id")).longValue();
-    long nonAdminId = createUserWithProfile("sem-admin-editar@ifpe.edu.br", "GESTOR_SETOR");
+    long nonAdminId = createUserWithProfile("sem-admin-editar@ifpe.edu.br", TestAccess.MANAGER);
 
     var response =
         restTemplate.exchange(
@@ -438,7 +423,7 @@ class SectorE2ETest {
     long adminId = adminUserId();
     var created = create("Setor Ativar Sem Permissao", null, adminId);
     long id = ((Number) created.getBody().get("id")).longValue();
-    long nonAdminId = createUserWithProfile("sem-admin-ativar@ifpe.edu.br", "GESTOR_SETOR");
+    long nonAdminId = createUserWithProfile("sem-admin-ativar@ifpe.edu.br", TestAccess.MANAGER);
 
     var response =
         restTemplate.exchange(
@@ -455,7 +440,7 @@ class SectorE2ETest {
     long adminId = adminUserId();
     var created = create("Setor Desativar Sem Permissao", null, adminId);
     long id = ((Number) created.getBody().get("id")).longValue();
-    long nonAdminId = createUserWithProfile("sem-admin-desativar@ifpe.edu.br", "GESTOR_SETOR");
+    long nonAdminId = createUserWithProfile("sem-admin-desativar@ifpe.edu.br", TestAccess.MANAGER);
 
     var response =
         restTemplate.exchange(
@@ -487,7 +472,7 @@ class SectorE2ETest {
         ((Number) create("Setor Excluir Com Usuario", null, adminId).getBody().get("id"))
             .longValue();
     allocateSectorDirectly(
-        createUserWithProfile("excluir-com-usuario@ifpe.edu.br", "CONSULTA"), id);
+        createUserWithProfile("excluir-com-usuario@ifpe.edu.br", TestAccess.CONSULT), id);
 
     var response = deleteSector(id, adminId);
 
@@ -530,9 +515,9 @@ class SectorE2ETest {
     long id =
         ((Number) create("Setor Excluir Sem Permissao", null, adminId).getBody().get("id"))
             .longValue();
-    long managerId = createUserWithProfile("excluir-gestor@ifpe.edu.br", "GESTOR_SETOR");
+    long managerId = createUserWithProfile("excluir-gestor@ifpe.edu.br", TestAccess.MANAGER);
     allocateSectorDirectly(managerId, id);
-    long consultaId = createUserWithProfile("excluir-consulta@ifpe.edu.br", "CONSULTA");
+    long consultaId = createUserWithProfile("excluir-consulta@ifpe.edu.br", TestAccess.CONSULT);
 
     for (long actor : List.of(managerId, consultaId)) {
       assertThat(deleteSector(id, actor).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
@@ -561,7 +546,7 @@ class SectorE2ETest {
     long adminId = adminUserId();
     var created = create("Setor Com Usuarios", null, adminId);
     long sectorId = ((Number) created.getBody().get("id")).longValue();
-    long userId = createUserWithProfile("usuario-alocado@ifpe.edu.br", "CONSULTA");
+    long userId = createUserWithProfile("usuario-alocado@ifpe.edu.br", TestAccess.CONSULT);
     allocateSectorDirectly(userId, sectorId);
 
     var response =
@@ -580,7 +565,7 @@ class SectorE2ETest {
     long adminId = adminUserId();
     var created = create("Setor Usuarios Gestor", null, adminId);
     long sectorId = ((Number) created.getBody().get("id")).longValue();
-    long gestorId = createUserWithProfile("gestor-usuarios@ifpe.edu.br", "GESTOR_SETOR");
+    long gestorId = createUserWithProfile("gestor-usuarios@ifpe.edu.br", TestAccess.MANAGER);
     allocateSectorDirectly(gestorId, sectorId);
 
     var response =
@@ -598,7 +583,7 @@ class SectorE2ETest {
     long adminId = adminUserId();
     var created = create("Setor Usuarios Sem Permissao", null, adminId);
     long sectorId = ((Number) created.getBody().get("id")).longValue();
-    long consultaId = createUserWithProfile("consulta-usuarios@ifpe.edu.br", "CONSULTA");
+    long consultaId = createUserWithProfile("consulta-usuarios@ifpe.edu.br", TestAccess.CONSULT);
 
     var response =
         restTemplate.exchange(

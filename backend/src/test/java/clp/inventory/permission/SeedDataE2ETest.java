@@ -2,9 +2,8 @@ package clp.inventory.permission;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import clp.inventory.model.User;
-import clp.inventory.repository.ProfileRepository;
 import clp.inventory.repository.UserRepository;
+import clp.inventory.testsupport.TestAccess;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import java.time.Duration;
@@ -48,21 +47,11 @@ class SeedDataE2ETest {
 
   @Autowired UserRepository userRepository;
 
-  @Autowired ProfileRepository profileRepository;
+  @Autowired TestAccess access;
 
-  // /profiles e /permissions exigem ADMIN: um usuário com o perfil seedado ADMIN_ORGANIZATION.
+  // /roles e /permissions por id exigem administrador.
   private long adminUserId() {
-    var adminProfile =
-        profileRepository.findAll().stream()
-            .filter(p -> "ADMIN_ORGANIZATION".equals(p.name()))
-            .findFirst()
-            .orElseThrow();
-    User user = new User();
-    user.setName("Admin Seed Test");
-    user.setEmail("admin-seed-" + System.nanoTime() + "@ifpe.edu.br");
-    user.setGoogleId("google-admin-seed-" + System.nanoTime());
-    user.setProfile(adminProfile);
-    return userRepository.save(user).getId();
+    return access.admin("admin-seed-" + System.nanoTime() + "@ifpe.edu.br").getId();
   }
 
   private HttpHeaders authHeaders() {
@@ -79,22 +68,19 @@ class SeedDataE2ETest {
     return headers;
   }
 
-  private List<Map> listProfiles() {
+  private List<Map> listRoles() {
     var response =
         restTemplate.exchange(
-            "/profiles", HttpMethod.GET, new HttpEntity<>(authHeaders()), List.class);
+            "/roles", HttpMethod.GET, new HttpEntity<>(authHeaders()), List.class);
     return response.getBody();
   }
 
-  private Map findProfileByName(String name) {
-    return listProfiles().stream()
-        .filter(p -> name.equals(p.get("name")))
-        .findFirst()
-        .orElseThrow();
+  private Map findRoleByName(String name) {
+    return listRoles().stream().filter(p -> name.equals(p.get("name"))).findFirst().orElseThrow();
   }
 
-  // Nomes das permissões de um perfil seedado (o ProfileDto só traz os ids).
-  private List<String> permissionNamesOf(String profileName) {
+  // Nomes das permissões de um cargo seedado (o RoleDto só traz os ids).
+  private List<String> permissionNamesOf(String roleName) {
     var permissions =
         restTemplate
             .exchange("/permissions", HttpMethod.GET, new HttpEntity<>(authHeaders()), List.class)
@@ -104,52 +90,46 @@ class SeedDataE2ETest {
       Map<?, ?> map = (Map<?, ?>) permission;
       nameById.put((Number) map.get("id"), (String) map.get("name"));
     }
-    return ((List<?>) findProfileByName(profileName).get("permissionIds"))
+    return ((List<?>) findRoleByName(roleName).get("permissionIds"))
         .stream().map(id -> nameById.get((Number) id)).toList();
   }
 
   @Test
-  void seed_createsThreePermissions() {
+  void seed_createsTwoPermissions() {
     var response =
         restTemplate.exchange(
             "/permissions", HttpMethod.GET, new HttpEntity<>(authHeaders()), List.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(response.getBody()).hasSize(3);
+    assertThat(response.getBody()).hasSize(2);
     assertThat(response.getBody())
         .extracting(p -> ((Map<?, ?>) p).get("name"))
-        .containsExactlyInAnyOrder("ADMIN", "MANAGE_SECTOR", "MANAGE_ITEM");
+        .containsExactlyInAnyOrder("MANAGE_SECTOR", "MANAGE_ITEM");
   }
 
   @Test
-  void seed_createsFourProfiles() {
-    var profiles = listProfiles();
+  void seed_createsThreeRolesAndNoAdministratorRole() {
+    var roles = listRoles();
 
-    assertThat(profiles).hasSize(4);
-    assertThat(profiles)
+    assertThat(roles).hasSize(3);
+    assertThat(roles)
         .extracting(p -> p.get("name"))
-        .containsExactlyInAnyOrder(
-            "ADMIN_ORGANIZATION", "GESTOR_SETOR", "OPERADOR_CAMPO", "CONSULTA");
-  }
-
-  @Test
-  void seed_adminOrganizationHasAdminPermission() {
-    assertThat(permissionNamesOf("ADMIN_ORGANIZATION")).containsExactly("ADMIN");
+        .containsExactlyInAnyOrder(TestAccess.MANAGER, TestAccess.OPERATOR, TestAccess.CONSULT);
   }
 
   @Test
   void seed_gestorSetorHasManageSectorPermission() {
-    assertThat(permissionNamesOf("GESTOR_SETOR")).containsExactly("MANAGE_SECTOR");
+    assertThat(permissionNamesOf(TestAccess.MANAGER)).containsExactly("MANAGE_SECTOR");
   }
 
   @Test
   void seed_operadorCampoHasManageItemPermission() {
-    assertThat(permissionNamesOf("OPERADOR_CAMPO")).containsExactly("MANAGE_ITEM");
+    assertThat(permissionNamesOf(TestAccess.OPERATOR)).containsExactly("MANAGE_ITEM");
   }
 
   @Test
   void seed_consultaHasNoPermissions() {
-    var consulta = findProfileByName("CONSULTA");
+    var consulta = findRoleByName(TestAccess.CONSULT);
 
     assertThat((List<?>) consulta.get("permissionIds")).isEmpty();
   }
