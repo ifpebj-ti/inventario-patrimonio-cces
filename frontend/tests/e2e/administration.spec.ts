@@ -794,6 +794,49 @@ test('administrador cria um cargo escolhendo as permissões', async ({
   })
 })
 
+test('modais de cargo e de setor seguem o padrão: seções, estado no rodapé e salvar só com mudança', async ({
+  page,
+}) => {
+  const state = await setup(page)
+  await page.goto('/roles')
+  await page.getByRole('button', { name: 'Novo cargo' }).click()
+  const novo = page.getByRole('dialog', { name: 'Novo cargo' })
+  expect(
+    await novo.getByRole('heading', { level: 3 }).allTextContents(),
+  ).toEqual(['Dados do cargo', 'Permissões'])
+  await expect(novo).toContainText('Informe o nome do cargo')
+  await novo.getByLabel('Nome do cargo').fill('Auditoria')
+  await expect(novo).toContainText('Nenhuma permissão selecionada')
+  await novo.getByRole('checkbox', { name: 'Gerenciar Item' }).click()
+  await expect(novo).toContainText('1 permissão selecionada')
+  // O × do cabeçalho fecha sem enviar nada.
+  await novo.getByRole('button', { name: 'Fechar diálogo' }).click()
+  await expect(novo).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Editar cargo Consulta' }).click()
+  const editar = page.getByRole('dialog', { name: 'Editar cargo' })
+  const salvar = editar.getByRole('button', { name: 'Salvar cargo' })
+  await expect(editar).toContainText('Nenhuma alteração pendente')
+  await expect(salvar).toBeDisabled()
+  await editar.getByLabel('Descrição (opcional)').fill('Outra descrição')
+  await expect(editar).toContainText('1 alteração pendente')
+  await expect(salvar).toBeEnabled()
+  await editar.getByRole('button', { name: 'Cancelar' }).click()
+
+  await page.goto('/sectors')
+  await page.getByRole('button', { name: 'Novo setor' }).click()
+  const setor = page.getByRole('dialog', { name: 'Novo setor' })
+  await expect(
+    setor.getByRole('heading', { name: 'Dados do setor' }),
+  ).toBeVisible()
+  await expect(setor).toContainText('Informe o nome do setor')
+  await setor.getByLabel('Nome do setor').fill('Financeiro')
+  await expect(setor).toContainText('Pronto para salvar')
+  await setor.getByRole('button', { name: 'Fechar diálogo' }).click()
+  await expect(setor).toHaveCount(0)
+  expect(state.requests.filter((r) => r.method !== 'GET')).toHaveLength(0)
+})
+
 test('cargo valida nome vazio e nome repetido', async ({ page }) => {
   const state = await setup(page)
   await page.goto('/roles')

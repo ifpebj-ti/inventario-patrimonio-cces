@@ -10,7 +10,7 @@ import { Label as UiLabel } from '@/components/ui/label'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { cn } from '@/lib/utils'
 import type { ManagedUser, Sector } from '@/commons/models/administration'
-import { ErrorNotice } from './shared'
+import { AdminModalFooter, ErrorNotice } from './shared'
 
 // O que o administrador escolheu e ainda não foi enviado: o papel de administrador (se mudou). Os
 // setores e cargos do usuário não se alteram aqui: são geridos em Setores → Usuários associados.
@@ -242,36 +242,35 @@ export const UserAccessModal = ({
           </section>
         </div>
 
-        <footer className="flex shrink-0 flex-col gap-3 border-t bg-muted/40 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <p role="status" className="text-sm text-muted-foreground">
-            {pending === 0
+        <AdminModalFooter
+          status={
+            pending === 0
               ? 'Nenhuma alteração pendente'
-              : '1 alteração pendente'}
-          </p>
-          <div className="flex flex-col-reverse gap-2 sm:flex-row">
-            <UiButton
-              variant="outline"
-              type="button"
-              disabled={busy}
-              onClick={onClose}
-            >
-              Cancelar
-            </UiButton>
-            <UiButton
-              type="button"
-              disabled={busy || pending === 0}
-              onClick={() =>
-                onSave({
-                  administrator: administratorChanged
-                    ? desiredAdministrator
-                    : undefined,
-                })
-              }
-            >
-              {busy ? 'Salvando...' : 'Salvar alterações'}
-            </UiButton>
-          </div>
-        </footer>
+              : '1 alteração pendente'
+          }
+        >
+          <UiButton
+            variant="outline"
+            type="button"
+            disabled={busy}
+            onClick={onClose}
+          >
+            Cancelar
+          </UiButton>
+          <UiButton
+            type="button"
+            disabled={busy || pending === 0}
+            onClick={() =>
+              onSave({
+                administrator: administratorChanged
+                  ? desiredAdministrator
+                  : undefined,
+              })
+            }
+          >
+            {busy ? 'Salvando...' : 'Salvar alterações'}
+          </UiButton>
+        </AdminModalFooter>
       </DialogContent>
     </Dialog>
   )

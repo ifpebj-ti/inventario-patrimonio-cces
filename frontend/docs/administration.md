@@ -33,6 +33,8 @@ Durante a atualização do acesso (por exemplo, depois de salvar as próprias al
 
 Os serviços reutilizam Axios com Bearer do projeto e rejeitam status HTTP de erro. Zod verifica os DTOs recebidos; corpo inesperado bloqueia o fluxo. Mensagens são escolhidas por status, sem depender de response.data.message (exceto conflitos conhecidos informados pela própria tela). São tratados 400, 401, 403, 404, 405, 409, falhas do servidor e ausência de resposta. Formulários mantêm os valores quando a gravação falha; nenhuma alteração é aplicada localmente antes da confirmação do servidor.
 
+Os modais administrativos (acesso do usuário, cargo, setor e adicionar usuários) seguem o mesmo padrão (`AdminModal` em `shared.tsx`): cabeçalho com o título e o ×, seções com título e descrição (`AdminModalSection`) e rodapé fixo com o estado e as ações (`AdminModalFooter`).
+
 Modais têm nomes acessíveis, Escape, foco contido e retorno de foco. Ao abrir uma confirmação sobre um editor, o editor fica inerte. Uma trava imediata evita mutações repetidas; as ações ficam desabilitadas durante a requisição.
 
 ## Regras que a API aplica

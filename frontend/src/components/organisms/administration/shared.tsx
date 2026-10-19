@@ -9,7 +9,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button as UiButton } from '@/components/ui/button'
 import { ErrorState } from '@/components/ui/error-state'
-import { TriangleAlert } from 'lucide-react'
+import { TriangleAlert, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 import Link from 'next/link'
@@ -135,20 +135,23 @@ export const AdminPage = ({
   </div>
 )
 
-// Mesmo padrão da confirmação: cabeçalho com o título e uma divisória, e só então o conteúdo. O cabeçalho
-// fica fixo e o conteúdo rola quando é maior que a tela.
+// Padrão dos modais administrativos (o mesmo do "Gerenciar acesso" do usuário): cabeçalho fixo com o
+// título e o × para fechar, conteúdo em seções separadas por divisória que rola quando é maior que a
+// tela e, quando houver, rodapé fixo (`footer`, ver `AdminModalFooter`) com o estado e as ações.
 export const AdminModal = ({
   title,
   children,
   onClose,
   busy = false,
   inactive = false,
+  footer,
 }: {
   title: string
   children: ReactNode
   onClose: () => void
   busy?: boolean
   inactive?: boolean
+  footer?: ReactNode
 }) => (
   <Dialog
     open
@@ -158,26 +161,71 @@ export const AdminModal = ({
   >
     <DialogContent
       showCloseButton={false}
-      className="flex max-h-[90vh] flex-col gap-0 overflow-hidden rounded-xl p-0 sm:max-w-2xl"
+      className="flex max-h-[92vh] flex-col gap-0 overflow-hidden rounded-xl p-0 sm:max-w-[40rem]"
     >
       <header className="flex shrink-0 items-center justify-between gap-3 border-b px-6 py-4">
         <DialogTitle className="min-w-0 text-lg leading-snug">
           {title}
         </DialogTitle>
         <UiButton
-          variant="outline"
+          variant="ghost"
+          size="icon"
           disabled={busy || inactive}
           onClick={onClose}
           aria-label="Fechar diálogo"
         >
-          Fechar
+          <X />
         </UiButton>
       </header>
-      <div inert={inactive} className="space-y-4 overflow-y-auto px-6 py-5">
+      <div
+        inert={inactive}
+        className="flex-1 space-y-6 overflow-y-auto px-6 py-5"
+      >
         {children}
       </div>
+      {footer}
     </DialogContent>
   </Dialog>
+)
+
+// Seção de um modal: título, descrição curta e o conteúdo. A partir da segunda, `divided` põe a
+// divisória em cima.
+export const AdminModalSection = ({
+  title,
+  description,
+  divided = false,
+  children,
+}: {
+  title: string
+  description?: ReactNode
+  divided?: boolean
+  children: ReactNode
+}) => (
+  <section className={cn('space-y-3', divided && 'border-t pt-5')}>
+    <div>
+      <h3 className="font-semibold">{title}</h3>
+      {description && (
+        <p className="text-sm text-muted-foreground">{description}</p>
+      )}
+    </div>
+    {children}
+  </section>
+)
+
+// Rodapé fixo do modal: o estado à esquerda (ex.: "Nenhuma alteração pendente") e as ações à direita.
+export const AdminModalFooter = ({
+  status,
+  children,
+}: {
+  status: ReactNode
+  children: ReactNode
+}) => (
+  <footer className="flex shrink-0 flex-col gap-3 border-t bg-muted/40 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <p role="status" className="text-sm text-muted-foreground">
+      {status}
+    </p>
+    <div className="flex flex-col-reverse gap-2 sm:flex-row">{children}</div>
+  </footer>
 )
 
 /**
