@@ -39,6 +39,8 @@ import {
 import {
   AdminConfirmation,
   AdminModal,
+  AdminModalFooter,
+  AdminModalSection,
   AdminPage,
   ErrorNotice,
   useOperation,
@@ -187,6 +189,23 @@ export const RolesScreen = () => {
       }
     })
 
+  // Rodapé do modal de cargo: ao editar, quantos campos mudaram; ao criar, o que já está marcado.
+  const editorChanges =
+    editing && editing !== 'new'
+      ? (form.name !== editing.name ? 1 : 0) +
+        (form.description !== (editing.description || '') ? 1 : 0) +
+        (sameIds(form.permissionIds, editing.permissionIds) ? 0 : 1)
+      : 0
+  const editorStatus =
+    editing === 'new'
+      ? form.name.trim()
+        ? form.permissionIds.length === 0
+          ? 'Nenhuma permissão selecionada'
+          : `${form.permissionIds.length} ${form.permissionIds.length === 1 ? 'permissão selecionada' : 'permissões selecionadas'}`
+        : 'Informe o nome do cargo'
+      : editorChanges === 0
+        ? 'Nenhuma alteração pendente'
+        : `${editorChanges} ${editorChanges === 1 ? 'alteração pendente' : 'alterações pendentes'}`
   const visible = roles
     .filter((role) => {
       const assigned = permissions.filter((permission) =>
@@ -344,76 +363,8 @@ export const RolesScreen = () => {
           busy={busy}
           inactive={!!pendingSave}
           onClose={() => setEditing(null)}
-        >
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              submit()
-            }}
-            className="space-y-4"
-          >
-            <ErrorNotice message={formError} />
-            {editing !== 'new' && editing.allocationCount > 0 && (
-              <p className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
-                Este cargo é usado por {usage(editing)}. Mudar as permissões
-                vale na hora para todos eles.
-              </p>
-            )}
-            <UiLabel className="flex-col items-stretch gap-1.5 text-sm">
-              Nome do cargo
-              <UiInput
-                autoFocus
-                value={form.name}
-                onChange={(event) =>
-                  setForm({ ...form, name: event.target.value })
-                }
-                maxLength={100}
-                required
-                disabled={busy}
-              />
-            </UiLabel>
-            <UiLabel className="flex-col items-stretch gap-1.5 text-sm">
-              Descrição (opcional)
-              <UiTextarea
-                value={form.description}
-                onChange={(event) =>
-                  setForm({ ...form, description: event.target.value })
-                }
-                maxLength={255}
-                disabled={busy}
-              />
-            </UiLabel>
-            <fieldset className="space-y-2" disabled={busy}>
-              <legend className="mb-1 text-sm font-medium">Permissões</legend>
-              {permissions.map((permission) => (
-                <UiLabel
-                  key={permission.id}
-                  className="items-start gap-3 rounded-md border p-3 text-sm"
-                >
-                  <UiCheckbox
-                    checked={form.permissionIds.includes(permission.id)}
-                    onCheckedChange={(checked) =>
-                      toggle(permission.id, checked === true)
-                    }
-                    aria-label={permissionLabel(permission.name)}
-                  />
-                  <span>
-                    <span className="block font-medium">
-                      {permissionLabel(permission.name)}
-                    </span>
-                    {permission.description && (
-                      <span className="block font-normal text-muted-foreground">
-                        {permission.description}
-                      </span>
-                    )}
-                  </span>
-                </UiLabel>
-              ))}
-              <p className="text-xs text-muted-foreground">
-                Sem nenhuma permissão, o cargo é somente leitura no setor.
-              </p>
-            </fieldset>
-            <div className="flex justify-end gap-2">
+          footer={
+            <AdminModalFooter status={editorStatus}>
               <UiButton
                 variant="outline"
                 type="button"
@@ -422,10 +373,93 @@ export const RolesScreen = () => {
               >
                 Cancelar
               </UiButton>
-              <UiButton type="submit" disabled={busy}>
+              <UiButton
+                type="submit"
+                form="role-form"
+                disabled={busy || (editing !== 'new' && editorChanges === 0)}
+              >
                 {busy ? 'Salvando...' : 'Salvar cargo'}
               </UiButton>
-            </div>
+            </AdminModalFooter>
+          }
+        >
+          <ErrorNotice message={formError} />
+          {editing !== 'new' && editing.allocationCount > 0 && (
+            <p className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
+              Este cargo é usado por {usage(editing)}. Mudar as permissões vale
+              na hora para todos eles.
+            </p>
+          )}
+          <form
+            id="role-form"
+            onSubmit={(event) => {
+              event.preventDefault()
+              submit()
+            }}
+            className="space-y-6"
+          >
+            <AdminModalSection
+              title="Dados do cargo"
+              description="O nome aparece ao alocar um usuário em um setor."
+            >
+              <UiLabel className="flex-col items-stretch gap-1.5 text-sm">
+                Nome do cargo
+                <UiInput
+                  autoFocus
+                  value={form.name}
+                  onChange={(event) =>
+                    setForm({ ...form, name: event.target.value })
+                  }
+                  maxLength={100}
+                  required
+                  disabled={busy}
+                />
+              </UiLabel>
+              <UiLabel className="flex-col items-stretch gap-1.5 text-sm">
+                Descrição (opcional)
+                <UiTextarea
+                  value={form.description}
+                  onChange={(event) =>
+                    setForm({ ...form, description: event.target.value })
+                  }
+                  maxLength={255}
+                  disabled={busy}
+                />
+              </UiLabel>
+            </AdminModalSection>
+            <AdminModalSection
+              divided
+              title="Permissões"
+              description="O que o cargo pode fazer no setor em que o usuário estiver alocado. Sem nenhuma permissão, o cargo é somente leitura."
+            >
+              <fieldset className="space-y-2" disabled={busy}>
+                <legend className="sr-only">Permissões do cargo</legend>
+                {permissions.map((permission) => (
+                  <UiLabel
+                    key={permission.id}
+                    className="items-start gap-3 rounded-lg border p-3 text-sm"
+                  >
+                    <UiCheckbox
+                      checked={form.permissionIds.includes(permission.id)}
+                      onCheckedChange={(checked) =>
+                        toggle(permission.id, checked === true)
+                      }
+                      aria-label={permissionLabel(permission.name)}
+                    />
+                    <span>
+                      <span className="block font-medium">
+                        {permissionLabel(permission.name)}
+                      </span>
+                      {permission.description && (
+                        <span className="block font-normal text-muted-foreground">
+                          {permission.description}
+                        </span>
+                      )}
+                    </span>
+                  </UiLabel>
+                ))}
+              </fieldset>
+            </AdminModalSection>
           </form>
         </AdminModal>
       )}

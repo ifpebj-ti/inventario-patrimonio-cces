@@ -23,6 +23,8 @@ import { SectorMembersSheet } from './sectorMembersSheet'
 import {
   AdminConfirmation,
   AdminModal,
+  AdminModalFooter,
+  AdminModalSection,
   AdminPage,
   ErrorNotice,
   useOperation,
@@ -159,6 +161,20 @@ export const SectorsScreen = () => {
         if (problem.status === 404 || problem.status === 409) await load()
       }
     })
+  // Rodapé do modal de setor: ao editar, quantos campos mudaram; ao criar, se já dá para salvar.
+  const editorChanges =
+    editing && editing !== 'new'
+      ? (form.name !== editing.name ? 1 : 0) +
+        (form.code !== (editing.code || '') ? 1 : 0)
+      : 0
+  const editorStatus =
+    editing === 'new'
+      ? form.name.trim()
+        ? 'Pronto para salvar'
+        : 'Informe o nome do setor'
+      : editorChanges === 0
+        ? 'Nenhuma alteração pendente'
+        : `${editorChanges} ${editorChanges === 1 ? 'alteração pendente' : 'alterações pendentes'}`
   const visible = sectors
     .filter(
       (sector) =>
@@ -319,40 +335,8 @@ export const SectorsScreen = () => {
           title={editing === 'new' ? 'Novo setor' : 'Editar setor'}
           busy={busy}
           onClose={() => setEditing(null)}
-        >
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              save()
-            }}
-            className="space-y-4"
-          >
-            <ErrorNotice message={formError} />
-            <UiLabel className="flex-col items-stretch gap-1.5 text-sm">
-              Nome do setor
-              <UiInput
-                autoFocus
-                value={form.name}
-                onChange={(event) =>
-                  setForm({ ...form, name: event.target.value })
-                }
-                maxLength={255}
-                required
-                disabled={busy}
-              />
-            </UiLabel>
-            <UiLabel className="flex-col items-stretch gap-1.5 text-sm">
-              Código (opcional)
-              <UiInput
-                value={form.code}
-                onChange={(event) =>
-                  setForm({ ...form, code: event.target.value })
-                }
-                maxLength={100}
-                disabled={busy}
-              />
-            </UiLabel>
-            <div className="flex justify-end gap-2">
+          footer={
+            <AdminModalFooter status={editorStatus}>
               <UiButton
                 variant="outline"
                 type="button"
@@ -361,10 +345,53 @@ export const SectorsScreen = () => {
               >
                 Cancelar
               </UiButton>
-              <UiButton type="submit" disabled={busy}>
+              <UiButton
+                type="submit"
+                form="sector-form"
+                disabled={busy || (editing !== 'new' && editorChanges === 0)}
+              >
                 {busy ? 'Salvando...' : 'Salvar setor'}
               </UiButton>
-            </div>
+            </AdminModalFooter>
+          }
+        >
+          <ErrorNotice message={formError} />
+          <form
+            id="sector-form"
+            onSubmit={(event) => {
+              event.preventDefault()
+              save()
+            }}
+          >
+            <AdminModalSection
+              title="Dados do setor"
+              description="Identifique o setor. O código (sigla) é opcional."
+            >
+              <UiLabel className="flex-col items-stretch gap-1.5 text-sm">
+                Nome do setor
+                <UiInput
+                  autoFocus
+                  value={form.name}
+                  onChange={(event) =>
+                    setForm({ ...form, name: event.target.value })
+                  }
+                  maxLength={255}
+                  required
+                  disabled={busy}
+                />
+              </UiLabel>
+              <UiLabel className="flex-col items-stretch gap-1.5 text-sm">
+                Código (opcional)
+                <UiInput
+                  value={form.code}
+                  onChange={(event) =>
+                    setForm({ ...form, code: event.target.value })
+                  }
+                  maxLength={100}
+                  disabled={busy}
+                />
+              </UiLabel>
+            </AdminModalSection>
           </form>
         </AdminModal>
       )}
