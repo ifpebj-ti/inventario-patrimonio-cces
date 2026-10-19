@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+    <!--
+        Cargo por alocacao: o perfil deixa de ser do usuario (im_user.id_profile) e passa a ser o cargo da
+        alocacao usuario-setor (im_sector_allocation.id_role). Administrador vira a coluna
+        im_user.is_administrator e sai do catalogo (permissao ADMIN e perfil ADMIN_ORGANIZATION).
+
+        Migracao dos dados existentes (tudo numa transacao: se algo falhar, nada fica pela metade):
+        - im_profile e im_profile_permission viram im_role e im_role_permission, com os mesmos ids;
+        - quem tinha o perfil ADMIN_ORGANIZATION vira administrador;
+        - cada alocacao recebe como cargo o perfil que o usuario tinha; usuario sem perfil recebe CONSULTA
+          (so leitura, que e o que ele tinha); alocacao de administrador recebe GESTOR_SETOR (o administrador
+          ja tem acesso total, entao nada se perde);
+        - id_role e NOT NULL: se um dos cargos usados acima nao existisse, o changeset inteiro falha.
+        Depois disso nenhum codigo procura cargo por nome; os cargos de origem so recebem nomes legiveis.
+    -->
+    <changeSet id="20261018-02" author="inventarium">
+        <sql>
+            ALTER TABLE im_profile RENAME TO im_role;
+            ALTER SEQUENCE im_profile_id RENAME TO im_role_id;
+            ALTER TABLE im_role RENAME CONSTRAINT pk_profile TO pk_role;
+            ALTER TABLE im_profile_permission RENAME TO im_role_permission;
+            ALTER TABLE im_role_permission RENAME COLUMN id_profile TO id_role;
+            ALTER TABLE im_role_permission RENAME CONSTRAINT pk_profile_permission TO pk_role_permission;
+
+            ALTER TABLE im_user ADD COLUMN is_administrator BOOLEAN NOT NULL DEFAULT false;
+            UPDATE im_user SET is_administrator = true
+             WHERE id_profile = (SELECT id FROM im_role WHERE name = 'ADMIN_ORGANIZATION');
+
+            ALTER TABLE im_sector_allocation ADD COLUMN id_role BIGINT;
+            UPDATE im_sector_allocation a SET id_role = u.id_profile
+              FROM im_user u
+             WHERE u.id = a.id_user AND u.id_profile IS NOT NULL;
+            UPDATE im_sector_allocation
+               SET id_role = (SELECT id FROM im_role WHERE name = 'GESTOR_SETOR')
+             WHERE id_user IN (SELECT id FROM im_user WHERE is_administrator = true);
+            UPDATE im_sector_allocation
+               SET id_role = (SELECT id FROM im_role WHERE name = 'CONSULTA')
+             WHERE id_role IS NULL;
+            ALTER TABLE im_sector_allocation ALTER COLUMN id_role SET NOT NULL;
+            ALTER TABLE im_sector_allocation ADD CONSTRAINT fk_sector_allocation_role
+                FOREIGN KEY (id_role) REFERENCES im_role (id);
+
+            ALTER TABLE im_user DROP COLUMN id_profile;
+            DELETE FROM im_role_permission
+             WHERE id_role = (SELECT id FROM im_role WHERE name = 'ADMIN_ORGANIZATION')
+                OR id_permission = (SELECT id FROM im_permission WHERE name = 'ADMIN');
+            DELETE FROM im_role WHERE name = 'ADMIN_ORGANIZATION';
+            DELETE FROM im_permission WHERE name = 'ADMIN';
+
+            UPDATE im_permission
+               SET description = 'Gerencia os inventários do setor (criar, editar, finalizar, importar e remover itens) e aloca usuários nele.'
+             WHERE name = 'MANAGE_SECTOR';
+            UPDATE im_permission
+               SET description = 'Opera os itens do setor: valida (escaneia) e registra observações.'
+             WHERE name = 'MANAGE_ITEM';
+
+            UPDATE im_role SET name = 'Gestor de Setor',
+                               description = 'Gerencia os inventários e os usuários do setor.'
+             WHERE name = 'GESTOR_SETOR';
+            UPDATE im_role SET name = 'Operador de Campo',
+                               description = 'Realiza o levantamento em campo: valida itens e registra observações.'
+             WHERE name = 'OPERADOR_CAMPO';
+            UPDATE im_role SET name = 'Consulta',
+                               description = 'Somente consulta as informações do setor.'
+             WHERE name = 'CONSULTA';
+        </sql>
+    </changeSet>
+</databaseChangeLog>

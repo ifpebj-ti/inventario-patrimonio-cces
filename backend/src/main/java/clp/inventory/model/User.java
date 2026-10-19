@@ -59,10 +59,11 @@ public class User {
   @Column(nullable = false)
   private LocalDateTime updatedAt;
 
-  @ManyToOne
-  @JoinColumn(name = "id_profile")
+  // Administrador: acesso total, em todos os setores. É um poder global, fora dos cargos (que valem
+  // por setor).
+  @Column(name = "is_administrator", nullable = false)
   @JsonIgnore
-  private Profile profile;
+  private boolean administrator = false;
 
   public User() {}
 
@@ -117,15 +118,12 @@ public class User {
     this.passwordHash = passwordHash;
   }
 
-  public Profile getProfile() {
-    return profile;
+  @JsonIgnore
+  public boolean isAdministrator() {
+    return administrator;
   }
 
-  public void setProfile(Profile profile) {
-    this.profile = profile;
-  }
-
-  public Long getProfileId() {
-    return profile != null ? profile.id() : null;
+  public void setAdministrator(boolean administrator) {
+    this.administrator = administrator;
   }
 }

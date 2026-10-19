@@ -1,8 +1,6 @@
 package clp.inventory.service.auth;
 
-import clp.inventory.model.Profile;
 import clp.inventory.model.User;
-import clp.inventory.repository.ProfileRepository;
 import clp.inventory.repository.UserRepository;
 import java.util.Locale;
 import java.util.Optional;
@@ -24,24 +22,20 @@ import org.springframework.transaction.annotation.Transactional;
 public class SystemAdminInitializer implements ApplicationRunner {
 
   static final int MIN_PASSWORD_LENGTH = 12;
-  static final String ADMIN_PROFILE = Profile.ADMIN_PROFILE_NAME;
 
   private static final Logger log = LoggerFactory.getLogger(SystemAdminInitializer.class);
 
   private final UserRepository userRepository;
-  private final ProfileRepository profileRepository;
   private final PasswordEncoder passwordEncoder;
   private final String username;
   private final String password;
 
   public SystemAdminInitializer(
       UserRepository userRepository,
-      ProfileRepository profileRepository,
       PasswordEncoder passwordEncoder,
       @Value("${system.admin.username:admin}") String username,
       @Value("${system.admin.password:}") String password) {
     this.userRepository = userRepository;
-    this.profileRepository = profileRepository;
     this.passwordEncoder = passwordEncoder;
     this.username = username.trim().toLowerCase(Locale.ROOT);
     this.password = password;
@@ -73,18 +67,12 @@ public class SystemAdminInitializer implements ApplicationRunner {
       return;
     }
 
-    Profile adminProfile =
-        profileRepository
-            .findByName(ADMIN_PROFILE)
-            .orElseThrow(
-                () -> new IllegalStateException("Perfil " + ADMIN_PROFILE + " não encontrado"));
-
     User user = existing.orElseGet(this::newSystemUser);
     if (user.getPasswordHash() == null
         || !passwordEncoder.matches(password, user.getPasswordHash())) {
       user.setPasswordHash(passwordEncoder.encode(password));
     }
-    user.setProfile(adminProfile);
+    user.setAdministrator(true);
     userRepository.save(user);
     log.info("Conta de sistema '{}' pronta para login por senha.", username);
   }

@@ -37,7 +37,7 @@ public class SectorService {
 
   @Transactional
   public Sector createSector(SectorDto dto, long actingUserId) {
-    authorizationService.requirePermission(actingUserId, "ADMIN");
+    authorizationService.requireAdmin(actingUserId);
     validateFields(dto);
     if (sectorRepository.existsByName(dto.name())) {
       throw new IllegalArgumentException("Sector with name '" + dto.name() + "' already exists");
@@ -48,7 +48,7 @@ public class SectorService {
 
   @Transactional
   public Sector updateSector(long id, SectorDto dto, long actingUserId) {
-    authorizationService.requirePermission(actingUserId, "ADMIN");
+    authorizationService.requireAdmin(actingUserId);
     validateFields(dto);
     Sector sector = findSectorByIdInternal(id);
     if (sectorRepository.existsByNameAndIdNot(dto.name(), id)) {
@@ -61,7 +61,7 @@ public class SectorService {
 
   @Transactional
   public Sector activateSector(long id, long actingUserId) {
-    authorizationService.requirePermission(actingUserId, "ADMIN");
+    authorizationService.requireAdmin(actingUserId);
     Sector sector = findSectorByIdInternal(id);
     sector.setActive(true);
     return sectorRepository.save(sector);
@@ -69,7 +69,7 @@ public class SectorService {
 
   @Transactional
   public Sector deactivateSector(long id, long actingUserId) {
-    authorizationService.requirePermission(actingUserId, "ADMIN");
+    authorizationService.requireAdmin(actingUserId);
     Sector sector = findSectorByIdInternal(id);
     sector.setActive(false);
     return sectorRepository.save(sector);
@@ -81,7 +81,7 @@ public class SectorService {
    */
   @Transactional
   public void deleteSector(long id, long actingUserId) {
-    authorizationService.requirePermission(actingUserId, "ADMIN");
+    authorizationService.requireAdmin(actingUserId);
     Sector sector = findSectorByIdInternal(id);
     if (!isDeletable(sector.id())) {
       throw new ResponseStatusException(

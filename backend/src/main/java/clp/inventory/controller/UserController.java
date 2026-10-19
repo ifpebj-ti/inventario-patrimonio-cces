@@ -1,6 +1,7 @@
 package clp.inventory.controller;
 
-import clp.inventory.dto.AssignProfileDto;
+import clp.inventory.dto.AllocateSectorDto;
+import clp.inventory.dto.SetAdministratorDto;
 import clp.inventory.dto.UserDto;
 import clp.inventory.model.User;
 import clp.inventory.service.SectorAllocationService;
@@ -14,12 +15,13 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * GET /users e PATCH /users/{id}/profile exigem ADMIN ou MANAGE_SECTOR. POST/DELETE
- * /users/{id}/sectors/{sectorId} exige ADMIN ou (MANAGE_SECTOR + estar alocado no setor informado)
- * — ver AuthorizationService. PATCH /users/{id}/activate e /deactivate exigem ADMIN.
+ * GET /users exige administrador ou gestor (MANAGE_SECTOR) de algum setor. PUT/DELETE
+ * /users/{id}/sectors/{sectorId} exige administrador ou gestor daquele setor — o PUT cria a
+ * alocação ou troca o cargo do usuário no setor (ver AuthorizationService). PATCH
+ * /users/{id}/activate, /deactivate e /administrator exigem administrador.
  *
  * <p>Não há criar nem excluir usuário pela API: o usuário nasce no primeiro login pelo Google (sem
- * perfil) e nunca é apagado, só desativado.
+ * alocação e sem ser administrador) e nunca é apagado, só desativado.
  */
 @RestController
 public class UserController {
@@ -34,22 +36,27 @@ public class UserController {
 
   @GetMapping("/users")
   public ResponseEntity<List<UserDto>> list(
-      @RequestParam(required = false) Long profileId, HttpServletRequest request) {
+      @RequestParam(required = false) Long roleId, HttpServletRequest request) {
     long actingUserId = actingUserId(request);
     List<UserDto> dtos =
-        userService.listUsers(profileId, actingUserId).stream().map(this::toDto).toList();
+        userService.listUsers(roleId, actingUserId).stream().map(this::toDto).toList();
     return ResponseEntity.ok(dtos);
   }
 
-  @PostMapping("/users/{id}/sectors/{sectorId}")
+  @PutMapping("/users/{id}/sectors/{sectorId}")
   public ResponseEntity<UserDto> allocateSector(
-      @PathVariable long id, @PathVariable long sectorId, HttpServletRequest request) {
+      @PathVariable long id,
+      @PathVariable long sectorId,
+      @RequestBody AllocateSectorDto dto,
+      HttpServletRequest request) {
     try {
       long actingUserId = actingUserId(request);
-      User user = sectorAllocationService.allocate(id, sectorId, actingUserId);
+      User user = sectorAllocationService.allocate(id, sectorId, dto.roleId(), actingUserId);
       return ResponseEntity.ok(toDto(user));
     } catch (NoSuchElementException e) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+    } catch (IllegalArgumentException e) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
     }
   }
 
@@ -65,16 +72,17 @@ public class UserController {
     }
   }
 
-  @PatchMapping("/users/{id}/profile")
-  public ResponseEntity<UserDto> assignProfile(
-      @PathVariable long id, @RequestBody AssignProfileDto dto, HttpServletRequest request) {
+  @PatchMapping("/users/{id}/administrator")
+  public ResponseEntity<UserDto> setAdministrator(
+      @PathVariable long id, @RequestBody SetAdministratorDto dto, HttpServletRequest request) {
+    if (dto.administrator() == null) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe o campo administrator.");
+    }
     try {
       return ResponseEntity.ok(
-          toDto(userService.assignProfile(id, dto.profileId(), actingUserId(request))));
+          toDto(userService.setAdministrator(id, dto.administrator(), actingUserId(request))));
     } catch (NoSuchElementException e) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
-    } catch (IllegalArgumentException e) {
-      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
     }
   }
 
@@ -97,7 +105,7 @@ public class UserController {
   }
 
   private UserDto toDto(User user) {
-    return UserDto.from(user, sectorAllocationService.sectorIdsOf(user.getId()));
+    return UserDto.from(user, sectorAllocationService.allocationsOf(user.getId()));
   }
 
   private long actingUserId(HttpServletRequest request) {

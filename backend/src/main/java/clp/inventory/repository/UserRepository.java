@@ -19,13 +19,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
   @Query("select u from User u where lower(u.email) = :email")
   Optional<User> findByEmailForUpdate(@Param("email") String email);
 
-  List<User> findByProfile_Id(long profileId);
-
-  boolean existsByProfile_Id(long profileId);
-
   // Listagens não mostram a conta de sistema; findById/findByEmail seguem enxergando-a, porque o
   // login, o /auth/me e a autorização dependem delas.
   List<User> findAllBySystemUserFalse();
-
-  List<User> findByProfile_IdAndSystemUserFalse(long profileId);
 }

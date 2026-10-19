@@ -1,11 +1,12 @@
 package clp.inventory.service;
 
 import clp.inventory.model.Inventory;
-import clp.inventory.model.Profile;
+import clp.inventory.model.Role;
+import clp.inventory.model.SectorAllocation;
 import clp.inventory.model.User;
 import clp.inventory.repository.SectorAllocationRepository;
 import clp.inventory.repository.UserRepository;
-import java.util.Arrays;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
@@ -13,20 +14,23 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Regras de acesso por perfil:
+ * Regras de acesso. O administrador (coluna {@code is_administrator}) vê e gerencia tudo. Para os
+ * demais, quem decide é o cargo da alocação no setor em questão, então o mesmo usuário pode ser
+ * gestor em um setor e só consulta em outro:
  *
  * <ul>
- *   <li>ADMIN (ADMIN_ORGANIZATION): vê e gerencia tudo.
- *   <li>MANAGE_SECTOR (GESTOR_SETOR): vê e gerencia os inventários dos setores a que está alocado e
- *       cadastra apenas usuários sem permissão de gestão (operadores e consulta).
- *   <li>MANAGE_ITEM (OPERADOR_CAMPO): vê os inventários do seu setor e opera os itens (validar e
- *       observar), sem criar, editar ou finalizar inventários.
- *   <li>Sem permissão (CONSULTA): somente leitura nos inventários do seu setor.
+ *   <li>MANAGE_SECTOR: vê e gerencia os inventários do setor e aloca nele apenas usuários com
+ *       cargos sem permissão de gestão.
+ *   <li>MANAGE_ITEM: vê os inventários do setor e opera os itens (validar e observar), sem criar,
+ *       editar ou finalizar inventários.
+ *   <li>Cargo sem permissão: somente leitura nos inventários do setor.
  * </ul>
+ *
+ * Quais permissões cada cargo tem é dado (editável pelo administrador); o código só confere as
+ * permissões, nunca o nome do cargo.
  */
 @Service
 public class AuthorizationService {
-  public static final String ADMIN = "ADMIN";
   public static final String MANAGE_SECTOR = "MANAGE_SECTOR";
   public static final String MANAGE_ITEM = "MANAGE_ITEM";
 
@@ -39,43 +43,65 @@ public class AuthorizationService {
     this.sectorAllocationRepository = sectorAllocationRepository;
   }
 
-  public boolean hasPermission(long userId, String permissionName) {
-    User user = requireUser(userId);
-    return user.getProfile() != null
-        && user.getProfile().permissions().stream().anyMatch(p -> p.name().equals(permissionName));
+  public boolean isAdmin(long userId) {
+    return requireUser(userId).isAdministrator();
   }
 
-  public void requirePermission(long userId, String permissionName) {
-    if (!hasPermission(userId, permissionName)) {
-      throw new ResponseStatusException(
-          HttpStatus.FORBIDDEN, "Requer a permissao " + permissionName);
+  public void requireAdmin(long userId) {
+    if (!isAdmin(userId)) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Requer o papel de administrador");
     }
   }
 
-  public void requireAnyPermission(long userId, String... permissionNames) {
-    boolean allowed = Arrays.stream(permissionNames).anyMatch(p -> hasPermission(userId, p));
-    if (!allowed) {
+  /** Cargo do usuário no setor, se ele estiver alocado nele. */
+  public Optional<Role> roleIn(long userId, Long sectorId) {
+    if (sectorId == null) {
+      return Optional.empty();
+    }
+    return sectorAllocationRepository
+        .findByUser_IdAndSector_Id(userId, sectorId)
+        .map(SectorAllocation::role);
+  }
+
+  /** O cargo do usuário naquele setor tem a permissão (administrador não é considerado aqui). */
+  public boolean hasPermissionInSector(long userId, Long sectorId, String permissionName) {
+    return roleIn(userId, sectorId).map(role -> role.hasPermission(permissionName)).orElse(false);
+  }
+
+  /** Cargo de gestão: possui MANAGE_SECTOR. */
+  public boolean isManagementRole(Role role) {
+    return role != null && role.hasPermission(MANAGE_SECTOR);
+  }
+
+  /** Setores em que o cargo do usuário tem MANAGE_SECTOR. */
+  public Set<Long> managedSectorIds(long userId) {
+    return sectorAllocationRepository.findByUser_Id(userId).stream()
+        .filter(allocation -> isManagementRole(allocation.role()))
+        .map(allocation -> allocation.sector().id())
+        .collect(Collectors.toSet());
+  }
+
+  /** Administrador, ou gestor (MANAGE_SECTOR) de ao menos um setor. */
+  public boolean isAdminOrSectorManager(long userId) {
+    return isAdmin(userId) || !managedSectorIds(userId).isEmpty();
+  }
+
+  public void requireAdminOrSectorManager(long userId) {
+    if (!isAdminOrSectorManager(userId)) {
       throw new ResponseStatusException(
-          HttpStatus.FORBIDDEN, "Requer uma das permissoes: " + String.join(", ", permissionNames));
+          HttpStatus.FORBIDDEN, "Requer administrador ou gestor de ao menos um setor");
     }
   }
 
   public void requireSectorPermission(long actingUserId, long sectorId) {
     if (!canManageSector(actingUserId, sectorId)) {
       throw new ResponseStatusException(
-          HttpStatus.FORBIDDEN, "Requer ADMIN ou MANAGE_SECTOR no setor informado");
+          HttpStatus.FORBIDDEN, "Requer administrador ou gestor do setor informado");
     }
   }
 
   public boolean canManageSector(long actingUserId, Long sectorId) {
-    return hasPermission(actingUserId, "ADMIN")
-        || (sectorId != null
-            && hasPermission(actingUserId, "MANAGE_SECTOR")
-            && sectorAllocationRepository.existsByUser_IdAndSector_Id(actingUserId, sectorId));
-  }
-
-  public boolean isAdmin(long userId) {
-    return hasPermission(userId, ADMIN);
+    return isAdmin(actingUserId) || hasPermissionInSector(actingUserId, sectorId, MANAGE_SECTOR);
   }
 
   public boolean isAllocatedTo(long userId, Long sectorId) {
@@ -89,7 +115,7 @@ public class AuthorizationService {
         .collect(Collectors.toSet());
   }
 
-  /** Leitura de setor: admin ou alocado ao setor (qualquer perfil). */
+  /** Leitura de setor: admin ou alocado ao setor (qualquer cargo). */
   public boolean canViewSector(long userId, long sectorId) {
     return isAdmin(userId) || isAllocatedTo(userId, sectorId);
   }
@@ -100,12 +126,24 @@ public class AuthorizationService {
     }
   }
 
-  /** Gestor só vincula ao seu setor usuários sem permissão de gestão. */
-  public void requireAllocatable(long actingUserId, User target) {
-    if (!isAdmin(actingUserId) && isManagementProfile(target.getProfile())) {
+  /**
+   * Alocar, trocar o cargo ou desalocar alguém em um setor. O administrador pode tudo; o gestor do
+   * setor só mexe com usuários comuns e só atribui cargos sem permissão de gestão (nunca promove
+   * nem rebaixa outro gestor, nem mexe em administrador). {@code newRole} é nulo ao desalocar.
+   */
+  public void requireCanAllocate(long actingUserId, long sectorId, User target, Role newRole) {
+    requireSectorPermission(actingUserId, sectorId);
+    if (isAdmin(actingUserId)) {
+      return;
+    }
+    if (target.isAdministrator()
+        || isManagementRole(roleIn(target.getId(), sectorId).orElse(null))) {
       throw new ResponseStatusException(
-          HttpStatus.FORBIDDEN,
-          "Seu perfil só pode vincular Operadores de campo e Consulta ao setor.");
+          HttpStatus.FORBIDDEN, "Seu cargo não pode alterar um gestor ou administrador.");
+    }
+    if (isManagementRole(newRole)) {
+      throw new ResponseStatusException(
+          HttpStatus.FORBIDDEN, "Seu cargo só pode atribuir cargos sem permissão de gestão.");
     }
   }
 
@@ -134,66 +172,20 @@ public class AuthorizationService {
   public void requireManageInventory(long userId, Inventory inventory) {
     if (!canManageInventory(userId, inventory)) {
       throw new ResponseStatusException(
-          HttpStatus.FORBIDDEN, "Seu perfil não permite alterar este inventário.");
+          HttpStatus.FORBIDDEN, "Seu cargo não permite alterar este inventário.");
     }
   }
 
-  /** Validar itens e registrar observações: quem gerencia o inventário ou o operador do setor. */
+  /** Validar itens e registrar observações: quem gerencia o inventário ou tem MANAGE_ITEM nele. */
   public boolean canOperateInventory(long userId, Inventory inventory) {
     return canManageInventory(userId, inventory)
-        || (hasPermission(userId, MANAGE_ITEM) && isAllocatedTo(userId, sectorIdOf(inventory)));
+        || hasPermissionInSector(userId, sectorIdOf(inventory), MANAGE_ITEM);
   }
 
   public void requireOperateInventory(long userId, Inventory inventory) {
     if (!canOperateInventory(userId, inventory)) {
       throw new ResponseStatusException(
-          HttpStatus.FORBIDDEN, "Seu perfil não permite validar itens deste inventário.");
-    }
-  }
-
-  /** Perfil de gestão: possui ADMIN ou MANAGE_SECTOR. */
-  public boolean isManagementProfile(Profile profile) {
-    return profile != null
-        && profile.permissions().stream()
-            .anyMatch(p -> p.name().equals(ADMIN) || p.name().equals(MANAGE_SECTOR));
-  }
-
-  /** Admin atribui qualquer perfil; gestor atribui apenas perfis sem permissão de gestão. */
-  public boolean canAssignProfile(long actingUserId, Profile target) {
-    if (isAdmin(actingUserId)) {
-      return true;
-    }
-    return hasPermission(actingUserId, MANAGE_SECTOR) && !isManagementProfile(target);
-  }
-
-  public void requireAssignProfile(long actingUserId, Profile target) {
-    if (!canAssignProfile(actingUserId, target)) {
-      throw new ResponseStatusException(
-          HttpStatus.FORBIDDEN,
-          "Seu perfil só pode cadastrar Operadores de campo e Consulta, nunca gestores ou"
-              + " administradores.");
-    }
-  }
-
-  /**
-   * Admin gerencia qualquer usuário; gestor gerencia apenas usuários sem permissão de gestão que
-   * compartilham ao menos um setor com ele.
-   */
-  public boolean canManageUser(long actingUserId, User target) {
-    if (isAdmin(actingUserId)) {
-      return true;
-    }
-    if (!hasPermission(actingUserId, MANAGE_SECTOR) || isManagementProfile(target.getProfile())) {
-      return false;
-    }
-    Set<Long> mine = allocatedSectorIds(actingUserId);
-    return allocatedSectorIds(target.getId()).stream().anyMatch(mine::contains);
-  }
-
-  public void requireManageUser(long actingUserId, User target) {
-    if (!canManageUser(actingUserId, target)) {
-      throw new ResponseStatusException(
-          HttpStatus.FORBIDDEN, "Seu perfil não pode gerenciar este usuário.");
+          HttpStatus.FORBIDDEN, "Seu cargo não permite validar itens deste inventário.");
     }
   }
 

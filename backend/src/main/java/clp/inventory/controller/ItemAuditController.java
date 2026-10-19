@@ -41,7 +41,7 @@ public class ItemAuditController {
     } else if (targetSectorId != null) {
       authorizationService.requireViewSector(userId, targetSectorId);
     } else {
-      authorizationService.requirePermission(userId, AuthorizationService.ADMIN);
+      authorizationService.requireAdmin(userId);
     }
     List<ItemAuditDto> dtos =
         itemAuditService.listAudits(itemId, targetSectorId).stream()

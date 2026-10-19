@@ -7,8 +7,9 @@ import java.util.NoSuchElementException;
 import org.springframework.stereotype.Service;
 
 /**
- * Permissões são somente leitura pela API e exigem ADMIN. Elas são definidas em código (só ADMIN,
- * MANAGE_SECTOR e MANAGE_ITEM têm efeito); uma permissão nova entra por migration do Liquibase.
+ * Permissões são somente leitura pela API: o administrador e o gestor as consultam (o administrador
+ * escolhe quais entram em cada cargo). Elas são definidas em código (só MANAGE_SECTOR e MANAGE_ITEM
+ * têm efeito); uma permissão nova entra por migration do Liquibase.
  */
 @Service
 public class PermissionService {
@@ -23,15 +24,14 @@ public class PermissionService {
   }
 
   public Permission findPermissionById(long id, long actingUserId) {
-    authorizationService.requirePermission(actingUserId, "ADMIN");
+    authorizationService.requireAdmin(actingUserId);
     return permissionRepository
         .findById(id)
         .orElseThrow(() -> new NoSuchElementException("Permission not found with id: " + id));
   }
 
   public List<Permission> listAllPermissions(long actingUserId) {
-    authorizationService.requireAnyPermission(
-        actingUserId, AuthorizationService.ADMIN, AuthorizationService.MANAGE_SECTOR);
+    authorizationService.requireAdminOrSectorManager(actingUserId);
     return permissionRepository.findAll();
   }
 }
