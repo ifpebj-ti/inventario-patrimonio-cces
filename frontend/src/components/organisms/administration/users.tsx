@@ -19,7 +19,6 @@ import {
   listUsers,
   setUserActive,
   setUserAdministrator,
-  setUserSector,
 } from '@/services/administration'
 import {
   AdminConfirmation,
@@ -105,37 +104,20 @@ export const UsersScreen = () => {
     )
     setEditing((current) => (current?.id === updated.id ? updated : current))
   }
-  // Envia as alterações do modal em sequência (não há endpoint em lote): o papel de administrador,
-  // depois os setores a alocar ou com cargo trocado e os a remover. Se uma falhar, as anteriores já
-  // valeram: a tela mostra o que sobrou pendente e o erro.
+  // Envia as alterações do modal: só o papel de administrador (setores e cargos são geridos em
+  // Setores → Usuários associados).
   const applyChanges = async (user: ManagedUser, changes: AccessChanges) => {
     setEditorError(null)
-    let applied = 0
     let current = user
     try {
       if (changes.administrator !== undefined) {
         current = await setUserAdministrator(user.id, changes.administrator)
         sync(current)
-        applied++
-      }
-      for (const { sector, roleId } of changes.upsert) {
-        current = await setUserSector(user.id, sector.id, roleId)
-        sync(current)
-        applied++
-      }
-      for (const sector of changes.deallocate) {
-        current = await setUserSector(user.id, sector.id, null)
-        sync(current)
-        applied++
       }
       toast.success('Alterações salvas.')
     } catch (failure) {
       const problem = administrationFailure(failure)
-      setEditorError(
-        applied > 0
-          ? `${problem.message} Parte das alterações já foi salva; o que não foi continua pendente.`
-          : problem.message,
-      )
+      setEditorError(problem.message)
       if (problem.status === 403) await access.refresh()
     } finally {
       if (current.id === actor?.id) await access.refresh()
@@ -225,7 +207,7 @@ export const UsersScreen = () => {
   return (
     <AdminPage
       title="Usuários"
-      description="Gerencie quem é administrador e o cargo de cada usuário em cada setor em que está alocado."
+      description="Gerencie quem é administrador e veja o cargo de cada usuário em cada setor. Para alocar usuários, use Setores."
     >
       <ErrorNotice
         message={error}
@@ -445,9 +427,7 @@ export const UsersScreen = () => {
           key={editing.id}
           user={editing}
           initials={initialsOf(editing.name)}
-          roles={roles}
           sectors={sectors}
-          isSelf={editing.id === actor?.id}
           canGrantAdministrator={access.isAdmin && editing.id !== actor?.id}
           toggleNote={
             canToggleUser(editing)

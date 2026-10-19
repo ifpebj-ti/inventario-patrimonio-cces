@@ -8,22 +8,18 @@ import { Label as UiLabel } from '@/components/ui/label'
 import { Input as UiInput } from '@/components/ui/input'
 import { Button as UiButton } from '@/components/ui/button'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import {
-  sectorFormSchema,
-  type ManagedUser,
-  type Sector,
-} from '@/commons/models/administration'
+import { sectorFormSchema, type Sector } from '@/commons/models/administration'
 import { useAdministrationAccess } from '@/contexts/AdministrationAccess'
 import {
   administrationFailure,
   deleteSector,
   listSectors,
-  listSectorUsers,
   saveSector,
   setSectorActive,
 } from '@/services/administration'
+import { SectorMembersSheet } from './sectorMembersSheet'
 import {
   AdminConfirmation,
   AdminModal,
@@ -33,7 +29,7 @@ import {
 } from './shared'
 
 export const SectorsScreen = () => {
-  const { isAdmin, refresh } = useAdministrationAccess()
+  const { isAdmin, managedSectorIds, refresh } = useAdministrationAccess()
   const [sectors, setSectors] = useState<Sector[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -44,11 +40,8 @@ export const SectorsScreen = () => {
   const [formError, setFormError] = useState<string | null>(null)
   const [activation, setActivation] = useState<Sector | null>(null)
   const [removal, setRemoval] = useState<Sector | null>(null)
+  // Setor cuja barra lateral de usuários está aberta.
   const [viewing, setViewing] = useState<Sector | null>(null)
-  const [members, setMembers] = useState<ManagedUser[]>([])
-  const [membersLoading, setMembersLoading] = useState(false)
-  const [membersError, setMembersError] = useState<string | null>(null)
-  const memberRequest = useRef(0)
   const { busy, run } = useOperation()
 
   const load = useCallback(async (signal?: AbortSignal) => {
@@ -68,12 +61,15 @@ export const SectorsScreen = () => {
     load(controller.signal)
     return () => controller.abort()
   }, [load])
-  useEffect(
-    () => () => {
-      memberRequest.current++
-    },
-    [],
-  )
+  // Atualiza a lista em silêncio (sem a tela de carregando): usada depois de mexer nos usuários do
+  // setor pela barra lateral, porque isso muda se o setor ainda pode ser excluído.
+  const refreshSectors = useCallback(async () => {
+    try {
+      setSectors(await listSectors())
+    } catch {
+      // A lista segue como estava; o próximo carregamento mostra o erro, se persistir.
+    }
+  }, [])
 
   const openEditor = (sector: Sector | 'new') => {
     setEditing(sector)
@@ -83,22 +79,6 @@ export const SectorsScreen = () => {
         : { name: sector.name, code: sector.code || '' },
     )
     setFormError(null)
-  }
-  const showMembers = async (sector: Sector) => {
-    const request = ++memberRequest.current
-    setViewing(sector)
-    setMembers([])
-    setMembersError(null)
-    setMembersLoading(true)
-    try {
-      const data = await listSectorUsers(sector.id)
-      if (request === memberRequest.current) setMembers(data)
-    } catch (failure) {
-      if (request === memberRequest.current)
-        setMembersError(administrationFailure(failure).message)
-    } finally {
-      if (request === memberRequest.current) setMembersLoading(false)
-    }
   }
   const save = () =>
     run(async () => {
@@ -192,7 +172,7 @@ export const SectorsScreen = () => {
   return (
     <AdminPage
       title="Setores"
-      description="Consulte os setores e seus usuários. Setores com usuários ou inventários associados só podem ser ativados ou desativados."
+      description="Consulte os setores e gerencie quem está em cada um, com o cargo de cada usuário. Setores com usuários ou inventários associados só podem ser ativados ou desativados."
       action={
         isAdmin ? (
           <UiButton
@@ -282,15 +262,16 @@ export const SectorsScreen = () => {
                     </StatusBadge>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <UiButton
-                      variant="outline"
-                      type="button"
-                      onClick={() => {
-                        showMembers(sector)
-                      }}
-                    >
-                      Usuários associados
-                    </UiButton>
+                    {/* Só quem gerencia o setor vê e altera os usuários dele. */}
+                    {(isAdmin || managedSectorIds.includes(sector.id)) && (
+                      <UiButton
+                        variant="outline"
+                        type="button"
+                        onClick={() => setViewing(sector)}
+                      >
+                        Usuários associados
+                      </UiButton>
+                    )}
                     {isAdmin && (
                       <>
                         <UiButton
@@ -423,39 +404,11 @@ export const SectorsScreen = () => {
         ]}
       />
       {viewing && (
-        <AdminModal
-          title={`Usuários de ${viewing.name}`}
-          onClose={() => {
-            memberRequest.current++
-            setViewing(null)
-          }}
-        >
-          <ErrorNotice
-            message={membersError}
-            retry={() => {
-              showMembers(viewing)
-            }}
-          />
-          {membersLoading ? (
-            <p role="status">Carregando usuários...</p>
-          ) : (
-            !membersError && (
-              <ul className="space-y-2">
-                {members.map((member) => (
-                  <li key={member.id} className="border-b border-muted py-2">
-                    <p className="font-medium">{member.name}</p>
-                    <p className="text-sm text-muted-foreground break-all">
-                      {member.email}
-                    </p>
-                  </li>
-                ))}
-                {members.length === 0 && (
-                  <li>Nenhum usuário associado a este setor.</li>
-                )}
-              </ul>
-            )
-          )}
-        </AdminModal>
+        <SectorMembersSheet
+          sector={viewing}
+          onClose={() => setViewing(null)}
+          onChanged={refreshSectors}
+        />
       )}
     </AdminPage>
   )
