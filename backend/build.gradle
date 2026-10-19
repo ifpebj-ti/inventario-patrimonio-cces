@@ -36,7 +36,7 @@ dependencies {
 
     implementation "org.springframework.boot:spring-boot-starter-security"
     // https://mvnrepository.com/artifact/com.auth0/java-jwt
-    implementation("com.auth0:java-jwt:4.6.1")
+    implementation("com.auth0:java-jwt:4.6.2")
 
     // Leitura de arquivos Excel (xlxs e xlsx)
     implementation 'org.apache.poi:poi:5.5.1'
