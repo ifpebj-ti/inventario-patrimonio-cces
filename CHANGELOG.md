@@ -34,7 +34,7 @@ O histórico é atualizado manualmente na própria pull request antes do merge e
 
 ### Changed
 
-- O modal "Gerenciar acesso" de Usuários deixa de alocar: fica só com o papel de **Administrador**, a lista de setores e cargos em leitura (com atalho para Setores) e Desativar/Reativar. O botão "Usuários associados" de Setores só aparece para o administrador e para o gestor daquele setor.
+- O modal "Gerenciar acesso" de Usuários deixa de alocar: mostra primeiro a lista de setores e cargos em leitura (com atalho para Setores), depois o papel de **Administrador** e, por último, Desativar/Reativar; **Salvar alterações** fecha o modal. Os cartões da lista de Usuários deixam de mostrar papel e setores. O botão "Usuários associados" de Setores só aparece para o administrador e para o gestor daquele setor.
 - A tela "Perfis e permissões" (`/profiles`) virou **"Cargos e permissões"** (`/roles`), só do administrador, agora com criar, editar e excluir cargo. O menu do usuário mostra "Administrador", o nome do cargo (se for o mesmo em todos os setores) ou "Vários cargos". Quem não está alocado em nenhum setor não é gestor de nada: não vê Setores nem inventários de nenhum setor.
 - Quem entra pela primeira vez com Google continua nascendo sem acesso, agora **sem alocação e sem ser administrador**; o gestor do setor (cargo com `MANAGE_SECTOR`) só aloca cargos sem gestão e não altera outro gestor nem um administrador. `GET /users` e a lista de membros do setor valem para o gestor só nos setores que ele gerencia.
 - A tela de Usuários (item do menu e rota) passa a ser **só do administrador**; o gestor deixa de vê-la.

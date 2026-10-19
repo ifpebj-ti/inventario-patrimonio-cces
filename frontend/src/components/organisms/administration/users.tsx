@@ -115,6 +115,8 @@ export const UsersScreen = () => {
         sync(current)
       }
       toast.success('Alterações salvas.')
+      // Salvou: fecha o modal (se algo falhar, ele fica aberto com o erro e o que sobrou pendente).
+      setEditing(null)
     } catch (failure) {
       const problem = administrationFailure(failure)
       setEditorError(problem.message)
@@ -323,12 +325,6 @@ export const UsersScreen = () => {
             </p>
             <div className="grid grid-cols-1 gap-3">
               {visible.map((user) => {
-                const sectorLabels = [...user.allocations]
-                  .sort((a, b) => a.sectorId - b.sectorId)
-                  .map(
-                    (allocation) =>
-                      `${sectors.find((sector) => sector.id === allocation.sectorId)?.name || `Setor #${allocation.sectorId}`} · ${allocation.roleName}`,
-                  )
                 const initials = initialsOf(user.name)
                 return (
                   <article
@@ -376,38 +372,6 @@ export const UsersScreen = () => {
                         >
                           Gerenciar acesso
                         </UiButton>
-                      </div>
-                    </div>
-                    <div className="grid gap-3 border-t pt-4 sm:grid-cols-2">
-                      <div className="space-y-1.5">
-                        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                          Papel
-                        </p>
-                        <StatusBadge
-                          tone={user.administrator ? 'primary' : 'neutral'}
-                        >
-                          {user.administrator
-                            ? 'Administrador'
-                            : 'Usuário por setor'}
-                        </StatusBadge>
-                      </div>
-                      <div className="space-y-1.5">
-                        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                          Setores e cargos ({sectorLabels.length})
-                        </p>
-                        {sectorLabels.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">
-                            Nenhum setor associado.
-                          </p>
-                        ) : (
-                          <div className="flex flex-wrap gap-1.5">
-                            {sectorLabels.map((label) => (
-                              <StatusBadge key={label} tone="primary">
-                                {label}
-                              </StatusBadge>
-                            ))}
-                          </div>
-                        )}
                       </div>
                     </div>
                   </article>

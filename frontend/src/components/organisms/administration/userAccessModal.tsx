@@ -14,6 +14,7 @@ import { ErrorNotice } from './shared'
 
 // O que o administrador escolheu e ainda não foi enviado: o papel de administrador (se mudou). Os
 // setores e cargos do usuário não se alteram aqui: são geridos em Setores → Usuários associados.
+// O modal mostra primeiro os setores (só leitura), depois o administrador e, por último, a conta.
 export type AccessChanges = {
   administrator?: boolean
 }
@@ -103,44 +104,6 @@ export const UserAccessModal = ({
 
           <section className="space-y-3">
             <div>
-              <h3 className="font-semibold">Administrador</h3>
-              <p className="text-sm text-muted-foreground">
-                O administrador tem acesso total, em todos os setores, sem
-                depender de cargo.
-              </p>
-            </div>
-            <UiLabel
-              className={cn(
-                'items-start gap-3 rounded-lg border p-3 text-sm',
-                desiredAdministrator && 'border-primary bg-primary/5',
-              )}
-            >
-              <UiCheckbox
-                checked={desiredAdministrator}
-                disabled={busy || !canGrantAdministrator}
-                onCheckedChange={(checked) =>
-                  setDesiredAdministrator(checked === true)
-                }
-                aria-label="Administrador"
-              />
-              <span className="min-w-0 space-y-0.5">
-                <span className="flex flex-wrap items-center gap-2 font-medium">
-                  Administrador
-                  {user.administrator && (
-                    <StatusBadge tone="primary">Atual</StatusBadge>
-                  )}
-                </span>
-                <span className="block font-normal text-muted-foreground">
-                  {canGrantAdministrator
-                    ? 'Vê e gerencia tudo: setores, usuários, cargos e inventários.'
-                    : 'Você não pode alterar o seu próprio papel de administrador.'}
-                </span>
-              </span>
-            </UiLabel>
-          </section>
-
-          <section className="space-y-3 border-t pt-5">
-            <div>
               <h3 className="font-semibold">
                 Setores e cargos{' '}
                 <span className="font-normal text-muted-foreground">
@@ -191,6 +154,44 @@ export const UserAccessModal = ({
                 })}
               </ul>
             )}
+          </section>
+
+          <section className="space-y-3 border-t pt-5">
+            <div>
+              <h3 className="font-semibold">Administrador</h3>
+              <p className="text-sm text-muted-foreground">
+                O administrador tem acesso total, em todos os setores, sem
+                depender de cargo.
+              </p>
+            </div>
+            <UiLabel
+              className={cn(
+                'items-start gap-3 rounded-lg border p-3 text-sm',
+                desiredAdministrator && 'border-primary bg-primary/5',
+              )}
+            >
+              <UiCheckbox
+                checked={desiredAdministrator}
+                disabled={busy || !canGrantAdministrator}
+                onCheckedChange={(checked) =>
+                  setDesiredAdministrator(checked === true)
+                }
+                aria-label="Administrador"
+              />
+              <span className="min-w-0 space-y-0.5">
+                <span className="flex flex-wrap items-center gap-2 font-medium">
+                  Administrador
+                  {user.administrator && (
+                    <StatusBadge tone="primary">Atual</StatusBadge>
+                  )}
+                </span>
+                <span className="block font-normal text-muted-foreground">
+                  {canGrantAdministrator
+                    ? 'Vê e gerencia tudo: setores, usuários, cargos e inventários.'
+                    : 'Você não pode alterar o seu próprio papel de administrador.'}
+                </span>
+              </span>
+            </UiLabel>
           </section>
 
           <section

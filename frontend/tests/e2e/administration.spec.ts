@@ -633,10 +633,9 @@ test('usuários filtram por papel e por cargo e enviam roleId ao servidor', asyn
   const state = await setup(page)
   await page.goto('/users')
   await expandFilters(page)
-  await expect(card(page, 'Maria')).toContainText('Nenhum setor associado')
-  await expect(card(page, 'Camille')).toContainText('Administrador')
-  await expect(card(page, 'Ana')).toContainText('Biblioteca · Consulta')
-  await expect(card(page, 'Ana')).toContainText('Patrimônio · Gestor de Setor')
+  // A lista não repete papel nem setores: isso fica no modal "Gerenciar acesso".
+  await expect(card(page, 'Ana')).not.toContainText('Gestor de Setor')
+  await expect(card(page, 'Camille')).not.toContainText('Papel')
   await pickOption(page.getByLabel('Filtrar por cargo'), 'Sem acesso')
   await expect(card(page, 'Camille')).toHaveCount(0)
   await expect(card(page, 'Maria')).toBeVisible()
@@ -670,7 +669,8 @@ test('o papel de administrador fica pendente e é salvo', async ({ page }) => {
 
   await save.click()
   await expect(page.getByText('Alterações salvas.')).toBeVisible()
-  await expect(modal).toContainText('Nenhuma alteração pendente')
+  // Salvou: o modal fecha.
+  await expect(modal).toHaveCount(0)
   expect(state.users[1].administrator).toBe(true)
   expect(
     state.requests
@@ -1412,7 +1412,7 @@ test('modal de acesso mostra quem é o usuário, orienta quem não tem setor e d
   // A ação de cuidado fica isolada no fim.
   expect(
     await modal.getByRole('heading', { level: 3 }).allTextContents(),
-  ).toEqual(['Administrador', 'Setores e cargos (0)', 'Desativar conta'])
+  ).toEqual(['Setores e cargos (0)', 'Administrador', 'Desativar conta'])
 })
 
 test('modal mostra o cargo do usuário em cada setor e abre o botão de desativar com confirmação', async ({
