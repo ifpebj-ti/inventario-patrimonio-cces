@@ -1,9 +1,7 @@
 package clp.inventory.service;
 
 import clp.inventory.dto.GoogleUserInfo;
-import clp.inventory.model.Profile;
 import clp.inventory.model.User;
-import clp.inventory.repository.ProfileRepository;
 import clp.inventory.repository.SectorAllocationRepository;
 import clp.inventory.repository.UserRepository;
 import com.auth0.jwt.JWT;
@@ -28,7 +26,6 @@ public class UserService {
   private List<String> allowedDomains = List.of();
 
   private final UserRepository userRepository;
-  private final ProfileRepository profileRepository;
   private final SectorAllocationRepository sectorAllocationRepository;
   private final AuthorizationService authorizationService;
 
@@ -37,18 +34,17 @@ public class UserService {
 
   public UserService(
       UserRepository userRepository,
-      ProfileRepository profileRepository,
       SectorAllocationRepository sectorAllocationRepository,
       AuthorizationService authorizationService) {
     this.userRepository = userRepository;
-    this.profileRepository = profileRepository;
     this.sectorAllocationRepository = sectorAllocationRepository;
     this.authorizationService = authorizationService;
   }
 
   /**
    * Localiza o usuário pelo e-mail verificado do Google ou cria a conta. Esta é a única forma de um
-   * usuário nascer: sem perfil, até que um administrador atribua o acesso.
+   * usuário nascer: sem alocação em nenhum setor e sem ser administrador, ou seja, sem acesso até
+   * que alguém o aloque em um setor com um cargo.
    */
   @Transactional
   public User findOrCreateGoogleUser(GoogleUserInfo googleUser) throws AuthenticationException {
@@ -79,8 +75,9 @@ public class UserService {
     user.setName(googleUser.name());
     user.setEmail(email);
     user.setGoogleId(googleUser.sub());
-    // Sem perfil de propósito: quem entra pela primeira vez não tem nenhuma permissão até que um
-    // administrador atribua o perfil.
+    // Sem alocação e sem ser administrador de propósito: quem entra pela primeira vez não tem
+    // acesso
+    // a nenhum setor até que um administrador (ou o gestor do setor) o aloque com um cargo.
 
     return userRepository.save(user);
   }
@@ -116,30 +113,25 @@ public class UserService {
         .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
   }
 
+  /**
+   * Concede ou retira o papel de administrador. Só o administrador faz isso, e nunca na própria
+   * conta: como quem age é sempre um administrador ativo e diferente do alvo, o sistema não fica
+   * sem administrador.
+   */
   @Transactional
-  public User assignProfile(long userId, Long profileId, long actingUserId) {
-    authorizationService.requireAnyPermission(
-        actingUserId, AuthorizationService.ADMIN, AuthorizationService.MANAGE_SECTOR);
-    // A conta de sistema responde como se não existisse: mexer no perfil dela por aqui poderia
-    // deixar o sistema sem nenhum administrador.
+  public User setAdministrator(long userId, boolean administrator, long actingUserId) {
+    authorizationService.requireAdmin(actingUserId);
+    // A conta de sistema responde como se não existisse: ela precisa continuar administradora.
     User user =
         userRepository
             .findById(userId)
             .filter(found -> !found.isSystemUser())
             .orElseThrow(() -> new NoSuchElementException("User not found with id: " + userId));
-    // Todo usuário precisa ter perfil: não existe mais "sem perfil" como opção.
-    if (profileId == null) {
-      throw new IllegalArgumentException("Selecione o perfil de acesso.");
+    if (user.getId() == actingUserId) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "Você não pode alterar o seu próprio papel de administrador.");
     }
-    Profile profile =
-        profileRepository
-            .findById(profileId)
-            .orElseThrow(
-                () -> new IllegalArgumentException("Profile not found with id: " + profileId));
-    // Gestor só altera usuários do seu setor e apenas entre Operador de campo e Consulta.
-    authorizationService.requireAssignProfile(actingUserId, profile);
-    authorizationService.requireManageUser(actingUserId, user);
-    user.setProfile(profile);
+    user.setAdministrator(administrator);
     return userRepository.save(user);
   }
 
@@ -149,7 +141,7 @@ public class UserService {
    */
   @Transactional
   public User setActive(long userId, boolean active, long actingUserId) {
-    authorizationService.requirePermission(actingUserId, AuthorizationService.ADMIN);
+    authorizationService.requireAdmin(actingUserId);
     // A conta de sistema responde como se não existisse.
     User user =
         userRepository
@@ -165,22 +157,20 @@ public class UserService {
     return userRepository.save(user);
   }
 
-  /** Admin lista todos; gestor lista os usuários dos seus setores. */
-  public List<User> listUsers(Long profileId, long actingUserId) {
-    authorizationService.requireAnyPermission(
-        actingUserId, AuthorizationService.ADMIN, AuthorizationService.MANAGE_SECTOR);
+  /**
+   * Admin lista todos; gestor lista os usuários dos setores em que seu cargo tem MANAGE_SECTOR. Com
+   * {@code roleId}, só quem tem esse cargo em algum setor (no escopo de quem pergunta).
+   */
+  public List<User> listUsers(Long roleId, long actingUserId) {
+    authorizationService.requireAdminOrSectorManager(actingUserId);
     if (authorizationService.isAdmin(actingUserId)) {
-      if (profileId != null) {
-        return userRepository.findByProfile_IdAndSystemUserFalse(profileId);
-      }
-      return userRepository.findAllBySystemUserFalse();
+      return roleId != null
+          ? sectorAllocationRepository.findUsersWithRole(roleId)
+          : userRepository.findAllBySystemUserFalse();
     }
-    Set<Long> mine = authorizationService.allocatedSectorIds(actingUserId);
-    if (mine.isEmpty()) {
-      return List.of();
-    }
-    return sectorAllocationRepository.findUsersAllocatedToAny(mine).stream()
-        .filter(user -> profileId == null || profileId.equals(user.getProfileId()))
-        .toList();
+    Set<Long> managed = authorizationService.managedSectorIds(actingUserId);
+    return roleId != null
+        ? sectorAllocationRepository.findUsersAllocatedToAnyWithRole(managed, roleId)
+        : sectorAllocationRepository.findUsersAllocatedToAny(managed);
   }
 }

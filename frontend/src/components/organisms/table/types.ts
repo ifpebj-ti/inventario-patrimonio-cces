@@ -24,4 +24,8 @@ export interface TableProps {
   onRowDoubleClick?: (item: Item | InventoryResponse) => void
   onDeleteItem?: (item: Item | InventoryResponse) => void
   onEditItem?: (item: InventoryResponse) => void
+  // Quando informados, escondem Editar/Excluir nas linhas em que a função devolve falso (o cargo do
+  // usuário vale por setor, então a mesma tabela pode ter linhas editáveis e linhas só de leitura).
+  canEditItem?: (item: InventoryResponse) => boolean
+  canDeleteItem?: (item: InventoryResponse) => boolean
 }

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import clp.inventory.dto.InventoryDto;
 import clp.inventory.model.*;
 import clp.inventory.repository.*;
+import clp.inventory.testsupport.TestAccess;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import java.time.Instant;
@@ -41,22 +42,13 @@ class InventoryCompletionE2ETest {
 
   @Autowired TestRestTemplate http;
   @Autowired UserRepository users;
-  @Autowired ProfileRepository profiles;
+  @Autowired TestAccess access;
   @Autowired SectorRepository sectors;
   @Autowired SectorAllocationRepository allocations;
   @Autowired InventoryRepository inventories;
 
-  private User user(String profileName) {
-    User user = new User();
-    user.setName("Teste");
-    user.setEmail("completion-" + System.nanoTime() + "@ifpe.edu.br");
-    user.setGoogleId(user.getEmail());
-    user.setProfile(
-        profiles.findAll().stream()
-            .filter(p -> p.name().equals(profileName))
-            .findFirst()
-            .orElseThrow());
-    return users.save(user);
+  private User user(String roleName) {
+    return access.user("completion-" + System.nanoTime() + "@ifpe.edu.br", roleName);
   }
 
   private HttpEntity<Void> request(User user) {
@@ -96,10 +88,10 @@ class InventoryCompletionE2ETest {
 
   @Test
   void adminCanEditSectorOfInventoryCreatedByAnotherUser() {
-    User admin = user("ADMIN_ORGANIZATION");
+    User admin = user(TestAccess.ADMIN);
     Sector current = sectors.save(new Sector("Edit current " + System.nanoTime(), null));
     Sector target = sectors.save(new Sector("Edit target " + System.nanoTime(), null));
-    Inventory inventory = inventory(user("OPERADOR_CAMPO"), current);
+    Inventory inventory = inventory(user(TestAccess.OPERATOR), current);
     var response = editSector(inventory, admin, target);
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody().sectorId()).isEqualTo(target.id());
@@ -109,12 +101,12 @@ class InventoryCompletionE2ETest {
 
   @Test
   void managerCanMoveInventoryOnlyBetweenAllocatedSectors() {
-    User manager = user("GESTOR_SETOR");
+    User manager = user(TestAccess.MANAGER);
     Sector current = sectors.save(new Sector("Manager edit current " + System.nanoTime(), null));
     Sector target = sectors.save(new Sector("Manager edit target " + System.nanoTime(), null));
-    allocations.save(new SectorAllocation(manager, current));
-    allocations.save(new SectorAllocation(manager, target));
-    Inventory inventory = inventory(user("OPERADOR_CAMPO"), current);
+    access.allocate(manager, current);
+    access.allocate(manager, target);
+    Inventory inventory = inventory(user(TestAccess.OPERATOR), current);
     assertThat(editSector(inventory, manager, target).getStatusCode()).isEqualTo(HttpStatus.OK);
     Sector forbidden = sectors.save(new Sector("Forbidden edit target " + System.nanoTime(), null));
     var body =
@@ -138,7 +130,7 @@ class InventoryCompletionE2ETest {
 
   @Test
   void movingInventoryToInactiveSectorIsRejectedWithoutChangingCurrentSector() {
-    User admin = user("ADMIN_ORGANIZATION");
+    User admin = user(TestAccess.ADMIN);
     Sector current = sectors.save(new Sector("Active edit source " + System.nanoTime(), null));
     Sector inactive = new Sector("Inactive edit target " + System.nanoTime(), null);
     inactive.setActive(false);
@@ -165,8 +157,8 @@ class InventoryCompletionE2ETest {
 
   @Test
   void adminFinalizesLegacyInventoryAndRepeatedRequestPreservesPersistedDate() {
-    User admin = user("ADMIN_ORGANIZATION");
-    Inventory inventory = inventory(user("OPERADOR_CAMPO"), null);
+    User admin = user(TestAccess.ADMIN);
+    Inventory inventory = inventory(user(TestAccess.OPERATOR), null);
     String path = "/inventory/" + inventory.id() + "/finalize";
     var response = http.exchange(path, HttpMethod.POST, request(admin), InventoryDto.class);
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -181,10 +173,10 @@ class InventoryCompletionE2ETest {
 
   @Test
   void sectorManagerListsAndFinalizesInventoryCreatedByAnotherUser() {
-    User manager = user("GESTOR_SETOR");
+    User manager = user(TestAccess.MANAGER);
     Sector sector = sectors.save(new Sector("Completion sector " + System.nanoTime(), null));
-    allocations.save(new SectorAllocation(manager, sector));
-    Inventory inventory = inventory(user("OPERADOR_CAMPO"), sector);
+    access.allocate(manager, sector);
+    Inventory inventory = inventory(user(TestAccess.OPERATOR), sector);
     var list =
         http.exchange(
             "/inventory/user-inventories", HttpMethod.GET, request(manager), InventoryDto[].class);
@@ -207,8 +199,8 @@ class InventoryCompletionE2ETest {
 
   @Test
   void unrelatedManagerAndOwnerWithoutPermissionCannotFinalize() {
-    User owner = user("OPERADOR_CAMPO");
-    User manager = user("GESTOR_SETOR");
+    User owner = user(TestAccess.OPERATOR);
+    User manager = user(TestAccess.MANAGER);
     Sector sector = sectors.save(new Sector("Restricted sector " + System.nanoTime(), null));
     Inventory inventory = inventory(owner, sector);
     String path = "/inventory/" + inventory.id() + "/finalize";

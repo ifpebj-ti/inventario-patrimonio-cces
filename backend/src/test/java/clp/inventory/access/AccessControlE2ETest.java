@@ -8,14 +8,13 @@ import clp.inventory.dto.UserDto;
 import clp.inventory.model.Inventory;
 import clp.inventory.model.Item;
 import clp.inventory.model.Sector;
-import clp.inventory.model.SectorAllocation;
 import clp.inventory.model.User;
 import clp.inventory.repository.InventoryRepository;
 import clp.inventory.repository.ItemRepository;
-import clp.inventory.repository.ProfileRepository;
 import clp.inventory.repository.SectorAllocationRepository;
 import clp.inventory.repository.SectorRepository;
 import clp.inventory.repository.UserRepository;
+import clp.inventory.testsupport.TestAccess;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import java.nio.charset.StandardCharsets;
@@ -47,12 +46,13 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
- * Controle de acesso por perfil, ponta a ponta (Postgres real e HTTP real).
+ * Controle de acesso por cargo, ponta a ponta (Postgres real e HTTP real).
  *
  * <ul>
- *   <li>ADMIN_ORGANIZATION: vê e gerencia tudo.
- *   <li>GESTOR_SETOR: gerencia os inventários do seu setor e cadastra só Operador e Consulta.
- *   <li>OPERADOR_CAMPO: vê o setor, valida itens e registra observações; não gerencia inventário.
+ *   <li>Administrador (coluna is_administrator): vê e gerencia tudo.
+ *   <li>Gestor de Setor: gerencia os inventários do seu setor e aloca só Operador e Consulta.
+ *   <li>Operador de Campo: vê o setor, valida itens e registra observações; não gerencia
+ *       inventário.
  *   <li>CONSULTA: somente leitura no seu setor.
  * </ul>
  */
@@ -76,7 +76,7 @@ class AccessControlE2ETest {
 
   @Autowired TestRestTemplate http;
   @Autowired UserRepository users;
-  @Autowired ProfileRepository profiles;
+  @Autowired TestAccess access;
   @Autowired SectorRepository sectors;
   @Autowired SectorAllocationRepository allocations;
   @Autowired InventoryRepository inventories;
@@ -86,32 +86,23 @@ class AccessControlE2ETest {
 
   /** Dois setores, cada um com gestor, operador e consulta, e um inventário com itens em cada. */
   private class Scenario {
-    final User admin = user("ADMIN_ORGANIZATION");
+    final User admin = user(TestAccess.ADMIN);
     final Sector sectorA = sector("A");
     final Sector sectorB = sector("B");
-    final User managerA = user("GESTOR_SETOR", sectorA);
-    final User operatorA = user("OPERADOR_CAMPO", sectorA);
-    final User consultA = user("CONSULTA", sectorA);
-    final User managerB = user("GESTOR_SETOR", sectorB);
+    final User managerA = user(TestAccess.MANAGER, sectorA);
+    final User operatorA = user(TestAccess.OPERATOR, sectorA);
+    final User consultA = user(TestAccess.CONSULT, sectorA);
+    final User managerB = user(TestAccess.MANAGER, sectorB);
     final Inventory inventoryA = inventory(managerA, sectorA);
     final Inventory inventoryB = inventory(managerB, sectorB);
     final Item itemA = firstItem(inventoryA);
     final Item itemB = firstItem(inventoryB);
   }
 
-  private User user(String profileName, Sector... allocatedTo) {
-    User user = new User();
-    user.setName("Acesso " + profileName);
-    user.setEmail("access-" + System.nanoTime() + "@ifpe.edu.br");
-    user.setGoogleId(user.getEmail());
-    user.setProfile(
-        profiles.findAll().stream()
-            .filter(p -> p.name().equals(profileName))
-            .findFirst()
-            .orElseThrow());
-    User saved = users.save(user);
+  private User user(String roleName, Sector... allocatedTo) {
+    User saved = access.user("access-" + System.nanoTime() + "@ifpe.edu.br", roleName);
     for (Sector sector : allocatedTo) {
-      allocations.save(new SectorAllocation(saved, sector));
+      access.allocate(saved, sector);
     }
     return saved;
   }
@@ -132,12 +123,8 @@ class AccessControlE2ETest {
     return items.findByInventory_Id(inventory.id(), PageRequest.of(0, 10)).getContent().get(0);
   }
 
-  private long profileId(String name) {
-    return profiles.findAll().stream()
-        .filter(p -> p.name().equals(name))
-        .findFirst()
-        .orElseThrow()
-        .id();
+  private long roleId(String name) {
+    return access.role(name).id();
   }
 
   private HttpHeaders headers(User user) {
@@ -204,7 +191,7 @@ class AccessControlE2ETest {
   // ---------------------------------------------------------------- inventários: leitura
 
   @Test
-  void inventoryListIsScopedBySectorForEveryProfile() {
+  void inventoryListIsScopedBySectorForEveryRole() {
     Scenario s = new Scenario();
 
     for (User user : List.of(s.managerA, s.operatorA, s.consultA)) {
@@ -509,85 +496,168 @@ class AccessControlE2ETest {
     assertThat(users.findById(s.operatorA.getId())).isPresent();
   }
 
-  @Test
-  void managerChangesProfilesOnlyBetweenOperatorAndConsultInOwnSector() {
-    Scenario s = new Scenario();
-    String operatorUrl = "/users/" + s.operatorA.getId() + "/profile";
+  private HttpStatus setRole(User actor, User target, Sector sector, String roleName) {
+    return status(
+        actor,
+        HttpMethod.PUT,
+        "/users/" + target.getId() + "/sectors/" + sector.id(),
+        Map.of("roleId", roleId(roleName)));
+  }
 
-    assertThat(
-            status(
-                s.managerA,
-                HttpMethod.PATCH,
-                operatorUrl,
-                Map.of("profileId", profileId("CONSULTA"))))
+  private String roleIn(User user, Sector sector) {
+    return allocations
+        .findByUser_IdAndSector_Id(user.getId(), sector.id())
+        .orElseThrow()
+        .role()
+        .name();
+  }
+
+  @Test
+  void managerSetsRolesOnlyWithoutManagementInOwnSector() {
+    Scenario s = new Scenario();
+
+    assertThat(setRole(s.managerA, s.operatorA, s.sectorA, TestAccess.CONSULT))
         .isEqualTo(HttpStatus.OK);
-    assertThat(
-            status(
-                s.managerA,
-                HttpMethod.PATCH,
-                operatorUrl,
-                Map.of("profileId", profileId("GESTOR_SETOR"))))
+    assertThat(roleIn(s.operatorA, s.sectorA)).isEqualTo(TestAccess.CONSULT);
+    // Promover a gestor é papel do administrador.
+    assertThat(setRole(s.managerA, s.operatorA, s.sectorA, TestAccess.MANAGER))
         .isEqualTo(HttpStatus.FORBIDDEN);
-    // Gestor de outro setor, e usuário de outro setor, estão fora do alcance.
-    assertThat(
-            status(
-                s.managerB,
-                HttpMethod.PATCH,
-                operatorUrl,
-                Map.of("profileId", profileId("OPERADOR_CAMPO"))))
+    assertThat(roleIn(s.operatorA, s.sectorA)).isEqualTo(TestAccess.CONSULT);
+    // Gestor de outro setor não tem alcance sobre o setor A, e o gestor A não tem sobre o B.
+    assertThat(setRole(s.managerB, s.operatorA, s.sectorA, TestAccess.OPERATOR))
         .isEqualTo(HttpStatus.FORBIDDEN);
-    assertThat(
-            status(
-                s.managerA,
-                HttpMethod.PATCH,
-                "/users/" + s.managerB.getId() + "/profile",
-                Map.of("profileId", profileId("CONSULTA"))))
+    assertThat(setRole(s.managerA, s.managerB, s.sectorB, TestAccess.CONSULT))
         .isEqualTo(HttpStatus.FORBIDDEN);
-    // Operador e consulta não alteram perfis.
+    assertThat(roleIn(s.managerB, s.sectorB)).isEqualTo(TestAccess.MANAGER);
+    // Operador e consulta não alteram cargos.
     for (User user : List.of(s.operatorA, s.consultA)) {
-      assertThat(
-              status(
-                  user,
-                  HttpMethod.PATCH,
-                  "/users/" + s.consultA.getId() + "/profile",
-                  Map.of("profileId", profileId("OPERADOR_CAMPO"))))
+      assertThat(setRole(user, s.consultA, s.sectorA, TestAccess.OPERATOR))
           .isEqualTo(HttpStatus.FORBIDDEN);
     }
-    assertThat(users.findById(s.managerB.getId()).orElseThrow().getProfile().name())
-        .isEqualTo("GESTOR_SETOR");
+    // O administrador troca qualquer cargo, inclusive para gestor.
+    assertThat(setRole(s.admin, s.operatorA, s.sectorA, TestAccess.MANAGER))
+        .isEqualTo(HttpStatus.OK);
+    assertThat(roleIn(s.operatorA, s.sectorA)).isEqualTo(TestAccess.MANAGER);
+  }
+
+  @Test
+  void managerCannotDemoteAnotherManagerOfTheSector() {
+    Scenario s = new Scenario();
+    User secondManager = user(TestAccess.MANAGER, s.sectorA);
+
+    assertThat(setRole(s.managerA, secondManager, s.sectorA, TestAccess.CONSULT))
+        .isEqualTo(HttpStatus.FORBIDDEN);
+    assertThat(
+            status(
+                s.managerA,
+                HttpMethod.DELETE,
+                "/users/" + secondManager.getId() + "/sectors/" + s.sectorA.id(),
+                null))
+        .isEqualTo(HttpStatus.FORBIDDEN);
+    assertThat(roleIn(secondManager, s.sectorA)).isEqualTo(TestAccess.MANAGER);
+  }
+
+  @Test
+  void allocationRequiresAnExistingRole() {
+    Scenario s = new Scenario();
+    User free = user(TestAccess.CONSULT);
+    String url = "/users/" + free.getId() + "/sectors/" + s.sectorA.id();
+
+    assertThat(status(s.managerA, HttpMethod.PUT, url, new HashMap<String, Object>()))
+        .isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(status(s.managerA, HttpMethod.PUT, url, Map.of("roleId", 999999)))
+        .isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(allocations.existsByUser_IdAndSector_Id(free.getId(), s.sectorA.id())).isFalse();
+  }
+
+  @Test
+  void sameUserIsManagerInOneSectorAndOnlyOperatorInAnother() {
+    Scenario s = new Scenario();
+    User dual = user(TestAccess.CONSULT);
+    access.allocate(dual, s.sectorA, TestAccess.MANAGER);
+    access.allocate(dual, s.sectorB, TestAccess.OPERATOR);
+
+    // No setor A ele gerencia inventários; no B só vê e valida itens.
+    Map<String, Object> newInventoryA = inventoryBody(s.inventoryA, s.sectorA);
+    newInventoryA.put("name", "Dual A " + System.nanoTime());
+    Map<String, Object> newInventoryB = inventoryBody(s.inventoryB, s.sectorB);
+    newInventoryB.put("name", "Dual B " + System.nanoTime());
+    assertThat(status(dual, HttpMethod.POST, "/inventory/new-inventory", newInventoryA))
+        .isEqualTo(HttpStatus.CREATED);
+    assertThat(status(dual, HttpMethod.POST, "/inventory/new-inventory", newInventoryB))
+        .isEqualTo(HttpStatus.FORBIDDEN);
+
+    String urlB = "/inventory/" + s.inventoryB.id();
+    assertThat(status(dual, HttpMethod.GET, urlB, null)).isEqualTo(HttpStatus.OK);
+    assertThat(status(dual, HttpMethod.PUT, urlB, inventoryBody(s.inventoryB, s.sectorB)))
+        .isEqualTo(HttpStatus.FORBIDDEN);
+    assertThat(status(dual, HttpMethod.POST, urlB + "/finalize", null))
+        .isEqualTo(HttpStatus.FORBIDDEN);
+    assertThat(
+            call(dual, HttpMethod.GET, "/inventory/" + s.inventoryA.id(), null, Map.class)
+                .getBody())
+        .containsEntry("canFinalize", true);
+    assertThat(call(dual, HttpMethod.GET, urlB, null, Map.class).getBody())
+        .containsEntry("canFinalize", false);
+
+    String itemB = "/item/" + s.itemB.id();
+    assertThat(status(dual, HttpMethod.PUT, itemB, itemBody(s.itemB, true, "Mesa")))
+        .isEqualTo(HttpStatus.OK);
+    assertThat(status(dual, HttpMethod.PUT, itemB, itemBody(s.itemB, true, "Outra")))
+        .isEqualTo(HttpStatus.FORBIDDEN);
+    String itemA = "/item/" + s.itemA.id();
+    assertThat(status(dual, HttpMethod.PUT, itemA, itemBody(s.itemA, true, "Outra")))
+        .isEqualTo(HttpStatus.OK);
   }
 
   @Test
   void managerAllocatesOnlyOperatorsAndConsultToOwnSector() {
     Scenario s = new Scenario();
-    User freeConsult = user("CONSULTA");
+    User free = user(TestAccess.CONSULT);
 
-    assertThat(
-            status(
-                s.managerA,
-                HttpMethod.POST,
-                "/users/" + freeConsult.getId() + "/sectors/" + s.sectorA.id(),
-                null))
+    assertThat(setRole(s.managerA, free, s.sectorA, TestAccess.OPERATOR)).isEqualTo(HttpStatus.OK);
+    assertThat(roleIn(free, s.sectorA)).isEqualTo(TestAccess.OPERATOR);
+    // Vincular outro gestor ao seu setor, ou como gestor, é papel do admin.
+    assertThat(setRole(s.managerA, s.managerB, s.sectorA, TestAccess.CONSULT))
         .isEqualTo(HttpStatus.OK);
-    assertThat(allocations.existsByUser_IdAndSector_Id(freeConsult.getId(), s.sectorA.id()))
-        .isTrue();
-    // Vincular outro gestor ao seu setor é papel do admin.
-    assertThat(
-            status(
-                s.managerA,
-                HttpMethod.POST,
-                "/users/" + s.managerB.getId() + "/sectors/" + s.sectorA.id(),
-                null))
+    assertThat(setRole(s.managerA, free, s.sectorA, TestAccess.MANAGER))
         .isEqualTo(HttpStatus.FORBIDDEN);
-    assertThat(allocations.existsByUser_IdAndSector_Id(s.managerB.getId(), s.sectorA.id()))
-        .isFalse();
+    assertThat(roleIn(free, s.sectorA)).isEqualTo(TestAccess.OPERATOR);
+    assertThat(setRole(s.admin, free, s.sectorA, TestAccess.MANAGER)).isEqualTo(HttpStatus.OK);
+  }
+
+  @Test
+  void onlyAdminGrantsOrRevokesAdministrator() {
+    Scenario s = new Scenario();
+    String url = "/users/" + s.operatorA.getId() + "/administrator";
+    Map<String, Object> grant = Map.of("administrator", true);
+
+    for (User actor : List.of(s.managerA, s.operatorA, s.consultA)) {
+      assertThat(status(actor, HttpMethod.PATCH, url, grant)).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+    assertThat(users.findById(s.operatorA.getId()).orElseThrow().isAdministrator()).isFalse();
+    assertThat(status(s.admin, HttpMethod.PATCH, url, grant)).isEqualTo(HttpStatus.OK);
+    assertThat(users.findById(s.operatorA.getId()).orElseThrow().isAdministrator()).isTrue();
+    // O novo administrador passa a ver todos os setores.
+    assertThat(
+            List.of(
+                call(s.operatorA, HttpMethod.GET, "/sectors", null, SectorDto[].class).getBody()))
+        .extracting(SectorDto::id)
+        .contains(s.sectorA.id(), s.sectorB.id());
+    assertThat(status(s.admin, HttpMethod.PATCH, url, Map.of("administrator", false)))
+        .isEqualTo(HttpStatus.OK);
+    assertThat(users.findById(s.operatorA.getId()).orElseThrow().isAdministrator()).isFalse();
+    // Ninguém altera o próprio papel e o campo é obrigatório.
     assertThat(
             status(
                 s.admin,
-                HttpMethod.POST,
-                "/users/" + s.managerB.getId() + "/sectors/" + s.sectorA.id(),
-                null))
-        .isEqualTo(HttpStatus.OK);
+                HttpMethod.PATCH,
+                "/users/" + s.admin.getId() + "/administrator",
+                Map.of("administrator", false)))
+        .isEqualTo(HttpStatus.CONFLICT);
+    assertThat(status(s.admin, HttpMethod.PATCH, url, new HashMap<String, Object>()))
+        .isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(users.findById(s.admin.getId()).orElseThrow().isAdministrator()).isTrue();
   }
 
   // ---------------------------------------------------------------- desativar e excluir usuário
@@ -620,15 +690,15 @@ class AccessControlE2ETest {
   @Test
   void onlyAdminActivatesOrDeactivatesUsers() {
     Scenario s = new Scenario();
-    User withoutProfile = new User();
-    withoutProfile.setName("Sem perfil");
-    withoutProfile.setEmail("sem-perfil-" + System.nanoTime() + "@ifpe.edu.br");
-    withoutProfile.setGoogleId(withoutProfile.getEmail());
-    withoutProfile = users.save(withoutProfile);
+    User withoutAllocation = new User();
+    withoutAllocation.setName("Sem alocação");
+    withoutAllocation.setEmail("sem-alocacao-" + System.nanoTime() + "@ifpe.edu.br");
+    withoutAllocation.setGoogleId(withoutAllocation.getEmail());
+    withoutAllocation = users.save(withoutAllocation);
     String target = "/users/" + s.operatorA.getId();
 
-    // Nem o gestor do próprio setor, nem operador, consulta ou quem ainda não tem perfil.
-    for (User actor : List.of(s.managerA, s.operatorA, s.consultA, withoutProfile)) {
+    // Nem o gestor do próprio setor, nem operador, consulta ou quem ainda não tem alocação.
+    for (User actor : List.of(s.managerA, s.operatorA, s.consultA, withoutAllocation)) {
       assertThat(status(actor, HttpMethod.PATCH, target + "/deactivate", null))
           .isEqualTo(HttpStatus.FORBIDDEN);
       assertThat(status(actor, HttpMethod.PATCH, target + "/activate", null))

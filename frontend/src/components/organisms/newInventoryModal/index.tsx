@@ -11,6 +11,7 @@ import {
   createInventoryRequest,
 } from '@/services/inventory'
 import { listSectors } from '@/services/administration'
+import { useAdministrationAccess } from '@/contexts/AdministrationAccess'
 import type { Sector } from '@/commons/models/administration'
 import { Button } from '@/components/ui/button'
 import {
@@ -39,6 +40,7 @@ export const NewInventoryModal = ({
   onInventoryCreated,
 }: ModalProps) => {
   const [sectors, setSectors] = useState<Sector[]>([])
+  const { canManageInventoryIn } = useAdministrationAccess()
   // Hook 'react-hook-form' para gerenciar o estado, validação e submissão do formulário.
   const {
     register,
@@ -54,13 +56,20 @@ export const NewInventoryModal = ({
   useEffect(() => {
     const controller = new AbortController()
     listSectors(controller.signal)
-      .then((data) => setSectors(data.filter((sector) => sector.active)))
+      .then((data) =>
+        // Só os setores em que o usuário gerencia inventários (o cargo vale por setor).
+        setSectors(
+          data.filter(
+            (sector) => sector.active && canManageInventoryIn(sector.id),
+          ),
+        ),
+      )
       .catch(() => {
         if (!controller.signal.aborted)
           toast.error('Não foi possível carregar os setores.')
       })
     return () => controller.abort()
-  }, [])
+  }, [canManageInventoryIn])
 
   // Função executada quando o formulário é submetido com dados válidos.
   const createInventory = async (data: CreateInventoryRequest) => {

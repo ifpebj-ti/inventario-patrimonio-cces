@@ -7,18 +7,18 @@ import java.util.Set;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+/**
+ * Cargo: um conjunto de permissões que vale no setor em que o usuário está alocado ({@link
+ * SectorAllocation}). O mesmo usuário pode ter cargos diferentes em setores diferentes.
+ */
 @Entity
-@Table(name = "im_profile")
-public class Profile {
-
-  // Perfil da conta de sistema e do administrador do Inventarium. O boot depende dele (o
-  // SystemAdminInitializer o procura por este nome), então não pode ser renomeado nem excluído.
-  public static final String ADMIN_PROFILE_NAME = "ADMIN_ORGANIZATION";
+@Table(name = "im_role")
+public class Role {
 
   @Id
   @Column(name = "id")
-  @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "im_profile_id")
-  @SequenceGenerator(name = "im_profile_id", sequenceName = "im_profile_id", allocationSize = 1)
+  @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "im_role_id")
+  @SequenceGenerator(name = "im_role_id", sequenceName = "im_role_id", allocationSize = 1)
   private long id;
 
   @Column(nullable = false, unique = true, length = 100)
@@ -34,16 +34,17 @@ public class Profile {
   @Column(nullable = false)
   private LocalDateTime updatedAt;
 
-  @ManyToMany
+  // EAGER: a autorização lê as permissões do cargo a cada requisição, fora de transação.
+  @ManyToMany(fetch = FetchType.EAGER)
   @JoinTable(
-      name = "im_profile_permission",
-      joinColumns = @JoinColumn(name = "id_profile"),
+      name = "im_role_permission",
+      joinColumns = @JoinColumn(name = "id_role"),
       inverseJoinColumns = @JoinColumn(name = "id_permission"))
   private Set<Permission> permissions = new HashSet<>();
 
-  public Profile() {}
+  public Role() {}
 
-  public Profile(String name, String description) {
+  public Role(String name, String description) {
     this.name = name;
     this.description = description;
   }
@@ -80,11 +81,12 @@ public class Profile {
     return permissions;
   }
 
-  public void addPermission(Permission permission) {
-    permissions.add(permission);
+  public boolean hasPermission(String permissionName) {
+    return permissions.stream().anyMatch(p -> p.name().equals(permissionName));
   }
 
-  public void removePermission(Permission permission) {
-    permissions.remove(permission);
+  public void setPermissions(Set<Permission> newPermissions) {
+    permissions.clear();
+    permissions.addAll(newPermissions);
   }
 }

@@ -33,7 +33,7 @@ export interface BreadcrumbProps {
 const ROUTE_LABELS: Record<string, string> = {
   sectors: 'Setores',
   users: 'Usuários',
-  profiles: 'Perfis e permissões',
+  roles: 'Cargos e permissões',
   dashboard: 'Início',
   inicio: 'Início',
   inventory: 'Inventários',
@@ -75,7 +75,7 @@ export function Breadcrumb({
   const router = useRouter()
   const { inventories } = useInventory()
   const { user } = useAuth()
-  const hasDashboard = !!user?.permissions?.includes('ADMIN')
+  const hasDashboard = !!user?.administrator
 
   const cleanPath = (pathname || '').replace(/\/+$/, '')
   const isDashboard = cleanPath === '' || cleanPath === '/dashboard'

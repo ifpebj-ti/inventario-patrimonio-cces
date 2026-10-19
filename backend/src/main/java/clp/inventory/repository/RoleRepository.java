@@ -1,14 +1,11 @@
 package clp.inventory.repository;
 
-import clp.inventory.model.Profile;
-import java.util.Optional;
+import clp.inventory.model.Role;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface ProfileRepository extends JpaRepository<Profile, Long> {
-
-  Optional<Profile> findByName(String name);
+public interface RoleRepository extends JpaRepository<Role, Long> {
 
   boolean existsByName(String name);
 

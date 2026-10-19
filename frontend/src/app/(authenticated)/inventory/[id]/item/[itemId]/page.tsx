@@ -6,6 +6,7 @@ import { Badge as UiBadge } from '@/components/ui/badge'
 import { Button as UiButton } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAdministrationAccess } from '@/contexts/AdministrationAccess'
+import { useInventorySector } from '@/hooks/useInventorySector'
 import { Spinner } from '@/components/ui/spinner'
 
 import { Card as UiCard } from '@/components/ui/card'
@@ -41,7 +42,7 @@ const draftFrom = (item: Item): Draft => ({
 })
 
 export default function ItemDetailPage() {
-  const { itemId } = useParams()
+  const { id, itemId } = useParams()
   const [item, setItem] = useState<Item | null>(null)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [loading, setLoading] = useState(true)
@@ -49,8 +50,12 @@ export default function ItemDetailPage() {
   const [editError, setEditError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [notesOpen, setNotesOpen] = useState(false)
-  // Editar dados do item: gestor/admin. Observações: também o operador. Consulta só lê.
-  const { canManageInventories, canOperateItems } = useAdministrationAccess()
+  // Editar dados do item: gestor do setor do inventário (ou admin). Observações: também quem tem
+  // MANAGE_ITEM nele. Os demais só leem. O cargo vale por setor.
+  const { canManageInventoryIn, canOperateItemsIn } = useAdministrationAccess()
+  const inventorySectorId = useInventorySector(Number(id))
+  const canManageInventories = canManageInventoryIn(inventorySectorId)
+  const canOperateItems = canOperateItemsIn(inventorySectorId)
 
   useEffect(() => {
     let active = true

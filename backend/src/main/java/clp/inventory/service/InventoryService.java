@@ -172,8 +172,7 @@ public class InventoryService {
 
   /** Validar uma planilha exige poder importar: admin ou gestor de algum setor. */
   public void requireCanImport(long userId) {
-    authorizationService.requireAnyPermission(
-        userId, AuthorizationService.ADMIN, AuthorizationService.MANAGE_SECTOR);
+    authorizationService.requireAdminOrSectorManager(userId);
   }
 
   /** Só existe uma importação por inventário: para importar outra, limpe os itens antes. */

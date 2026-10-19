@@ -1,12 +1,12 @@
 'use client'
 
 import { AccessGate } from '@/components/organisms/administration/shared'
-import { ProfilesScreen } from '@/components/organisms/administration/profiles'
+import { RolesScreen } from '@/components/organisms/administration/roles'
 
-export default function ProfilesPage() {
+export default function RolesPage() {
   return (
     <AccessGate admin>
-      <ProfilesScreen />
+      <RolesScreen />
     </AccessGate>
   )
 }

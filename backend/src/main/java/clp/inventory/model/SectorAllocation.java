@@ -23,11 +23,18 @@ public class SectorAllocation {
   @JoinColumn(name = "id_sector", nullable = false)
   private Sector sector;
 
+  // Cargo do usuário neste setor (o mesmo usuário pode ter cargos diferentes em setores
+  // diferentes).
+  @ManyToOne(optional = false)
+  @JoinColumn(name = "id_role", nullable = false)
+  private Role role;
+
   public SectorAllocation() {}
 
-  public SectorAllocation(User user, Sector sector) {
+  public SectorAllocation(User user, Sector sector, Role role) {
     this.user = user;
     this.sector = sector;
+    this.role = role;
   }
 
   public long id() {
@@ -40,5 +47,13 @@ public class SectorAllocation {
 
   public Sector sector() {
     return sector;
+  }
+
+  public Role role() {
+    return role;
+  }
+
+  public void setRole(Role role) {
+    this.role = role;
   }
 }

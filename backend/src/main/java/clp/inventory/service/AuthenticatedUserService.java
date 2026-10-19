@@ -25,6 +25,6 @@ public class AuthenticatedUserService {
         userRepository
             .findById(userId)
             .orElseThrow(() -> new NoSuchElementException("User not found with id: " + userId));
-    return AuthenticatedUserDto.from(user, sectorAllocationService.sectorIdsOf(userId));
+    return AuthenticatedUserDto.from(user, sectorAllocationService.allocationsOf(userId));
   }
 }

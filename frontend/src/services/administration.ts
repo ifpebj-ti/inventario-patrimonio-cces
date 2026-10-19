@@ -4,7 +4,7 @@ import { api } from './api'
 import {
   managedUserSchema,
   permissionSchema,
-  profileSchema,
+  roleSchema,
   sectorSchema,
 } from '@/commons/models/administration'
 
@@ -90,26 +90,44 @@ export const deleteSector = async (sectorId: number) => {
   await api.delete(`/sectors/${sectorId}`)
 }
 
-export const listProfiles = async (signal?: AbortSignal) =>
-  parse(z.array(profileSchema), (await api.get('/profiles', { signal })).data)
+export const listRoles = async (signal?: AbortSignal) =>
+  parse(z.array(roleSchema), (await api.get('/roles', { signal })).data)
+export const saveRole = async (
+  data: { name: string; description: string; permissionIds: number[] },
+  id?: number,
+) => {
+  const body = {
+    name: data.name.trim(),
+    description: data.description.trim() || null,
+    permissionIds: data.permissionIds,
+  }
+  const response = id
+    ? await api.put(`/roles/${id}`, body)
+    : await api.post('/roles', body)
+  return parse(roleSchema, response.data)
+}
+export const deleteRole = async (roleId: number) => {
+  await api.delete(`/roles/${roleId}`)
+}
 export const listPermissions = async (signal?: AbortSignal) =>
   parse(
     z.array(permissionSchema),
     (await api.get('/permissions', { signal })).data,
   )
 
-export const listUsers = async (profileId?: number, signal?: AbortSignal) =>
+export const listUsers = async (roleId?: number, signal?: AbortSignal) =>
   parse(
     z.array(managedUserSchema),
-    (await api.get('/users', { params: { profileId }, signal })).data,
+    (await api.get('/users', { params: { roleId }, signal })).data,
   )
-export const assignUserProfile = async (
+// Concede ou retira o papel de administrador (só o administrador, e nunca na própria conta).
+export const setUserAdministrator = async (
   userId: number,
-  profileId: number | null,
+  administrator: boolean,
 ) =>
   parse(
     managedUserSchema,
-    (await api.patch(`/users/${userId}/profile`, { profileId })).data,
+    (await api.patch(`/users/${userId}/administrator`, { administrator })).data,
   )
 // Desativar impede o acesso mas preserva o histórico; só o administrador ativa ou desativa.
 export const setUserActive = async (userId: number, active: boolean) =>
@@ -118,14 +136,16 @@ export const setUserActive = async (userId: number, active: boolean) =>
     (await api.patch(`/users/${userId}/${active ? 'activate' : 'deactivate'}`))
       .data,
   )
+// Aloca o usuário no setor com o cargo (ou troca o cargo dele nesse setor); roleId nulo desaloca.
 export const setUserSector = async (
   userId: number,
   sectorId: number,
-  allocated: boolean,
+  roleId: number | null,
 ) => {
   const url = `/users/${userId}/sectors/${sectorId}`
   return parse(
     managedUserSchema,
-    (allocated ? await api.post(url) : await api.delete(url)).data,
+    (roleId === null ? await api.delete(url) : await api.put(url, { roleId }))
+      .data,
   )
 }

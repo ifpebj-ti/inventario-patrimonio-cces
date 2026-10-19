@@ -2,9 +2,11 @@ package clp.inventory.permission;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import clp.inventory.model.Sector;
 import clp.inventory.model.User;
-import clp.inventory.repository.ProfileRepository;
+import clp.inventory.repository.SectorRepository;
 import clp.inventory.repository.UserRepository;
+import clp.inventory.testsupport.TestAccess;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import java.time.Duration;
@@ -49,20 +51,18 @@ class PermissionE2ETest {
 
   @Autowired UserRepository userRepository;
 
-  @Autowired ProfileRepository profileRepository;
+  @Autowired TestAccess access;
 
-  private long createUserWithProfile(String profileName) {
-    var profile =
-        profileRepository.findAll().stream()
-            .filter(p -> profileName.equals(p.name()))
-            .findFirst()
-            .orElseThrow();
-    User user = new User();
-    user.setName("Test User");
-    user.setEmail(profileName.toLowerCase() + "-" + System.nanoTime() + "@ifpe.edu.br");
-    user.setGoogleId("google-" + profileName + "-" + System.nanoTime());
-    user.setProfile(profile);
-    return userRepository.save(user).getId();
+  @Autowired SectorRepository sectorRepository;
+
+  // Administrador, ou usuário com o cargo informado em um setor (o cargo só vale alocado).
+  private long createUserWithProfile(String roleName) {
+    User user = access.user("u-" + System.nanoTime() + "@ifpe.edu.br", roleName);
+    if (!TestAccess.ADMIN.equals(roleName)) {
+      access.allocate(
+          user, sectorRepository.save(new Sector("Setor perm " + System.nanoTime(), null)));
+    }
+    return user.getId();
   }
 
   private HttpHeaders headersFor(long userId) {
@@ -81,7 +81,7 @@ class PermissionE2ETest {
   }
 
   private HttpHeaders adminHeaders() {
-    return headersFor(createUserWithProfile("ADMIN_ORGANIZATION"));
+    return headersFor(createUserWithProfile(TestAccess.ADMIN));
   }
 
   @SuppressWarnings("unchecked")
@@ -94,12 +94,12 @@ class PermissionE2ETest {
   }
 
   @Test
-  void list_asAdmin_returnsTheThreeSeededPermissions() {
+  void list_asAdmin_returnsTheTwoSeededPermissions() {
     var permissions = listAsAdmin();
 
     assertThat(permissions)
         .extracting(p -> p.get("name"))
-        .containsExactlyInAnyOrder("ADMIN", "MANAGE_SECTOR", "MANAGE_ITEM");
+        .containsExactlyInAnyOrder("MANAGE_SECTOR", "MANAGE_ITEM");
   }
 
   @Test
@@ -126,7 +126,7 @@ class PermissionE2ETest {
 
   @Test
   void list_asConsultaOrOperator_returns403() {
-    for (String profileName : List.of("CONSULTA", "OPERADOR_CAMPO")) {
+    for (String profileName : List.of(TestAccess.CONSULT, TestAccess.OPERATOR)) {
       var response =
           restTemplate.exchange(
               "/permissions",
@@ -144,15 +144,29 @@ class PermissionE2ETest {
         restTemplate.exchange(
             "/permissions",
             HttpMethod.GET,
-            new HttpEntity<>(headersFor(createUserWithProfile("GESTOR_SETOR"))),
+            new HttpEntity<>(headersFor(createUserWithProfile(TestAccess.MANAGER))),
             Map[].class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
   }
 
   @Test
+  void list_asManagerRoleWithoutAnyAllocation_returns403() {
+    User unallocated = access.user("u-" + System.nanoTime() + "@ifpe.edu.br", TestAccess.MANAGER);
+
+    var response =
+        restTemplate.exchange(
+            "/permissions",
+            HttpMethod.GET,
+            new HttpEntity<>(headersFor(unallocated.getId())),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+  }
+
+  @Test
   void getById_asNonAdmin_returns403() {
-    long consultaId = createUserWithProfile("CONSULTA");
+    long consultaId = createUserWithProfile(TestAccess.CONSULT);
 
     var response =
         restTemplate.exchange(
@@ -171,13 +185,16 @@ class PermissionE2ETest {
             "/permissions", new HttpEntity<>(body, adminHeaders()), Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
-    assertThat(listAsAdmin()).hasSize(3);
+    assertThat(listAsAdmin()).hasSize(2);
   }
 
   @Test
-  void update_isNotAvailable_andAdminPermissionCannotBeRenamed() {
+  void update_isNotAvailable_andPermissionCannotBeRenamed() {
     var admin =
-        listAsAdmin().stream().filter(p -> "ADMIN".equals(p.get("name"))).findFirst().orElseThrow();
+        listAsAdmin().stream()
+            .filter(p -> "MANAGE_SECTOR".equals(p.get("name")))
+            .findFirst()
+            .orElseThrow();
     long id = ((Number) admin.get("id")).longValue();
 
     var response =
@@ -188,13 +205,16 @@ class PermissionE2ETest {
             Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
-    assertThat(listAsAdmin()).extracting(p -> p.get("name")).contains("ADMIN");
+    assertThat(listAsAdmin()).extracting(p -> p.get("name")).contains("MANAGE_SECTOR");
   }
 
   @Test
-  void delete_isNotAvailable_andAdminPermissionCannotBeDeleted() {
+  void delete_isNotAvailable_andPermissionCannotBeDeleted() {
     var admin =
-        listAsAdmin().stream().filter(p -> "ADMIN".equals(p.get("name"))).findFirst().orElseThrow();
+        listAsAdmin().stream()
+            .filter(p -> "MANAGE_SECTOR".equals(p.get("name")))
+            .findFirst()
+            .orElseThrow();
     long id = ((Number) admin.get("id")).longValue();
 
     var response =
@@ -202,7 +222,7 @@ class PermissionE2ETest {
             "/permissions/" + id, HttpMethod.DELETE, new HttpEntity<>(adminHeaders()), Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
-    assertThat(listAsAdmin()).hasSize(3);
+    assertThat(listAsAdmin()).hasSize(2);
   }
 
   @Test

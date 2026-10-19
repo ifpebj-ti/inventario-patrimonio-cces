@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+    <!--
+        Changelog so de teste: o schema como estava ANTES da 7.0 (cargo por alocacao), para o
+        MigrationRolesPerAllocationTest inserir dados antigos e so depois aplicar o master completo.
+        Mantem os mesmos caminhos dos includes de producao, entao o Liquibase reconhece os changesets ja
+        aplicados e roda apenas a 7.0.
+    -->
+    <include file="/db/changelog/changes/0.0.xml" relativeToChangelogFile="false"/>
+    <include file="/db/changelog/changes/1.0.xml" relativeToChangelogFile="false"/>
+    <include file="/db/changelog/changes/2.0.xml" relativeToChangelogFile="false"/>
+    <include file="/db/changelog/changes/3.0.xml" relativeToChangelogFile="false"/>
+    <include file="/db/changelog/changes/4.0.xml" relativeToChangelogFile="false"/>
+    <include file="/db/changelog/changes/5.0.xml" relativeToChangelogFile="false"/>
+    <include file="/db/changelog/changes/6.0.xml" relativeToChangelogFile="false"/>
+</databaseChangeLog>

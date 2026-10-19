@@ -1,13 +1,21 @@
 import { ReactNode } from 'react'
 
+// Alocação do usuário em um setor, com o cargo dele nesse setor e as permissões do cargo.
+export type Allocation = {
+  sectorId: number
+  roleId: number
+  roleName: string
+  permissions: string[]
+}
+
 // Dados de sessão; não confundir com UserDto das listagens administrativas.
 export type User = {
   id: number
   name: string
   email: string
-  profileId: number | null
+  administrator: boolean
   sectorIds: number[]
-  permissions: string[]
+  allocations: Allocation[]
 }
 
 // Tipo para o contexto de autenticação, importante para usar atributos e métodos

@@ -1,31 +1,33 @@
 # Telas administrativas
 
-Implementação de setores, usuários, perfis e permissões. As rotas são `/sectors`, `/users` e `/profiles`, dentro do layout autenticado, e aparecem no menu lateral conforme o perfil confirmado pela API.
+Implementação de setores, usuários, cargos e permissões. As rotas são `/sectors`, `/users` e `/roles`, dentro do layout autenticado, e aparecem no menu lateral conforme o acesso confirmado pela API.
 
-## Controle de acesso por perfil
+## Controle de acesso por cargo
 
-`AdministrationAccessProvider` deriva o perfil das permissões da sessão recuperada em `/auth/me` (`src/lib/access.ts`). Nome e ID do perfil não são usados como autorização. A API verifica novamente a permissão em cada operação; a interface só esconde o que o perfil não pode usar.
+O **administrador** (`administrator` na sessão) tem acesso total. Quem não é administrador tem um **cargo em cada setor** em que está alocado, e as permissões do cargo valem **só naquele setor**: o mesmo usuário pode ser gestor em um setor e só consulta em outro. `AdministrationAccessProvider` deriva as capacidades da sessão recuperada em `/auth/me` (`administrator` e `allocations`, cada uma com `sectorId`, `roleName` e `permissions`; `src/lib/access.ts`). O nome do cargo não é usado como autorização, só as permissões. A API verifica novamente a permissão em cada operação; a interface só esconde o que o usuário não pode usar.
 
-| Perfil | Permissão | O que vê | O que faz |
-| --- | --- | --- | --- |
-| Administrador da Organização | `ADMIN` | Tudo, incluindo o Dashboard | Gerencia tudo: setores, usuários, perfis (consulta) e inventários |
-| Gestor de Setor | `MANAGE_SECTOR` | Inventários e setores a que está vinculado | Cria, edita, finaliza e exclui inventários do seu setor, importa e limpa itens; não acessa a tela de Usuários |
-| Operador de Campo | `MANAGE_ITEM` | Inventários do seu setor | Escaneia, valida itens e adiciona observações; não finaliza nem edita inventários ou dados dos itens |
-| Consulta | nenhuma | Inventários do seu setor | Somente leitura (pode exportar a planilha) |
+| Quem | O que vê | O que faz |
+| --- | --- | --- |
+| Administrador | Tudo, incluindo o Dashboard | Gerencia tudo: setores, usuários (cargo por setor, administrador), cargos e inventários |
+| Cargo com `MANAGE_SECTOR` (ex.: Gestor de Setor), no setor | Inventários e o setor em que está alocado; o item Setores do menu | Cria, edita, finaliza e exclui inventários do setor, importa e limpa itens e edita os dados dos itens; não acessa Usuários nem Cargos |
+| Cargo com `MANAGE_ITEM` (ex.: Operador de Campo), no setor | Inventários do setor | Escaneia, valida itens e adiciona observações; não finaliza nem edita inventários ou dados dos itens |
+| Cargo sem permissões (ex.: Consulta), no setor | Inventários do setor | Somente leitura (pode exportar a planilha) |
 
-Quem não é administrador não vê o Dashboard: a tela inicial é Inventários, a primeira a que tem acesso (`src/lib/home-route.ts`). Quem entra pela primeira vez com Google nasce **sem perfil** (aparece como "Sem perfil", sem nenhuma permissão e sem setor) e um administrador atribui o perfil e os setores; não existe cadastro de usuário na tela nem na API. "Sem perfil" não é uma opção de atribuição: só se atribui um perfil real.
+As telas de inventário e de item decidem **por setor**: `capabilitiesOf` expõe `canManageInventoryIn(sectorId)` e `canOperateItemsIn(sectorId)`, e as telas usam o setor do inventário aberto (`useInventorySector`). Na lista de inventários, Editar e Excluir aparecem só nas linhas dos setores que o usuário gerencia. O item **Setores** do menu aparece para o administrador e para quem é gestor (`MANAGE_SECTOR`) de ao menos um setor; quem não está alocado em nenhum setor não vê Setores nem Inventários de nenhum setor.
 
-O catálogo padrão tem três permissões: `ADMIN`, `MANAGE_SECTOR` e `MANAGE_ITEM`. A tela de perfis consulta `/permissions` para mostrar a descrição de cada permissão. A composição dos perfis é fixa na aplicação e definida pelas migrations; não pode ser alterada pela interface nem pela API administrativa.
+Quem não é administrador não vê o Dashboard: a tela inicial é Inventários, a primeira a que tem acesso (`src/lib/home-route.ts`). Quem entra pela primeira vez com Google nasce **sem alocação e sem ser administrador**: sem acesso a nenhum setor, até que um administrador (ou o gestor do setor) o aloque com um cargo. Não existe cadastro de usuário na tela nem na API.
 
-Ao alterar o próprio perfil de usuário, a sessão é consultada novamente. Durante a consulta, as páginas administrativas ficam sem interação; se o acesso for revogado, o conteúdo administrativo e seus menus são removidos. Falhas 403 em mutações também provocam nova verificação.
+O catálogo de permissões é fixo e tem duas: `MANAGE_SECTOR` e `MANAGE_ITEM` (a permissão `ADMIN` saiu: administrador é uma coluna do usuário). A tela de cargos consulta `/permissions` para mostrar a descrição de cada permissão ao montar um cargo.
+
+Durante a atualização do acesso (por exemplo, depois de salvar as próprias alocações), as páginas administrativas ficam sem interação; se o acesso for revogado, o conteúdo administrativo e seus menus são removidos. Falhas 403 em mutações também provocam nova verificação.
 
 ## Fluxos
 
-- Setores: busca por nome ou código e filtro de situação (Todos, Ativos, Inativos) em filtros recolhíveis. Criação, edição, ativação, desativação e **exclusão** são do ADMIN; o gestor consulta os seus setores e os usuários associados. O botão **Excluir** (com confirmação) só aparece para o administrador e só em setor com `deletable: true`, isto é, sem usuário, inventário nem auditoria associados; setor com vínculo só é ativado ou desativado, e se a API recusar (409) a tela avisa e recarrega a lista. Nome é enviado com trim; código é opcional. Desativação preserva alocações.
-- Usuários (**somente ADMIN**: o item do menu e a rota ficam disponíveis só para quem tem a permissão `ADMIN`; o gestor vê "Acesso restrito" mesmo pelo endereço): busca por nome ou e-mail, filtros de perfil, setor e situação (Todos, Ativos, Inativos). Não há **Novo usuário** nem **Excluir usuário**: o usuário nasce no primeiro login com Google (sem perfil) e nunca é apagado. Em cada linha, ao lado de **Gerenciar acesso**, o administrador tem o botão rápido **Desativar/Ativar**: desativar pede confirmação, reativar executa direto, e o resultado aparece num aviso (os erros também, já que o modal não está aberto). Em **Gerenciar acesso** (`userAccessModal.tsx`): cabeçalho com avatar, estado e e-mail; o **perfil** em cartões de escolha (nome, descrição e a marca "Perfil atual"); os **setores** como etiquetas com ×, e um campo "Adicionar setor" em forma de seleção com busca: clicar no campo vazio lista todos os setores ativos disponíveis, digitar filtra por nome ou sigla e clicar num setor o adiciona na hora (a lista segue aberta para adicionar outros); e, por último, **Desativar/Reativar** (só administrador). Perfil e setores são **alterações pendentes**: o rodapé conta o que mudou e **Salvar alterações** envia tudo de uma vez, em sequência (perfil, depois setores a incluir e a remover), já que a API não tem endpoint em lote; se uma chamada falhar, as anteriores já valeram, a tela mostra o erro e o que sobrou continua pendente. **Cancelar** descarta. Só a alteração do **próprio perfil** pede confirmação antes de salvar.
-- Desativar bloqueia o acesso imediatamente, inclusive de quem já está logado, e preserva o histórico. Só o administrador ativa ou desativa (o gestor vê "Somente o administrador ativa ou desativa usuários."), e ninguém mexe na própria conta.
-- Perfis e permissões (ADMIN): tabela somente para consulta com perfil, descrição e permissões, busca por nome, descrição ou permissão. Não há criação, edição, exclusão ou configuração de permissões. Os nomes exibidos são amigáveis (`src/lib/access-labels.ts`); os códigos do servidor não mudam.
-- Proteções: GET de perfis e permissões exige ADMIN ou MANAGE_SECTOR (o gestor usa o catálogo para cadastrar usuários); operador e consulta recebem 403. POST/PUT/PATCH/DELETE de perfis e associação ou remoção de permissões respondem 405 para ADMIN; sem ADMIN, respondem 403. A atribuição de perfil a um usuário continua em `PATCH /users/{id}/profile`, e o gestor só atribui perfis sem permissão de gestão.
+- Setores: busca por nome ou código e filtro de situação (Todos, Ativos, Inativos) em filtros recolhíveis. Criação, edição, ativação, desativação e **exclusão** são do administrador; o gestor consulta os seus setores e os usuários associados. O botão **Excluir** (com confirmação) só aparece para o administrador e só em setor com `deletable: true`, isto é, sem usuário, inventário nem auditoria associados; setor com vínculo só é ativado ou desativado, e se a API recusar (409) a tela avisa e recarrega a lista. Nome é enviado com trim; código é opcional. Desativação preserva alocações.
+- Usuários (**somente administrador**: o item do menu e a rota ficam disponíveis só para o administrador; os demais veem "Acesso restrito" mesmo pelo endereço): busca por nome ou e-mail, filtros de cargo (todos os cargos, Administradores, Sem acesso, ou um cargo), setor e situação (Todos, Ativos, Inativos). Cada cartão mostra o papel (Administrador ou usuário por setor) e os setores com o cargo em cada um (ex.: "Patrimônio · Gestor de Setor"). Não há **Novo usuário** nem **Excluir usuário**: o usuário nasce no primeiro login com Google e nunca é apagado. Em cada linha, ao lado de **Gerenciar acesso**, o administrador tem o botão rápido **Desativar/Ativar**: desativar pede confirmação, reativar executa direto, e o resultado aparece num aviso. Em **Gerenciar acesso** (`userAccessModal.tsx`): cabeçalho com avatar, estado e e-mail; o **Administrador** como caixa de seleção (desabilitada na própria conta); os **setores e cargos**, uma linha por setor com o seletor de cargo ("Cargo em <setor>") e o × para desalocar, e um campo "Adicionar setor" com busca (o setor entra com o cargo de menos permissões e o administrador ajusta na linha); e, por último, **Desativar/Reativar**. Administrador, inclusões, trocas de cargo e remoções são **alterações pendentes**: o rodapé conta o que mudou e **Salvar alterações** envia tudo de uma vez, em sequência (administrador, depois `PUT` de cada setor incluído ou com cargo trocado e `DELETE` dos removidos), já que a API não tem endpoint em lote; se uma chamada falhar, as anteriores já valeram, a tela mostra o erro e o que sobrou continua pendente. **Cancelar** descarta.
+- Desativar bloqueia o acesso imediatamente, inclusive de quem já está logado, e preserva o histórico. Só o administrador ativa ou desativa, e ninguém mexe na própria conta.
+- Cargos e permissões (`/roles`, **somente administrador**): tabela com cargo, descrição, permissões associadas e uso ("N usuários em M alocações" ou "Sem uso"), com busca por nome, descrição ou permissão. **Novo cargo** e **Editar** abrem um modal com nome, descrição e as permissões em caixas de seleção. Mudar as permissões de um cargo **em uso** pede confirmação mostrando o impacto, porque vale na hora para todas as alocações dele. **Excluir** (com confirmação) só aparece em cargo com `deletable: true`, isto é, sem nenhuma alocação **e** sem nenhuma permissão; se a API recusar (409) a tela avisa em um toast e recarrega a lista. Para excluir um cargo que tem permissões, edite-o antes e desmarque todas.
+- Proteções: `GET /roles` e `GET /permissions` exigem administrador ou gestor de algum setor (o gestor usa a lista para escolher o cargo ao alocar); operador e consulta recebem 403. Criar, editar e excluir cargo exigem administrador. O gestor só atribui cargos sem `MANAGE_SECTOR`.
 
 ## Erros e segurança da interface
 
@@ -35,26 +37,26 @@ Modais têm nomes acessíveis, Escape, foco contido e retorno de foco. Ao abrir 
 
 ## Regras que a API aplica
 
-- A sessão expõe permissões e sectorIds; profileId não é usado como regra de autorização.
-- Leitura por setor: admin vê tudo; os demais perfis só enxergam inventários, itens, exportações e setores a que estão vinculados. Sem vínculos, recebem listas vazias. A lista de membros de um setor exige ser admin ou gestor do setor.
-- Gestão de inventários (criar, editar, finalizar, excluir, importar e limpar itens): admin ou gestor do setor. A importação é única por inventário; para importar outra planilha, os itens precisam ser removidos antes. Inventário finalizado não aceita escaneamento, importação, remoção nem limpeza de itens.
-- Itens: o operador altera apenas a validação e as observações; dados do item são do gestor ou admin.
-- `PATCH /users/{id}/activate` e `/deactivate` exigem ADMIN. Não há `POST /users` nem `DELETE /users/{id}`, edição de identidade ou CRUD do catálogo de permissões.
-- Os endpoints não oferecem paginação. Busca e filtros são locais.
-- O filtro "Sem perfil" da lista de usuários mostra quem entrou pelo Google e ainda não recebeu perfil; ele busca a lista completa e filtra localmente.
+- A sessão expõe `administrator`, `sectorIds` e `allocations` (cargo e permissões por setor); não há perfil global.
+- Leitura por setor: o administrador vê tudo; os demais só enxergam inventários, itens, exportações e setores em que estão alocados. Sem alocação, recebem listas vazias. A lista de membros de um setor exige ser administrador ou gestor daquele setor.
+- Gestão de inventários (criar, editar, finalizar, excluir, importar e limpar itens): administrador ou gestor do setor do inventário. A importação é única por inventário; para importar outra planilha, os itens precisam ser removidos antes. Inventário finalizado não aceita escaneamento, importação, remoção nem limpeza de itens.
+- Itens: quem tem `MANAGE_ITEM` no setor altera apenas a validação e as observações; dados do item são do gestor do setor ou do administrador.
+- `PATCH /users/{id}/activate`, `/deactivate` e `/administrator` exigem administrador. Não há `POST /users` nem `DELETE /users/{id}`. Alocar usa `PUT /users/{id}/sectors/{sectorId}` com o `roleId` (obrigatório), que também troca o cargo se o usuário já estiver no setor.
+- Os endpoints não oferecem paginação. Busca e filtros são locais, exceto o filtro de cargo da lista de usuários, que envia `?roleId=`.
+- O filtro "Sem acesso" da lista de usuários mostra quem não é administrador e não está alocado em nenhum setor (por exemplo, quem acabou de entrar pelo Google); ele filtra localmente.
 
 ## Testar
 
-Use `npm run dev` em frontend e uma sessão válida, com a API configurada em NEXT_PUBLIC_API_URL. Configure o CORS da API para a origem do navegador. As migrations `3.0.xml` (unicidade de e-mail sem distinguir caixa), `4.0.xml` (coluna `active` do usuário) e `6.0.xml` (remove o pré-cadastro e a coluna `pending_google_login`) são aplicadas na inicialização do backend.
+Use `npm run dev` em frontend e uma sessão válida, com a API configurada em NEXT_PUBLIC_API_URL. Configure o CORS da API para a origem do navegador. As migrations `3.0.xml` (unicidade de e-mail sem distinguir caixa), `4.0.xml` (coluna `active` do usuário) `6.0.xml` (remove o pré-cadastro e a coluna `pending_google_login`) e `7.0.xml` (cargo por alocação e administrador como coluna: move o perfil do usuário para o cargo de cada alocação e remove o perfil de administrador) são aplicadas na inicialização do backend.
 
-Para testes isolados: `npm run test:e2e -- administration.spec.ts` ou `access-control.spec.ts` (interface por perfil). Playwright inicia Next em porta e cache isolados e simula a API; no Windows usa Edge instalado e em Linux usa Chromium. Os testes simulados verificam interface e contrato; a autorização real é coberta pelos testes do backend (`AccessControlE2ETest`).
+Para testes isolados: `npm run test:e2e -- administration.spec.ts` ou `access-control.spec.ts` (interface por cargo e por setor). Playwright inicia Next em porta e cache isolados e simula a API; no Windows usa Edge instalado e em Linux usa Chromium. Os testes simulados verificam interface e contrato; a autorização real é coberta pelos testes do backend (`AccessControlE2ETest`).
 
 ## Arquivos principais
 
 - `src/commons/models/administration.ts`: DTOs, tipos e validações de formulário.
 - `src/services/administration.ts`: consumo da API e mensagens de erro.
-- `src/contexts/AdministrationAccess.tsx`: perfil e capacidades locais verificadas pela API.
-- `src/lib/access.ts`: perfis e capacidades; `src/lib/home-route.ts`: tela inicial por perfil.
+- `src/contexts/AdministrationAccess.tsx`: capacidades locais (por setor) verificadas pela API.
+- `src/lib/access.ts`: capacidades por cargo e por setor; `src/lib/home-route.ts`: tela inicial; `src/hooks/useInventorySector.ts`: setor do inventário aberto.
 - `src/components/organisms/administration/`: telas e componentes compartilhados.
-- `src/app/(authenticated)/sectors|users|profiles/page.tsx`: entradas de página protegidas.
-- `tests/e2e/administration.spec.ts` e `tests/e2e/access-control.spec.ts`: fluxos, perfis, proteção do administrador e erros HTTP.
+- `src/app/(authenticated)/sectors|users|roles/page.tsx`: entradas de página protegidas.
+- `tests/e2e/administration.spec.ts` e `tests/e2e/access-control.spec.ts`: fluxos, cargos, cargo diferente em cada setor, proteção do administrador e erros HTTP.

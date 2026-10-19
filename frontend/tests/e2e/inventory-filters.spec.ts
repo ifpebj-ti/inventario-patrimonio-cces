@@ -75,9 +75,16 @@ const setup = async (page: Page, query = '', admin = false) => {
             id: 7,
             name: 'Admin',
             email: 'admin@example.com',
-            profileId: 1,
+            administrator: admin,
             sectorIds: admin ? [] : [2, 3],
-            permissions: [admin ? 'ADMIN' : 'MANAGE_SECTOR'],
+            allocations: admin
+              ? []
+              : [2, 3].map((sectorId) => ({
+                  sectorId,
+                  roleId: 1,
+                  roleName: 'Gestor de Setor',
+                  permissions: ['MANAGE_SECTOR'],
+                })),
           }
         : path === '/inventory/user-inventories'
           ? inventories

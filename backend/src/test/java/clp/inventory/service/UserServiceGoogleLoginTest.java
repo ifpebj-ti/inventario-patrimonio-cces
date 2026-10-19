@@ -11,18 +11,17 @@ import javax.security.sasl.AuthenticationException;
 import org.junit.jupiter.api.Test;
 
 /**
- * O login pelo Google é a única forma de um usuário nascer: sem perfil, até que um administrador
- * atribua o acesso. Não há cadastro nem pré-cadastro de usuário.
+ * O login pelo Google é a única forma de um usuário nascer: sem alocação e sem ser administrador,
+ * até que alguém o aloque em um setor com um cargo. Não há cadastro nem pré-cadastro de usuário.
  */
 class UserServiceGoogleLoginTest {
   private final AuthorizationService auth = mock(AuthorizationService.class);
   private final UserRepository users = mock(UserRepository.class);
-  private final ProfileRepository profiles = mock(ProfileRepository.class);
   private final UserService googleUsers =
-      new UserService(users, profiles, mock(SectorAllocationRepository.class), auth);
+      new UserService(users, mock(SectorAllocationRepository.class), auth);
 
   @Test
-  void firstGoogleLoginCreatesAccountWithoutProfile() throws Exception {
+  void firstGoogleLoginCreatesAccountWithoutAccess() throws Exception {
     when(users.findByEmailForUpdate("novo@ifpe.edu.br")).thenReturn(Optional.empty());
     when(users.save(any())).thenAnswer(call -> call.getArgument(0));
 
@@ -30,12 +29,11 @@ class UserServiceGoogleLoginTest {
         googleUsers.findOrCreateGoogleUser(
             new GoogleUserInfo("google-sub", "Novo@IFPE.edu.br", "Novo"));
 
-    assertThat(created.getProfile()).isNull();
+    assertThat(created.isAdministrator()).isFalse();
     assertThat(created.getEmail()).isEqualTo("novo@ifpe.edu.br");
     assertThat(created.getGoogleId()).isEqualTo("google-sub");
     assertThat(created.isActive()).isTrue();
     assertThat(created.isSystemUser()).isFalse();
-    verify(profiles, never()).findByName(any());
   }
 
   @Test

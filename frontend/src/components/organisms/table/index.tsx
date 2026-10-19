@@ -105,6 +105,8 @@ export const Table = ({
   onSendEmailSheet,
   onDeleteItem,
   onEditItem,
+  canEditItem,
+  canDeleteItem,
 }: TableProps) => {
   // Estado para controlar a ordenação das colunas.
   const [sorting, setSorting] = useState<SortingState>([])
@@ -425,31 +427,35 @@ export const Table = ({
                     />
                   )}
                   {/* Botão de Editar, renderizado apenas se 'onEditItem' for passado. */}
-                  {onEditItem && (
-                    <UiButton
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => onEditItem(item as InventoryResponse)}
-                      className="text-muted-foreground"
-                      title={`Editar ${displayName}`}
-                      aria-label={`Editar ${displayName}`}
-                    >
-                      <Pencil />
-                    </UiButton>
-                  )}
+                  {onEditItem &&
+                    (!canEditItem ||
+                      canEditItem(item as InventoryResponse)) && (
+                      <UiButton
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onEditItem(item as InventoryResponse)}
+                        className="text-muted-foreground"
+                        title={`Editar ${displayName}`}
+                        aria-label={`Editar ${displayName}`}
+                      >
+                        <Pencil />
+                      </UiButton>
+                    )}
                   {/* Botão de Deletar, renderizado apenas se 'onDeleteItem' for passado. */}
-                  {onDeleteItem && (
-                    <UiButton
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => onDeleteItem(item)}
-                      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                      title={`Deletar ${displayName}`}
-                      aria-label={`Deletar ${displayName}`}
-                    >
-                      <Trash2 />
-                    </UiButton>
-                  )}
+                  {onDeleteItem &&
+                    (!canDeleteItem ||
+                      canDeleteItem(item as InventoryResponse)) && (
+                      <UiButton
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onDeleteItem(item)}
+                        className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        title={`Deletar ${displayName}`}
+                        aria-label={`Deletar ${displayName}`}
+                      >
+                        <Trash2 />
+                      </UiButton>
+                    )}
                 </div>
               )
             },
@@ -657,32 +663,39 @@ export const Table = ({
 
                     {/* Botões de Ação do Card: Editar e Excluir (visualizar é o botão "Ver detalhes") com touch target >= 44x44px */}
                     <div className="flex items-center gap-1 shrink-0">
-                      {onEditItem && 'name' in item && (
-                        <UiButton
-                          variant="ghost"
-                          size="icon"
-                          type="button"
-                          onClick={() => onEditItem(item as InventoryResponse)}
-                          className="text-muted-foreground"
-                          title={`Editar ${displayName}`}
-                          aria-label={`Editar ${displayName}`}
-                        >
-                          <Pencil />
-                        </UiButton>
-                      )}
-                      {onDeleteItem && (
-                        <UiButton
-                          variant="ghost"
-                          size="icon"
-                          type="button"
-                          onClick={() => onDeleteItem(item)}
-                          className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                          title={`Deletar ${displayName}`}
-                          aria-label={`Deletar ${displayName}`}
-                        >
-                          <Trash2 />
-                        </UiButton>
-                      )}
+                      {onEditItem &&
+                        'name' in item &&
+                        (!canEditItem ||
+                          canEditItem(item as InventoryResponse)) && (
+                          <UiButton
+                            variant="ghost"
+                            size="icon"
+                            type="button"
+                            onClick={() =>
+                              onEditItem(item as InventoryResponse)
+                            }
+                            className="text-muted-foreground"
+                            title={`Editar ${displayName}`}
+                            aria-label={`Editar ${displayName}`}
+                          >
+                            <Pencil />
+                          </UiButton>
+                        )}
+                      {onDeleteItem &&
+                        (!canDeleteItem ||
+                          canDeleteItem(item as InventoryResponse)) && (
+                          <UiButton
+                            variant="ghost"
+                            size="icon"
+                            type="button"
+                            onClick={() => onDeleteItem(item)}
+                            className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                            title={`Deletar ${displayName}`}
+                            aria-label={`Deletar ${displayName}`}
+                          >
+                            <Trash2 />
+                          </UiButton>
+                        )}
                     </div>
                   </div>
 

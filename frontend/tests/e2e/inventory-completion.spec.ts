@@ -48,9 +48,16 @@ const setup = async (
         id: 7,
         name: 'Responsável',
         email: 'gestor@example.com',
-        profileId: 2,
+        administrator: false,
         sectorIds: [3],
-        permissions: ['MANAGE_SECTOR'],
+        allocations: [
+          {
+            sectorId: 3,
+            roleId: 2,
+            roleName: 'Gestor de Setor',
+            permissions: ['MANAGE_SECTOR'],
+          },
+        ],
       })
     if (path === '/inventory/user-inventories') {
       state.reads += 1

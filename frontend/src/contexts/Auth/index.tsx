@@ -64,7 +64,7 @@ export const AuthProvider = ({ children }: ProviderProps) => {
     (token: string, user: User) => {
       setCookie(undefined, TOKEN_COOKIE, token, COOKIE_OPTIONS)
       setUser(user)
-      router.replace(homeRoute(user.permissions))
+      router.replace(homeRoute(user.administrator))
     },
     [router],
   )

@@ -5,13 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import clp.inventory.model.Inventory;
 import clp.inventory.model.Item;
 import clp.inventory.model.Sector;
-import clp.inventory.model.SectorAllocation;
 import clp.inventory.model.User;
 import clp.inventory.repository.InventoryRepository;
-import clp.inventory.repository.ProfileRepository;
 import clp.inventory.repository.SectorAllocationRepository;
 import clp.inventory.repository.SectorRepository;
 import clp.inventory.repository.UserRepository;
+import clp.inventory.testsupport.TestAccess;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import java.time.Duration;
@@ -55,7 +54,7 @@ class ItemValidationE2ETest {
 
   @Autowired UserRepository userRepository;
 
-  @Autowired ProfileRepository profileRepository;
+  @Autowired TestAccess access;
 
   @Autowired SectorRepository sectorRepository;
 
@@ -63,19 +62,8 @@ class ItemValidationE2ETest {
 
   @Autowired InventoryRepository inventoryRepository;
 
-  private User user(String profileName) {
-    var profile =
-        profileRepository.findAll().stream()
-            .filter(p -> profileName.equals(p.name()))
-            .findFirst()
-            .orElseThrow();
-    User user = new User();
-    user.setName("Test User");
-    String email = profileName.toLowerCase() + "-" + System.nanoTime() + "@ifpe.edu.br";
-    user.setEmail(email);
-    user.setGoogleId("google-" + email);
-    user.setProfile(profile);
-    return userRepository.save(user);
+  private User user(String roleName) {
+    return access.user("user-" + System.nanoTime() + "@ifpe.edu.br", roleName);
   }
 
   private Sector sector() {
@@ -83,7 +71,7 @@ class ItemValidationE2ETest {
   }
 
   private void allocate(User user, Sector sector) {
-    sectorAllocationRepository.save(new SectorAllocation(user, sector));
+    access.allocate(user, sector);
   }
 
   private Item inventoryWithItem(User owner, Sector sector, String code) {
@@ -131,9 +119,9 @@ class ItemValidationE2ETest {
 
   @Test
   void validate_marksItemAndRecordsAudit() {
-    User admin = user("ADMIN_ORGANIZATION");
+    User admin = user(TestAccess.ADMIN);
     Sector sector = sector();
-    User operator = user("OPERADOR_CAMPO");
+    User operator = user(TestAccess.OPERATOR);
     allocate(operator, sector);
     Item item = inventoryWithItem(admin, sector, "ITEM-VALIDAR");
 
@@ -155,7 +143,7 @@ class ItemValidationE2ETest {
 
   @Test
   void validate_twice_doesNotRecordASecondAudit() {
-    User admin = user("ADMIN_ORGANIZATION");
+    User admin = user(TestAccess.ADMIN);
     Sector sector = sector();
     Item item = inventoryWithItem(admin, sector, "ITEM-DUAS-VEZES");
 
@@ -167,7 +155,7 @@ class ItemValidationE2ETest {
 
   @Test
   void validate_adminOutsideTheSector_isNotPartial() {
-    User admin = user("ADMIN_ORGANIZATION");
+    User admin = user(TestAccess.ADMIN);
     Item item = inventoryWithItem(admin, sector(), "ITEM-ADMIN");
 
     validate(admin, item.id());
@@ -179,9 +167,9 @@ class ItemValidationE2ETest {
 
   @Test
   void validate_userOutsideTheSector_returns403() {
-    User admin = user("ADMIN_ORGANIZATION");
+    User admin = user(TestAccess.ADMIN);
     Item item = inventoryWithItem(admin, sector(), "ITEM-SETOR-ALHEIO");
-    User outsider = user("OPERADOR_CAMPO");
+    User outsider = user(TestAccess.OPERATOR);
     allocate(outsider, sector());
 
     var response = validate(outsider, item.id());
@@ -192,10 +180,10 @@ class ItemValidationE2ETest {
 
   @Test
   void validate_readOnlyProfile_returns403() {
-    User admin = user("ADMIN_ORGANIZATION");
+    User admin = user(TestAccess.ADMIN);
     Sector sector = sector();
     Item item = inventoryWithItem(admin, sector, "ITEM-CONSULTA");
-    User reader = user("CONSULTA");
+    User reader = user(TestAccess.CONSULT);
     allocate(reader, sector);
 
     var response = validate(reader, item.id());
@@ -205,7 +193,7 @@ class ItemValidationE2ETest {
 
   @Test
   void validate_unknownItem_returns404() {
-    User admin = user("ADMIN_ORGANIZATION");
+    User admin = user(TestAccess.ADMIN);
 
     var response = validate(admin, 999999L);
 
@@ -214,7 +202,7 @@ class ItemValidationE2ETest {
 
   @Test
   void validate_finishedInventory_returns409() {
-    User admin = user("ADMIN_ORGANIZATION");
+    User admin = user(TestAccess.ADMIN);
     Item item = inventoryWithItem(admin, sector(), "ITEM-FINALIZADO");
     long inventoryId = item.inventory().id();
     assertThat(
@@ -229,7 +217,7 @@ class ItemValidationE2ETest {
 
   @Test
   void audits_byTargetSector_returnsOnlyThatSector() {
-    User admin = user("ADMIN_ORGANIZATION");
+    User admin = user(TestAccess.ADMIN);
     Sector sectorA = sector();
     Sector sectorB = sector();
     Item itemA = inventoryWithItem(admin, sectorA, "ITEM-SETOR-A");
@@ -245,9 +233,9 @@ class ItemValidationE2ETest {
 
   @Test
   void audits_withoutFilter_isAdminOnly() {
-    User admin = user("ADMIN_ORGANIZATION");
+    User admin = user(TestAccess.ADMIN);
     Sector sector = sector();
-    User manager = user("GESTOR_SETOR");
+    User manager = user(TestAccess.MANAGER);
     allocate(manager, sector);
 
     assertThat(auditsStatus(admin, "")).isEqualTo(HttpStatus.OK);
@@ -256,7 +244,7 @@ class ItemValidationE2ETest {
 
   @Test
   void audits_bySectorOfAnotherSector_returns403() {
-    User manager = user("GESTOR_SETOR");
+    User manager = user(TestAccess.MANAGER);
     allocate(manager, sector());
 
     assertThat(auditsStatus(manager, "?targetSectorId=" + sector().id()))

@@ -59,7 +59,7 @@ export const AccessGate = ({
   const access = useAdministrationAccess()
   const { user } = useAuth()
   const router = useRouter()
-  const home = homeRoute(user?.permissions)
+  const home = homeRoute(user?.administrator)
   const allowed = admin
     ? access.isAdmin
     : users

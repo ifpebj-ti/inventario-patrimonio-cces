@@ -11,8 +11,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Somente leitura e exige ADMIN (403 caso contrário). Não há criar/editar/excluir: permissões são
- * definidas em código e uma nova entra por migration do Liquibase.
+ * Somente leitura; a lista exige administrador ou gestor de algum setor e a consulta por id exige
+ * administrador (403 caso contrário). Não há criar/editar/excluir: permissões são definidas em
+ * código e uma nova entra por migration do Liquibase.
  */
 @RestController
 @RequestMapping("/permissions")

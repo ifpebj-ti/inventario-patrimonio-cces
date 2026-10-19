@@ -83,7 +83,9 @@ class GoogleLoginE2ETest {
 
   @Autowired UserRepository userRepository;
 
-  @Autowired clp.inventory.repository.ProfileRepository profileRepository;
+  @Autowired clp.inventory.testsupport.TestAccess access;
+
+  @Autowired clp.inventory.repository.SectorRepository sectorRepository;
 
   private String signToken(String email) throws JOSEException {
     var now = Instant.now();
@@ -120,13 +122,14 @@ class GoogleLoginE2ETest {
     assertThat(sessionUser)
         .containsEntry("email", ALLOWED_EMAIL)
         .containsEntry("sectorIds", java.util.List.of())
-        .containsEntry("permissions", java.util.List.of())
-        .doesNotContainKeys("googleId", "systemUser", "passwordHash", "profile");
+        .containsEntry("allocations", java.util.List.of())
+        .containsEntry("administrator", false)
+        .doesNotContainKeys("googleId", "systemUser", "passwordHash", "profile", "permissions");
 
-    // Quem entra pela primeira vez nasce sem perfil: um administrador atribui o acesso depois.
+    // Quem entra pela primeira vez nasce sem alocação e sem ser administrador: alguém o aloca
+    // em um setor com um cargo depois.
     var created = userRepository.findByEmail(ALLOWED_EMAIL).orElseThrow();
-    assertThat(created.getProfile()).isNull();
-    assertThat(sessionUser.get("profileId")).isNull();
+    assertThat(created.isAdministrator()).isFalse();
 
     var meHeaders = new HttpHeaders();
     meHeaders.setBearerAuth(appToken);
@@ -139,63 +142,62 @@ class GoogleLoginE2ETest {
   }
 
   @Test
-  void userCreatedByGoogleLoginHasNoPermissionsUntilAnAdminAssignsAProfile() throws Exception {
-    var admin = new clp.inventory.model.User();
-    admin.setName("Admin");
-    admin.setEmail("perfil-admin@ifpe.edu.br");
-    admin.setGoogleId("google-sub-perfil-admin@ifpe.edu.br");
-    admin.setProfile(
-        profileRepository.findAll().stream()
-            .filter(p -> p.name().equals("ADMIN_ORGANIZATION"))
-            .findFirst()
-            .orElseThrow());
-    userRepository.save(admin);
+  void userCreatedByGoogleLoginHasNoAccessUntilAnAdminAllocatesItWithARole() throws Exception {
+    // O sub do Google do administrador precisa bater com o token assinado por signToken.
+    var adminUser = access.admin("cargo-admin@ifpe.edu.br");
+    adminUser.setGoogleId("google-sub-cargo-admin@ifpe.edu.br");
+    userRepository.save(adminUser);
     String adminToken =
         (String)
             restTemplate
                 .postForEntity(
                     "/auth/google",
-                    Map.of("credential", signToken("perfil-admin@ifpe.edu.br")),
+                    Map.of("credential", signToken("cargo-admin@ifpe.edu.br")),
                     Map.class)
                 .getBody()
                 .get("token");
 
-    String email = "sem-perfil@ifpe.edu.br";
+    String email = "sem-alocacao@ifpe.edu.br";
     var login =
         restTemplate.postForEntity(
             "/auth/google", Map.of("credential", signToken(email)), Map.class);
     String token = (String) login.getBody().get("token");
     var created = userRepository.findByEmail(email).orElseThrow();
 
-    // Sem perfil: nenhuma permissão e nenhuma rota de administração.
+    // Sem alocação: nenhuma permissão e nenhuma rota de administração.
     var meBefore =
         restTemplate.exchange(
             "/auth/me", HttpMethod.GET, new HttpEntity<>(bearer(token)), Map.class);
-    assertThat(meBefore.getBody().get("profileId")).isNull();
-    assertThat(meBefore.getBody().get("permissions")).isEqualTo(java.util.List.of());
+    assertThat(meBefore.getBody().get("administrator")).isEqualTo(false);
+    assertThat(meBefore.getBody().get("allocations")).isEqualTo(java.util.List.of());
     assertThat(
             restTemplate
                 .exchange("/users", HttpMethod.GET, new HttpEntity<>(bearer(token)), String.class)
                 .getStatusCode())
         .isEqualTo(HttpStatus.FORBIDDEN);
 
-    // Um administrador atribui o perfil e o mesmo usuário passa a ter as permissões dele.
-    var consulta =
-        profileRepository.findAll().stream()
-            .filter(p -> p.name().equals("GESTOR_SETOR"))
-            .findFirst()
-            .orElseThrow();
+    // Um administrador aloca o usuário em um setor com um cargo e o mesmo usuário passa a ter as
+    // permissões desse cargo naquele setor.
+    var sector = sectorRepository.save(new clp.inventory.model.Sector("Setor login", null));
     var assigned =
         restTemplate.exchange(
-            "/users/" + created.getId() + "/profile",
-            HttpMethod.PATCH,
-            new HttpEntity<>(Map.of("profileId", consulta.id()), bearer(adminToken)),
+            "/users/" + created.getId() + "/sectors/" + sector.id(),
+            HttpMethod.PUT,
+            new HttpEntity<>(
+                Map.of("roleId", access.role(clp.inventory.testsupport.TestAccess.MANAGER).id()),
+                bearer(adminToken)),
             Map.class);
     assertThat(assigned.getStatusCode()).isEqualTo(HttpStatus.OK);
     var meAfter =
         restTemplate.exchange(
             "/auth/me", HttpMethod.GET, new HttpEntity<>(bearer(token)), Map.class);
-    assertThat(meAfter.getBody().get("permissions")).isEqualTo(java.util.List.of("MANAGE_SECTOR"));
+    assertThat(meAfter.getBody().get("sectorIds")).isEqualTo(java.util.List.of((int) sector.id()));
+    @SuppressWarnings("unchecked")
+    var allocations = (java.util.List<Map<String, Object>>) meAfter.getBody().get("allocations");
+    assertThat(allocations).hasSize(1);
+    assertThat(allocations.get(0))
+        .containsEntry("roleName", clp.inventory.testsupport.TestAccess.MANAGER)
+        .containsEntry("permissions", java.util.List.of("MANAGE_SECTOR"));
   }
 
   private HttpHeaders bearer(String token) {

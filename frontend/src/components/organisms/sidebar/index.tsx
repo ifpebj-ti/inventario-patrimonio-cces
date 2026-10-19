@@ -25,7 +25,7 @@ import { ConfirmationModal } from '@/components/organisms/modalConfirmation'
 
 import { useState } from 'react'
 import { homeRoute } from '@/lib/home-route'
-import { roleLabel, roleOf } from '@/lib/access'
+import { accessLabel } from '@/lib/access'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Menu, LogOut, ChevronsUpDown } from 'lucide-react'
@@ -103,7 +103,7 @@ export function Sidebar() {
       )}
       {user && (
         <span className="truncate text-[11px] font-medium text-primary">
-          {roleLabel[roleOf(user.permissions)]}
+          {accessLabel(user)}
         </span>
       )}
     </div>
@@ -111,7 +111,7 @@ export function Sidebar() {
 
   const brand = (size: number, onClick?: () => void) => (
     <Link
-      href={homeRoute(user?.permissions)}
+      href={homeRoute(user?.administrator)}
       onClick={onClick}
       className="flex min-w-0 items-center gap-2.5"
       title="Inventarium - Ir para a tela inicial"
@@ -157,7 +157,7 @@ export function Sidebar() {
           /* Modo Colapsado: Apenas a logo e o menu hambúrguer */
           <div className="flex h-16 w-full flex-row items-center justify-between px-3 select-none">
             <Link
-              href={homeRoute(user?.permissions)}
+              href={homeRoute(user?.administrator)}
               className="flex items-center justify-center"
               title="Ir para a tela inicial"
             >

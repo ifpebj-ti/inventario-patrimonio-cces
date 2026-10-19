@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import clp.inventory.model.User;
-import clp.inventory.repository.ProfileRepository;
 import clp.inventory.repository.UserRepository;
 import clp.inventory.service.auth.SystemAdminInitializer;
 import com.nimbusds.jose.*;
@@ -88,7 +87,6 @@ class SystemAdminLoginE2ETest {
 
   @Autowired TestRestTemplate restTemplate;
   @Autowired UserRepository userRepository;
-  @Autowired ProfileRepository profileRepository;
   @Autowired PasswordEncoder passwordEncoder;
 
   private ResponseEntity<String> login(String username, String password) {
@@ -117,8 +115,7 @@ class SystemAdminLoginE2ETest {
   }
 
   private SystemAdminInitializer initializer(String username, String password) {
-    return new SystemAdminInitializer(
-        userRepository, profileRepository, passwordEncoder, username, password);
+    return new SystemAdminInitializer(userRepository, passwordEncoder, username, password);
   }
 
   @Test
@@ -135,8 +132,9 @@ class SystemAdminLoginE2ETest {
     assertThat(user.get("email")).isEqualTo("admin");
     assertThat(user)
         .containsEntry("sectorIds", java.util.List.of())
-        .containsEntry("permissions", java.util.List.of("ADMIN"))
-        .doesNotContainKeys("passwordHash", "googleId", "systemUser", "profile");
+        .containsEntry("administrator", true)
+        .containsEntry("allocations", java.util.List.of())
+        .doesNotContainKeys("passwordHash", "googleId", "systemUser", "profile", "permissions");
 
     var headers = new HttpHeaders();
     headers.setBearerAuth(token);
@@ -260,7 +258,7 @@ class SystemAdminLoginE2ETest {
     User kept = userRepository.findByEmail("desligavel").orElseThrow();
     assertThat(kept.isSystemUser()).isTrue();
     assertThat(kept.getPasswordHash()).isNull();
-    assertThat(kept.getProfileId()).isNotNull();
+    assertThat(kept.isAdministrator()).isTrue();
   }
 
   @Test

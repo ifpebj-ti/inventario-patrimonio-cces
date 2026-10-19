@@ -106,7 +106,7 @@ public class SectorController {
       sectorService.findSectorForManagement(id, actingUserId);
       List<UserDto> dtos =
           sectorAllocationService.usersAllocatedToSector(id).stream()
-              .map(u -> UserDto.from(u, sectorAllocationService.sectorIdsOf(u.getId())))
+              .map(u -> UserDto.from(u, sectorAllocationService.allocationsOf(u.getId())))
               .toList();
       return ResponseEntity.ok(dtos);
     } catch (NoSuchElementException e) {
