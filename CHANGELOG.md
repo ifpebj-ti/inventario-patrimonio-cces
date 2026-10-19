@@ -13,6 +13,7 @@ O histórico é atualizado manualmente na própria pull request antes do merge e
 
 ### Added
 
+- Adicionada a alocação de usuários pela tela de **Setores**: **Usuários associados** abre uma barra lateral à direita com os usuários do setor agrupados por cargo; nela o administrador (em qualquer setor) e o gestor (nos setores que gerencia) trocam o cargo, removem usuários e abrem **Adicionar usuários**, um modal com os usuários ativos do sistema que ainda não estão no setor, para marcar um ou vários, escolher um cargo e alocar todos de uma vez. Novos endpoints: `GET /sectors/{id}/assignable-users` (só `id`, `name` e `email`) e `PUT /sectors/{id}/members` (`{ userIds, roleId }`, tudo ou nada; o gestor só atribui cargos sem `MANAGE_SECTOR` e não mexe em outro gestor nem em administrador).
 - Adicionado o CRUD de cargos (`/roles`): só o administrador cria, edita e exclui; o gestor lê a lista para escolher o cargo ao alocar. Cada cargo é um conjunto de permissões do catálogo (`MANAGE_SECTOR` e `MANAGE_ITEM`) escolhido pelo administrador. O `RoleDto` traz `management`, `allocationCount`, `userCount` e `deletable`; excluir cargo só é aceito sem nenhuma alocação **e** sem nenhuma permissão (senão `409`). Mudar as permissões de um cargo vale na hora para todas as alocações dele, e a tela pede confirmação mostrando o impacto quando o cargo está em uso.
 - Adicionado `PATCH /users/{id}/administrator` (só o administrador, nunca na própria conta) e a caixa **Administrador** no modal "Gerenciar acesso".
 - Adicionado, no modal "Gerenciar acesso", um seletor de cargo em cada setor do usuário (o setor entra com o cargo de menos permissões); trocar o cargo de um setor já alocado é uma alteração pendente como as demais.
@@ -33,6 +34,7 @@ O histórico é atualizado manualmente na própria pull request antes do merge e
 
 ### Changed
 
+- O modal "Gerenciar acesso" de Usuários deixa de alocar: fica só com o papel de **Administrador**, a lista de setores e cargos em leitura (com atalho para Setores) e Desativar/Reativar. O botão "Usuários associados" de Setores só aparece para o administrador e para o gestor daquele setor.
 - A tela "Perfis e permissões" (`/profiles`) virou **"Cargos e permissões"** (`/roles`), só do administrador, agora com criar, editar e excluir cargo. O menu do usuário mostra "Administrador", o nome do cargo (se for o mesmo em todos os setores) ou "Vários cargos". Quem não está alocado em nenhum setor não é gestor de nada: não vê Setores nem inventários de nenhum setor.
 - Quem entra pela primeira vez com Google continua nascendo sem acesso, agora **sem alocação e sem ser administrador**; o gestor do setor (cargo com `MANAGE_SECTOR`) só aloca cargos sem gestão e não altera outro gestor nem um administrador. `GET /users` e a lista de membros do setor valem para o gestor só nos setores que ele gerencia.
 - A tela de Usuários (item do menu e rota) passa a ser **só do administrador**; o gestor deixa de vê-la.

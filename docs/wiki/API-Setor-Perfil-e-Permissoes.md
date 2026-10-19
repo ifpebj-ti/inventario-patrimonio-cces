@@ -122,6 +122,8 @@ Google (`POST /auth/google`). Sem `Authorization`.
 | `PATCH /sectors/{id}/deactivate` | administrador | `200` |
 | `DELETE /sectors/{id}` | administrador | `204` |
 | `GET /sectors/{id}/users` | administrador ou gestor (`MANAGE_SECTOR`) do setor | `200` |
+| `GET /sectors/{id}/assignable-users` | administrador ou gestor (`MANAGE_SECTOR`) do setor | `200` |
+| `PUT /sectors/{id}/members` | administrador ou gestor (`MANAGE_SECTOR`) do setor | `200` |
 
 ### Excluir setor (`DELETE /sectors/{id}`)
 
@@ -179,6 +181,31 @@ no front — a API não tem um parâmetro para isso hoje.
 Exige administrador ou gestor (`MANAGE_SECTOR`) daquele setor (operador e consulta recebem `403`). É a rota
 para a tela de setor abrir a aba lateral com quem está alocado ali. Devolve um array no mesmo formato
 do `GET /users` (ver seção `/users` abaixo). `404` se o setor não existe.
+
+### `GET /sectors/{id}/assignable-users` — quem pode ser alocado a este setor
+
+Exige administrador ou gestor (`MANAGE_SECTOR`) daquele setor (`403` para os demais, `404` se o setor não existe).
+Devolve os usuários **ativos** que **ainda não estão no setor**, ordenados por nome, **só com `id`, `name` e `email`**
+(sem cargos, setores nem papel de administrador). A conta de sistema não vem. É para a tela de setores montar a
+lista de quem pode entrar: o gestor vê todos os usuários ativos do sistema (inclusive quem acabou de entrar e ainda
+não tem setor), mas só nome e e-mail.
+
+```json
+[{ "id": 7, "name": "Maria Silva", "email": "maria.silva@ifpe.edu.br" }]
+```
+
+### `PUT /sectors/{id}/members` — alocar vários usuários com o mesmo cargo
+
+Corpo: `{ "userIds": [7, 9], "roleId": 12 }`. Aloca todos os usuários no setor com o cargo informado, **tudo ou nada**:
+se um só não puder ser alocado, nenhum é. Quem já está no setor tem o cargo trocado. Resposta (`200`): os membros do
+setor, no formato de `GET /sectors/{id}/users`.
+
+**Permissão:** administrador, ou gestor daquele setor. O gestor só atribui cargos **sem** `MANAGE_SECTOR` e não mexe
+em outro gestor do setor nem em administrador (`403`).
+
+Erros: `403` conforme acima; `404` setor, usuário inexistente ou conta de sistema; `400` sem `roleId`, cargo
+inexistente, `userIds` vazio, com itens vazios ou repetidos, ou com mais de 200 usuários. Para trocar o cargo ou
+remover **um** usuário use `PUT`/`DELETE /users/{id}/sectors/{sectorId}`.
 
 ---
 
@@ -389,3 +416,4 @@ Para quem já tinha algo montado em cima da versão 1.x. **Mudança incompatíve
 | 1.8 | 2026-10-18 | `POST /users` e `DELETE /users/{id}` removidos (usuário só nasce no primeiro login Google, **sem perfil**, e nunca é excluído); `PATCH /users/{id}/activate` e `/deactivate` passam a exigir `ADMIN`; o campo `pendingGoogleLogin` sai de `UserDto` (issue #232). |
 | 1.9 | 2026-10-18 | Entra `DELETE /sectors/{id}` (só `ADMIN`, `409` se o setor tiver usuário, inventário ou auditoria) e o campo `deletable` em `SectorDto` (issue #234). |
 | 2.0 | 2026-10-18 | **Major.** Cargo por alocação no lugar do perfil global; `/profiles` vira `/roles` com CRUD só para o administrador (excluir só sem alocação e sem permissão); `PUT /users/{id}/sectors/{sectorId}` com `roleId` obrigatório; `PATCH /users/{id}/administrator`; administrador vira coluna do usuário e a permissão `ADMIN` sai; `/auth/me` traz `administrator` e `allocations` (sub-issue de #154). |
+| 2.1 | 2026-10-19 | Entram `GET /sectors/{id}/assignable-users` (só `id`, `name` e `email` de quem pode ser alocado) e `PUT /sectors/{id}/members` (alocação em lote com um cargo, tudo ou nada); nada existente muda de contrato (sub-issue de #154). |
