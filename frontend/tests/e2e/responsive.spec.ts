@@ -39,25 +39,53 @@ const sectors = [
   { id: 2, name: 'Tecnologia da Informação', code: null, active: false },
 ]
 const permissions = [
-  { id: 201, name: 'ADMIN', description: 'Administração' },
-  { id: 202, name: 'MANAGE_SECTOR', description: 'Gestão de setores' },
+  {
+    id: 201,
+    name: 'MANAGE_SECTOR',
+    description: 'Gerencia os inventários do setor e aloca usuários nele.',
+  },
+  {
+    id: 202,
+    name: 'MANAGE_ITEM',
+    description: 'Opera os itens do setor: valida e registra observações.',
+  },
 ]
-const profiles = [
+const roles = [
   {
     id: 11,
-    name: 'ADMIN_ORGANIZATION',
-    description: 'Admin',
+    name: 'Gestor de Setor',
+    description: 'Gestor',
     permissionIds: [201],
+    management: true,
+    allocationCount: 2,
+    userCount: 2,
+    deletable: false,
   },
-  { id: 12, name: 'GESTOR_SETOR', description: 'Gestor', permissionIds: [202] },
+  {
+    id: 12,
+    name: 'Consulta',
+    description: 'Somente leitura',
+    permissionIds: [],
+    management: false,
+    allocationCount: 0,
+    userCount: 0,
+    deletable: true,
+  },
 ]
+const allocation = (sectorId: number, roleId: number, roleName: string) => ({
+  sectorId,
+  roleId,
+  roleName,
+  permissions: roleId === 11 ? ['MANAGE_SECTOR'] : [],
+})
 const users = [
   {
     id: 1,
     name: 'Camille Maria Dias de Souza Albuquerque',
     email: 'camille.maria.dias.longo@example.com',
     sectorIds: [1],
-    profileId: 11,
+    allocations: [allocation(1, 11, 'Gestor de Setor')],
+    administrator: true,
     active: true,
   },
   {
@@ -65,7 +93,11 @@ const users = [
     name: 'Ana',
     email: 'ana@example.com',
     sectorIds: [1, 2],
-    profileId: 12,
+    allocations: [
+      allocation(1, 11, 'Gestor de Setor'),
+      allocation(2, 12, 'Consulta'),
+    ],
+    administrator: false,
     active: true,
   },
 ]
@@ -94,8 +126,7 @@ const mock = async (page: Page) => {
         },
         body: request.method() === 'OPTIONS' ? undefined : JSON.stringify(body),
       })
-    if (path === '/auth/me')
-      return send({ ...users[0], permissions: ['ADMIN'] })
+    if (path === '/auth/me') return send({ ...users[0], administrator: true })
     if (path === '/inventory/user-inventories')
       return send([inventory, { ...inventory, id: 11, status: 'VENCIDO' }])
     if (path === '/inventory/10') return send({ inventory, canFinalize: true })
@@ -103,7 +134,7 @@ const mock = async (page: Page) => {
     if (path.startsWith('/item/')) return send(items[0])
     if (path === '/sectors') return send(sectors)
     if (/^\/sectors\/\d+\/users$/.test(path)) return send(users)
-    if (path === '/profiles') return send(profiles)
+    if (path === '/roles') return send(roles)
     if (path === '/permissions') return send(permissions)
     if (path === '/users') return send(users)
     return send([])
@@ -145,7 +176,7 @@ const routes = [
   '/inventory/10/item/1',
   '/sectors',
   '/users',
-  '/profiles',
+  '/roles',
 ]
 
 for (const viewport of viewports) {
@@ -215,7 +246,7 @@ for (const viewport of viewports.slice(0, 2)) {
         .getByRole('button', { name: 'Abrir menu de navegação' })
         .click()
       await fitsViewport(page, 'Menu de navegação principal')
-      // O perfil e a saída ficam no rodapé e precisam estar sempre à vista.
+      // O menu do usuário e a saída ficam no rodapé e precisam estar sempre à vista.
       const logout = page.getByRole('button', { name: 'Sair da conta' })
       await expect(logout).toBeVisible()
       const box = (await logout.boundingBox())!

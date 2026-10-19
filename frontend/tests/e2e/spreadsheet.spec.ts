@@ -62,7 +62,9 @@ test.beforeEach(async ({ page, context }) => {
         id: 1,
         name: 'Camille',
         email: 'test@example.com',
-        permissions: ['ADMIN'],
+        administrator: true,
+        sectorIds: [],
+        allocations: [],
       })
     if (pathname === '/inventory/user-inventories')
       return respond(route, 200, [

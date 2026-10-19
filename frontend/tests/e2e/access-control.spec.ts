@@ -1,15 +1,34 @@
 import { expect, test, type Page } from '@playwright/test'
 
-// Controle de acesso por perfil na interface. O back-end autoriza de fato (testes em Java); aqui
-// conferimos o que cada perfil vê e consegue usar.
+// Controle de acesso por cargo na interface. O back-end autoriza de fato (testes em Java); aqui
+// conferimos o que cada cargo vê e consegue usar. O cargo vale por setor: 'dual' é gestor no setor
+// 1 e só opera itens no setor 2; 'none' é quem entrou pelo Google e ainda não foi alocado.
 type Role = 'admin' | 'manager' | 'operator' | 'consult'
+type Persona = Role | 'dual' | 'none'
 
-const permissionsOf: Record<Role, string[]> = {
-  admin: ['ADMIN'],
-  manager: ['MANAGE_SECTOR'],
-  operator: ['MANAGE_ITEM'],
-  consult: [],
+const roles = {
+  manager: {
+    roleId: 1,
+    roleName: 'Gestor de Setor',
+    permissions: ['MANAGE_SECTOR'],
+  },
+  operator: {
+    roleId: 2,
+    roleName: 'Operador de Campo',
+    permissions: ['MANAGE_ITEM'],
+  },
+  consult: { roleId: 3, roleName: 'Consulta', permissions: [] as string[] },
 }
+const allocation = (sectorId: number, role: keyof typeof roles) => ({
+  sectorId,
+  ...roles[role],
+})
+const allocationsOf = (persona: Persona) =>
+  persona === 'admin' || persona === 'none'
+    ? []
+    : persona === 'dual'
+      ? [allocation(1, 'manager'), allocation(2, 'operator')]
+      : [allocation(1, persona)]
 
 const inventory = {
   id: 1,
@@ -25,6 +44,14 @@ const inventory = {
   itemCount: 0,
 }
 
+const inventoryB = {
+  ...inventory,
+  id: 2,
+  name: 'Inventário B',
+  sectorId: 2,
+  sectorName: 'Setor B',
+}
+
 const item = {
   id: 1,
   code: 'PAT-1',
@@ -36,7 +63,7 @@ const item = {
   observations: [] as unknown[],
 }
 
-const setup = async (page: Page, role: Role, profileId: number | null = 1) => {
+const setup = async (page: Page, role: Persona) => {
   await page.context().addCookies([
     {
       name: 'inventarium.token',
@@ -65,20 +92,28 @@ const setup = async (page: Page, role: Role, profileId: number | null = 1) => {
         id: 7,
         name: 'Pessoa',
         email: 'pessoa@example.com',
-        profileId,
-        sectorIds: [1],
-        permissions: permissionsOf[role],
+        administrator: role === 'admin',
+        sectorIds: allocationsOf(role).map((a) => a.sectorId),
+        allocations: allocationsOf(role),
       })
-    if (path === '/inventory/user-inventories') return send(200, [inventory])
+    if (path === '/inventory/user-inventories')
+      return send(200, role === 'dual' ? [inventory, inventoryB] : [inventory])
     if (path === '/inventory/1')
       return send(200, {
         inventory,
-        canFinalize: role === 'admin' || role === 'manager',
+        canFinalize: role === 'admin' || role === 'manager' || role === 'dual',
       })
+    if (path === '/inventory/2')
+      return send(200, { inventory: inventoryB, canFinalize: false })
     if (path === '/inventory/inventory-items') return send(200, [])
     if (path === '/item/1') return send(200, item)
     if (path === '/sectors')
-      return send(200, [{ id: 1, name: 'Setor A', code: null, active: true }])
+      return send(200, [
+        { id: 1, name: 'Setor A', code: null, active: true },
+        ...(role === 'dual'
+          ? [{ id: 2, name: 'Setor B', code: null, active: true }]
+          : []),
+      ])
     return send(200, [])
   })
 }
@@ -86,27 +121,27 @@ const setup = async (page: Page, role: Role, profileId: number | null = 1) => {
 const menu = (page: Page) =>
   page.getByRole('navigation', { name: 'Menu principal' })
 
-test.describe('menu lateral por perfil', () => {
+test.describe('menu lateral por cargo', () => {
   const expected: Record<Role, { visible: string[]; hidden: string[] }> = {
     admin: {
-      visible: ['Dashboard', 'Setores', 'Usuários', 'Perfis e permissões'],
+      visible: ['Dashboard', 'Setores', 'Usuários', 'Cargos e permissões'],
       hidden: [],
     },
     manager: {
       visible: ['Setores'],
-      hidden: ['Dashboard', 'Usuários', 'Perfis e permissões'],
+      hidden: ['Dashboard', 'Usuários', 'Cargos e permissões'],
     },
     operator: {
       visible: [],
-      hidden: ['Dashboard', 'Setores', 'Usuários', 'Perfis e permissões'],
+      hidden: ['Dashboard', 'Setores', 'Usuários', 'Cargos e permissões'],
     },
     consult: {
       visible: [],
-      hidden: ['Dashboard', 'Setores', 'Usuários', 'Perfis e permissões'],
+      hidden: ['Dashboard', 'Setores', 'Usuários', 'Cargos e permissões'],
     },
   }
   for (const role of Object.keys(expected) as Role[]) {
-    test(`perfil ${role}`, async ({ page }) => {
+    test(`cargo ${role}`, async ({ page }) => {
       await setup(page, role)
       await page.goto('/inventory')
       await expect(
@@ -180,7 +215,7 @@ test.describe('detalhe do inventário', () => {
     await expect(scan(page)).toBeEnabled()
     await expect(importButton(page)).toBeDisabled()
     await expect(
-      page.getByText('Seu perfil não permite importar planilhas.'),
+      page.getByText('Seu cargo neste setor não permite importar planilhas.'),
     ).toBeVisible()
     await expect(clear(page)).toHaveCount(0)
   })
@@ -191,7 +226,7 @@ test.describe('detalhe do inventário', () => {
     await expect(scan(page)).toBeDisabled()
     await expect(
       page.getByText(
-        'Seu perfil é somente leitura: não é possível escanear itens.',
+        'Seu cargo neste setor é somente leitura: não é possível escanear itens.',
       ),
     ).toBeVisible()
     await expect(importButton(page)).toBeDisabled()
@@ -258,12 +293,12 @@ test.describe('telas restritas', () => {
     })
   }
 
-  // Quem entra pela primeira vez com o Google nasce sem perfil e sem nenhuma permissão, até um
-  // administrador atribuir o acesso: a interface o trata como somente leitura, sem erro.
-  test('usuário sem perfil não acessa usuários nem dashboard', async ({
+  // Quem entra pela primeira vez com o Google nasce sem alocação e sem nenhuma permissão, até
+  // alguém o alocar em um setor com um cargo: a interface o trata como sem acesso, sem erro.
+  test('usuário sem alocação não acessa usuários nem dashboard', async ({
     page,
   }) => {
-    await setup(page, 'consult', null)
+    await setup(page, 'none')
     await page.goto('/users')
     await expect(
       page.getByRole('heading', { name: 'Acesso restrito' }),
@@ -272,11 +307,88 @@ test.describe('telas restritas', () => {
     await expect(page).toHaveURL(/\/inventory$/)
   })
 
-  test('gestor não acessa perfis e permissões', async ({ page }) => {
+  test('gestor não acessa cargos e permissões', async ({ page }) => {
     await setup(page, 'manager')
-    await page.goto('/profiles')
+    await page.goto('/roles')
     await expect(
       page.getByRole('heading', { name: 'Acesso restrito' }),
     ).toBeVisible()
+  })
+})
+
+test.describe('cargo diferente em cada setor', () => {
+  // O mesmo usuário é gestor no setor A (1) e só opera itens no setor B (2).
+  test('lista: gerencia só o inventário do setor em que é gestor', async ({
+    page,
+  }) => {
+    await setup(page, 'dual')
+    await page.goto('/inventory')
+    await expect(
+      page.getByRole('button', { name: 'Novo Inventário' }),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: 'Editar Inventário A', exact: true }),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: 'Deletar Inventário A', exact: true }),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: 'Visualizar Inventário B' }),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: 'Editar Inventário B', exact: true }),
+    ).toHaveCount(0)
+    await expect(
+      page.getByRole('button', { name: 'Deletar Inventário B', exact: true }),
+    ).toHaveCount(0)
+  })
+
+  test('menu: ele vê Setores (é gestor em algum) mas não Usuários nem Cargos', async ({
+    page,
+  }) => {
+    await setup(page, 'dual')
+    await page.goto('/inventory')
+    await expect(
+      menu(page).getByRole('link', { name: 'Setores' }),
+    ).toBeVisible()
+    for (const name of ['Dashboard', 'Usuários', 'Cargos e permissões'])
+      await expect(menu(page).getByRole('link', { name })).toHaveCount(0)
+  })
+
+  test('detalhe: importa no setor em que gerencia; no outro só escaneia', async ({
+    page,
+  }) => {
+    await setup(page, 'dual')
+    await page.goto('/inventory/1')
+    await expect(
+      page.getByRole('button', { name: 'Importar Planilha CSV' }),
+    ).toBeEnabled()
+    await page.goto('/inventory/2')
+    await expect(
+      page.getByRole('button', { name: 'Escanear ou digitar código' }),
+    ).toBeEnabled()
+    await expect(
+      page.getByRole('button', { name: 'Importar Planilha CSV' }),
+    ).toBeDisabled()
+    await expect(
+      page.getByText('Seu cargo neste setor não permite importar planilhas.'),
+    ).toBeVisible()
+  })
+
+  test('item: edita dados no setor em que gerencia; no outro só observações', async ({
+    page,
+  }) => {
+    await setup(page, 'dual')
+    await page.goto('/inventory/1/item/1')
+    await expect(
+      page.getByRole('button', { name: 'Editar item' }),
+    ).toBeVisible()
+    await page.goto('/inventory/2/item/1')
+    await expect(
+      page.getByRole('button', { name: 'Editar observações' }),
+    ).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Editar item' })).toHaveCount(
+      0,
+    )
   })
 })

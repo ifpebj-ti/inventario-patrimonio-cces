@@ -1,6 +1,12 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { expandFilters, pickOption } from './select'
 
+// Alocação (usuário em setor com um cargo). O cargo vale só naquele setor.
+const GESTOR = 12
+const OPERADOR = 13
+const CONSULTA = 14
+const alloc = (sectorId: number, roleId = CONSULTA) => ({ sectorId, roleId })
+
 const fixture = () => ({
   admin: true,
   reader: true,
@@ -15,70 +21,70 @@ const fixture = () => ({
     { id: 2, name: 'Biblioteca', code: null, active: false, deletable: false },
     { id: 3, name: 'Tecnologia', code: 'TI', active: true, deletable: true },
   ],
-  profiles: [
+  roles: [
     {
-      id: 11,
-      name: 'ADMIN_ORGANIZATION',
-      description: 'Administrador',
+      id: GESTOR,
+      name: 'Gestor de Setor',
+      description: 'Gestor',
       permissionIds: [201],
     },
     {
-      id: 12,
-      name: 'GESTOR_SETOR',
-      description: 'Gestor',
+      id: OPERADOR,
+      name: 'Operador de Campo',
+      description: 'Operador',
       permissionIds: [202],
     },
     {
-      id: 13,
-      name: 'OPERADOR_CAMPO',
-      description: 'Operador',
-      permissionIds: [203],
-    },
-    {
-      id: 14,
-      name: 'CONSULTA',
-      description: null,
+      id: CONSULTA,
+      name: 'Consulta',
+      description: null as string | null,
       permissionIds: [] as number[],
-    },
-    {
-      id: 15,
-      name: 'COORDENACAO',
-      description: 'Perfil personalizado',
-      permissionIds: [201],
     },
   ],
   permissions: [
-    { id: 201, name: 'ADMIN', description: 'Administração' },
-    { id: 202, name: 'MANAGE_SECTOR', description: 'Gestão de setores' },
-    { id: 203, name: 'MANAGE_ITEM', description: 'Gestão de itens' },
+    {
+      id: 201,
+      name: 'MANAGE_SECTOR',
+      description: 'Gerencia os inventários do setor e aloca usuários nele.',
+    },
+    {
+      id: 202,
+      name: 'MANAGE_ITEM',
+      description: 'Opera os itens do setor: valida e registra observações.',
+    },
   ],
   users: [
     {
       id: 1,
       name: 'Camille',
       email: 'camille@example.com',
-      sectorIds: [1],
-      profileId: 15 as number | null,
+      administrator: true,
+      allocations: [alloc(1)],
       active: true,
     },
     {
       id: 2,
       name: 'Maria',
       email: 'maria@example.com',
-      sectorIds: [] as number[],
-      profileId: null as number | null,
+      administrator: false,
+      allocations: [] as { sectorId: number; roleId: number }[],
       active: true,
     },
     {
       id: 3,
       name: 'Ana',
       email: 'ana@example.com',
-      sectorIds: [1, 2],
-      profileId: 12 as number | null,
+      administrator: false,
+      allocations: [alloc(1, GESTOR), alloc(2, CONSULTA)],
       active: true,
     },
   ],
 })
+
+type State = ReturnType<typeof fixture>
+type FixtureUser = State['users'][number]
+const sectorIdsOf = (user: FixtureUser) =>
+  user.allocations.map((allocation) => allocation.sectorId)
 
 const setup = async (page: Page, state = fixture()) => {
   await page.context().addCookies([
@@ -89,6 +95,46 @@ const setup = async (page: Page, state = fixture()) => {
       path: '/',
     },
   ])
+  const roleOf = (id: number) => state.roles.find((role) => role.id === id)
+  const permissionNames = (roleId: number) =>
+    (roleOf(roleId)?.permissionIds ?? []).map(
+      (id) =>
+        state.permissions.find((permission) => permission.id === id)!.name,
+    )
+  const allocationsOut = (user: FixtureUser, as?: number) =>
+    user.allocations.map(({ sectorId, roleId }) => {
+      const id = as ?? roleId
+      return {
+        sectorId,
+        roleId: id,
+        roleName: roleOf(id)?.name ?? `Cargo #${id}`,
+        permissions: permissionNames(id),
+      }
+    })
+  const userOut = (user: FixtureUser) => ({
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    administrator: user.administrator,
+    active: user.active,
+    sectorIds: sectorIdsOf(user),
+    allocations: allocationsOut(user),
+  })
+  const roleOut = (role: State['roles'][number]) => {
+    const allocated = state.users.flatMap((user) =>
+      user.allocations.filter((allocation) => allocation.roleId === role.id),
+    )
+    const userCount = state.users.filter((user) =>
+      user.allocations.some((allocation) => allocation.roleId === role.id),
+    ).length
+    return {
+      ...role,
+      management: role.permissionIds.includes(201),
+      allocationCount: allocated.length,
+      userCount,
+      deletable: allocated.length === 0 && role.permissionIds.length === 0,
+    }
+  }
   await page.route('http://127.0.0.1:18080/**', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
@@ -113,17 +159,22 @@ const setup = async (page: Page, state = fixture()) => {
     state.requests.push({ method, path, body })
     if (state.fail[`${method} ${path}`])
       return send(state.fail[`${method} ${path}`], { error: 'Failure' })
-    if (path === '/auth/me')
+    if (path === '/auth/me') {
+      const me = state.users[0]
+      // Quem não é administrador tem o cargo de gestor (reader) ou de consulta em cada setor.
+      const as = state.admin ? undefined : state.reader ? GESTOR : CONSULTA
       return send(200, {
-        ...state.users[0],
-        permissions: [
-          ...(state.admin ? ['ADMIN'] : []),
-          ...(!state.admin && state.reader ? ['MANAGE_SECTOR'] : []),
-        ],
+        id: me.id,
+        name: me.name,
+        email: me.email,
+        administrator: state.admin,
+        sectorIds: sectorIdsOf(me),
+        allocations: allocationsOut(me, as),
       })
+    }
     if (path === '/inventory/user-inventories') return send(200, [])
     if (
-      path.startsWith('/profiles') ||
+      path.startsWith('/roles') ||
       path === '/permissions' ||
       path === '/users'
     ) {
@@ -133,42 +184,79 @@ const setup = async (page: Page, state = fixture()) => {
     if (path.startsWith('/sectors') && !state.reader && !state.admin)
       return send(403, { error: 'Forbidden' })
     if (path === '/permissions') return send(200, state.permissions)
-    if (path === '/profiles' && method === 'GET')
-      return send(200, state.profiles)
+    if (path === '/roles' && method === 'GET')
+      return send(200, state.roles.map(roleOut))
+    if (path === '/roles' && method === 'POST') {
+      const role = {
+        id: 16,
+        name: String(body?.name),
+        description: (body?.description as string | null) ?? null,
+        permissionIds: (body?.permissionIds as number[]) ?? [],
+      }
+      state.roles.push(role)
+      return send(201, roleOut(role))
+    }
+    const roleUpdate = path.match(/^\/roles\/(\d+)$/)
+    if (roleUpdate) {
+      const role = state.roles.find((row) => row.id === Number(roleUpdate[1]))
+      if (!role) return send(404, {})
+      if (method === 'DELETE') {
+        if (!roleOut(role).deletable) return send(409, {})
+        state.roles.splice(state.roles.indexOf(role), 1)
+        return send(204, null)
+      }
+      if (method === 'PUT') {
+        role.name = String(body?.name)
+        role.description = (body?.description as string | null) ?? null
+        role.permissionIds = (body?.permissionIds as number[]) ?? []
+      }
+      return send(200, roleOut(role))
+    }
     if (path === '/users' && method === 'GET' && !state.admin)
       // O gestor lista apenas os usuários que compartilham algum setor com ele.
       return send(
         200,
-        state.users.filter((user) =>
-          user.sectorIds.some((id) => state.users[0].sectorIds.includes(id)),
-        ),
+        state.users
+          .filter((user) =>
+            sectorIdsOf(user).some((id) =>
+              sectorIdsOf(state.users[0]).includes(id),
+            ),
+          )
+          .map(userOut),
       )
-    if (path === '/users' && method === 'GET')
+    if (path === '/users' && method === 'GET') {
+      const roleId = url.searchParams.get('roleId')
       return send(
         200,
-        url.searchParams.has('profileId')
-          ? state.users.filter(
-              (user) =>
-                user.profileId === Number(url.searchParams.get('profileId')),
-            )
-          : state.users,
+        state.users
+          .filter(
+            (user) =>
+              !roleId ||
+              user.allocations.some(
+                (allocation) => allocation.roleId === Number(roleId),
+              ),
+          )
+          .map(userOut),
       )
+    }
     if (path === '/sectors' && method === 'GET')
       return send(
         200,
         state.admin
           ? state.sectors
           : state.sectors.filter((sector) =>
-              state.users[0].sectorIds.includes(sector.id),
+              sectorIdsOf(state.users[0]).includes(sector.id),
             ),
       )
     const sectorMembers = path.match(/^\/sectors\/(\d+)\/users$/)
     if (sectorMembers)
       return send(
         200,
-        state.users.filter((user) =>
-          user.sectorIds.includes(Number(sectorMembers[1])),
-        ),
+        state.users
+          .filter((user) =>
+            sectorIdsOf(user).includes(Number(sectorMembers[1])),
+          )
+          .map(userOut),
       )
     if (path === '/sectors' && method === 'POST') {
       const sector = {
@@ -204,60 +292,24 @@ const setup = async (page: Page, state = fixture()) => {
     if (userActive && method === 'PATCH') {
       const user = state.users.find((row) => row.id === Number(userActive[1]))!
       user.active = userActive[2] === 'activate'
-      return send(200, user)
+      return send(200, userOut(user))
     }
-    const userProfile = path.match(/^\/users\/(\d+)\/profile$/)
-    if (userProfile) {
-      const user = state.users.find((row) => row.id === Number(userProfile[1]))!
-      user.profileId = body?.profileId as number | null
-      if (user.id === 1 && user.profileId !== 11 && user.profileId !== 15) {
-        // Sai de administrador: só o perfil de gestor mantém a gestão de usuários.
-        state.admin = false
-        state.reader = user.profileId === 12
-      }
-      return send(200, user)
+    const userAdministrator = path.match(/^\/users\/(\d+)\/administrator$/)
+    if (userAdministrator && method === 'PATCH') {
+      const user = state.users.find(
+        (row) => row.id === Number(userAdministrator[1]),
+      )!
+      user.administrator = body?.administrator as boolean
+      return send(200, userOut(user))
     }
     const userSector = path.match(/^\/users\/(\d+)\/sectors\/(\d+)$/)
     if (userSector) {
       const user = state.users.find((row) => row.id === Number(userSector[1]))!
       const id = Number(userSector[2])
-      user.sectorIds = user.sectorIds.filter((value) => value !== id)
-      if (method === 'POST') user.sectorIds.push(id)
-      return send(200, user)
-    }
-    if (path === '/profiles' && method === 'POST') {
-      const profile = {
-        id: 16,
-        name: String(body?.name),
-        description: String(body?.description || ''),
-        permissionIds: [] as number[],
-      }
-      state.profiles.push(profile)
-      return send(201, profile)
-    }
-    const profileUpdate = path.match(
-      /^\/profiles\/(\d+)(?:\/permissions\/(\d+))?$/,
-    )
-    if (profileUpdate) {
-      const profile = state.profiles.find(
-        (row) => row.id === Number(profileUpdate[1]),
-      )!
-      if (profileUpdate[2]) {
-        const id = Number(profileUpdate[2])
-        profile.permissionIds = profile.permissionIds.filter(
-          (value) => value !== id,
-        )
-        if (method === 'POST') profile.permissionIds.push(id)
-        if (profile.id === 15 && !profile.permissionIds.includes(201))
-          state.admin = false
-      } else if (method === 'DELETE') {
-        state.profiles = state.profiles.filter((row) => row.id !== profile.id)
-        return send(204, null)
-      } else if (method === 'PUT') {
-        profile.name = String(body?.name)
-        profile.description = String(body?.description || '')
-      }
-      return send(200, profile)
+      user.allocations = user.allocations.filter((a) => a.sectorId !== id)
+      if (method === 'PUT')
+        user.allocations.push({ sectorId: id, roleId: Number(body?.roleId) })
+      return send(200, userOut(user))
     }
     return send(404, {})
   })
@@ -276,9 +328,7 @@ const confirm = (page: Page, title: string) =>
     })
     .click()
 
-test('perfil personalizado com ADMIN recebe menus administrativos', async ({
-  page,
-}) => {
+test('administrador recebe menus administrativos', async ({ page }) => {
   await setup(page)
   await page.goto('/sectors')
   await expect(
@@ -288,7 +338,7 @@ test('perfil personalizado com ADMIN recebe menus administrativos', async ({
     page.getByRole('link', { name: 'Usuários', exact: true }),
   ).toBeVisible()
   await expect(
-    page.getByRole('link', { name: 'Perfis e permissões', exact: true }),
+    page.getByRole('link', { name: 'Cargos e permissões', exact: true }),
   ).toBeVisible()
 })
 
@@ -310,22 +360,31 @@ test('gestor consulta somente setores vinculados e não recebe controles adminis
     .getByRole('button', { name: 'Usuários associados' })
     .click()
   await expect(page.getByRole('dialog')).toContainText('Ana')
-  // O menu do gestor não tem Usuários nem o catálogo de perfis.
+  // O menu do gestor não tem Usuários nem os Cargos.
   const menu = page.getByRole('navigation', { name: 'Menu principal' })
   await expect(menu.getByRole('link', { name: 'Usuários' })).toHaveCount(0)
   await expect(
-    menu.getByRole('link', { name: 'Perfis e permissões' }),
+    menu.getByRole('link', { name: 'Cargos e permissões' }),
   ).toHaveCount(0)
 })
 
-test('gestor sem setor tem lista vazia', async ({ page }) => {
+test('sem alocação ninguém é gestor de nada: não vê setores nem o menu', async ({
+  page,
+}) => {
   const state = fixture()
   state.admin = false
-  state.users[0].sectorIds = []
+  state.users[0].allocations = []
   await setup(page, state)
   await page.goto('/sectors')
-  await expect(page.getByText('0 setores encontrados')).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: 'Acesso restrito' }),
+  ).toBeVisible()
   await expect(page.locator('article')).toHaveCount(0)
+  await expect(
+    page
+      .getByRole('navigation', { name: 'Menu principal' })
+      .getByRole('link', { name: 'Setores', exact: true }),
+  ).toHaveCount(0)
 })
 
 test('gestor vinculado a múltiplos setores vê todos os seus vínculos', async ({
@@ -333,7 +392,7 @@ test('gestor vinculado a múltiplos setores vê todos os seus vínculos', async 
 }) => {
   const state = fixture()
   state.admin = false
-  state.users[0].sectorIds = [1, 3]
+  state.users[0].allocations = [alloc(1, GESTOR), alloc(3, GESTOR)]
   await setup(page, state)
   await page.goto('/sectors')
   await expect(card(page, 'Patrimônio')).toBeVisible()
@@ -341,15 +400,15 @@ test('gestor vinculado a múltiplos setores vê todos os seus vínculos', async 
   await expect(card(page, 'Biblioteca')).toHaveCount(0)
 })
 
-test('consulta e sem perfil não recebem acesso direto às telas administrativas', async ({
+test('consulta e sem alocação não recebem acesso direto às telas administrativas', async ({
   page,
 }) => {
   const state = fixture()
   state.admin = false
   state.reader = false
-  state.users[0].profileId = null
+  state.users[0].allocations = []
   await setup(page, state)
-  for (const path of ['/sectors', '/profiles', '/users']) {
+  for (const path of ['/sectors', '/roles', '/users']) {
     await page.goto(path)
     await expect(
       page.getByRole('heading', { name: 'Acesso restrito' }),
@@ -425,7 +484,7 @@ test('edição e ativação de setor respeitam confirmação e preservam associa
     .click()
   await confirm(page, 'Desativar setor')
   await expect(card(page, 'Patrimônio')).toContainText('Inativo')
-  expect(state.users[2].sectorIds).toEqual([1, 2])
+  expect(sectorIdsOf(state.users[2])).toEqual([1, 2])
   await card(page, 'Patrimônio')
     .getByRole('button', { name: 'Ativar', exact: true })
     .click()
@@ -487,7 +546,7 @@ test('exclusão recusada pela API (409) mostra o erro e mantém o setor', async 
 test('gestor não vê Excluir nem em setor sem vínculos', async ({ page }) => {
   const state = fixture()
   state.admin = false
-  state.users[0].sectorIds = [3]
+  state.users[0].allocations = [alloc(3, GESTOR)]
   await setup(page, state)
   await page.goto('/sectors')
   await expect(card(page, 'Tecnologia')).toBeVisible()
@@ -513,7 +572,7 @@ for (const status of [400, 401, 403, 404, 409, 500]) {
   })
 }
 
-test('filtros de setor, perfil e busca se combinam', async ({ page }) => {
+test('filtros de setor, cargo e busca se combinam', async ({ page }) => {
   await setup(page)
   await page.goto('/users')
   await expandFilters(page)
@@ -522,24 +581,30 @@ test('filtros de setor, perfil e busca se combinam', async ({ page }) => {
   await expect(card(page, 'Maria')).toBeVisible()
   await expect(card(page, 'Ana')).toHaveCount(0)
   await pickOption(page.getByLabel('Filtrar por setor'), 'Patrimônio')
-  await pickOption(page.getByLabel('Filtrar por perfil'), 'Gestor de Setor')
+  await pickOption(page.getByLabel('Filtrar por cargo'), 'Gestor de Setor')
   await expect(card(page, 'Ana')).toBeVisible()
   await expect(card(page, 'Camille')).toHaveCount(0)
   await page.getByLabel('Buscar usuário').fill('ana@example.com')
   await expect(card(page, 'Ana')).toBeVisible()
 })
 
-test('usuários filtram Sem perfil e enviam profileId ao servidor', async ({
+test('usuários filtram por papel e por cargo e enviam roleId ao servidor', async ({
   page,
 }) => {
   const state = await setup(page)
   await page.goto('/users')
   await expandFilters(page)
-  await expect(card(page, 'Maria')).toContainText('Sem perfil')
-  await pickOption(page.getByLabel('Filtrar por perfil'), 'Sem perfil')
+  await expect(card(page, 'Maria')).toContainText('Nenhum setor associado')
+  await expect(card(page, 'Camille')).toContainText('Administrador')
+  await expect(card(page, 'Ana')).toContainText('Biblioteca · Consulta')
+  await expect(card(page, 'Ana')).toContainText('Patrimônio · Gestor de Setor')
+  await pickOption(page.getByLabel('Filtrar por cargo'), 'Sem acesso')
   await expect(card(page, 'Camille')).toHaveCount(0)
   await expect(card(page, 'Maria')).toBeVisible()
-  await pickOption(page.getByLabel('Filtrar por perfil'), 'Gestor de Setor')
+  await pickOption(page.getByLabel('Filtrar por cargo'), 'Administradores')
+  await expect(card(page, 'Camille')).toBeVisible()
+  await expect(card(page, 'Maria')).toHaveCount(0)
+  await pickOption(page.getByLabel('Filtrar por cargo'), 'Gestor de Setor')
   await expect(card(page, 'Ana')).toBeVisible()
   await expect(card(page, 'Maria')).toHaveCount(0)
   expect(
@@ -553,7 +618,7 @@ const addSector = async (modal: Locator, text: string) => {
   await modal.getByRole('option', { name: new RegExp(text) }).click()
 }
 
-test('perfil e setores ficam pendentes e são salvos de uma vez', async ({
+test('administrador, setores e cargos ficam pendentes e são salvos de uma vez', async ({
   page,
 }) => {
   const state = await setup(page)
@@ -566,13 +631,18 @@ test('perfil e setores ficam pendentes e são salvos de uma vez', async ({
   await expect(modal).toContainText('Nenhuma alteração pendente')
   await expect(save).toBeDisabled()
 
-  await modal.getByRole('radio', { name: /Gestor de Setor/ }).check()
+  await modal.getByRole('checkbox', { name: 'Administrador' }).click()
   await addSector(modal, 'Patrimônio')
   await addSector(modal, 'Tecnologia')
+  // O setor entra com o cargo de menos permissões; o administrador ajusta na linha dele.
+  await expect(modal.getByLabel('Cargo em Tecnologia')).toContainText(
+    'Consulta',
+  )
+  await pickOption(modal.getByLabel('Cargo em Tecnologia'), 'Operador de Campo')
   await expect(modal).toContainText('3 alterações pendentes')
   // Nada vai ao servidor antes de salvar.
   expect(state.requests.filter((r) => r.method !== 'GET')).toHaveLength(0)
-  expect(state.users[1].profileId).toBeNull()
+  expect(state.users[1].administrator).toBe(false)
 
   // Desfazer tira a inclusão da lista de pendências.
   await modal.getByRole('button', { name: 'Desfazer Patrimônio' }).click()
@@ -584,14 +654,52 @@ test('perfil e setores ficam pendentes e são salvos de uma vez', async ({
   await save.click()
   await expect(page.getByText('Alterações salvas.')).toBeVisible()
   await expect(modal).toContainText('Nenhuma alteração pendente')
-  expect(state.users[1].profileId).toBe(12)
-  expect(state.users[1].sectorIds).toEqual([3])
-  await expect(modal.getByText('Perfil atual')).toBeVisible()
+  expect(state.users[1].administrator).toBe(true)
+  expect(state.users[1].allocations).toEqual([
+    { sectorId: 3, roleId: OPERADOR },
+  ])
+  await expect(modal.getByText('Atual')).toBeVisible()
   expect(
     state.requests
       .filter((r) => r.method !== 'GET')
       .map((r) => `${r.method} ${r.path}`),
-  ).toEqual(['PATCH /users/2/profile', 'POST /users/2/sectors/3'])
+  ).toEqual(['PATCH /users/2/administrator', 'PUT /users/2/sectors/3'])
+  expect(
+    state.requests.find((r) => r.path === '/users/2/sectors/3')?.body,
+  ).toEqual({ roleId: OPERADOR })
+})
+
+test('trocar o cargo de um setor já alocado só vale ao salvar', async ({
+  page,
+}) => {
+  const state = await setup(page)
+  await page.goto('/users')
+  await card(page, 'Ana')
+    .getByRole('button', { name: 'Gerenciar acesso' })
+    .click()
+  const modal = page.getByRole('dialog', { name: 'Acesso de Ana' })
+  // Cada setor mostra o cargo do usuário nele: gestor em um, consulta no outro.
+  await expect(modal.getByLabel('Cargo em Patrimônio')).toContainText(
+    'Gestor de Setor',
+  )
+  await expect(modal.getByLabel('Cargo em Biblioteca')).toContainText(
+    'Consulta',
+  )
+  await pickOption(modal.getByLabel('Cargo em Biblioteca'), 'Operador de Campo')
+  await expect(modal).toContainText('Cargo alterado')
+  await expect(modal).toContainText('1 alteração pendente')
+  expect(state.users[2].allocations[1].roleId).toBe(CONSULTA)
+  await modal.getByRole('button', { name: 'Salvar alterações' }).click()
+  await expect(page.getByText('Alterações salvas.')).toBeVisible()
+  expect(state.users[2].allocations).toEqual([
+    { sectorId: 1, roleId: GESTOR },
+    { sectorId: 2, roleId: OPERADOR },
+  ])
+  expect(
+    state.requests
+      .filter((r) => r.method !== 'GET')
+      .map((r) => `${r.method} ${r.path}`),
+  ).toEqual(['PUT /users/3/sectors/2'])
 })
 
 test('adicionar setor abre a lista completa, filtra por nome ou sigla e segue aberta', async ({
@@ -616,7 +724,7 @@ test('adicionar setor abre a lista completa, filtra por nome ou sigla e segue ab
   // Clicar adiciona o setor aos associados e a lista segue aberta com o que sobrou.
   await modal.getByRole('option', { name: /Patrimônio/ }).click()
   await expect(
-    modal.getByRole('heading', { name: /Setores associados \(1\)/ }),
+    modal.getByRole('heading', { name: /Setores e cargos \(1\)/ }),
   ).toBeVisible()
   await expect(
     modal.getByRole('button', { name: 'Desfazer Patrimônio' }),
@@ -629,7 +737,7 @@ test('remover um setor também só vale ao salvar, e setor inativo não aparece 
   page,
 }) => {
   const state = fixture()
-  state.users[1].sectorIds = [1]
+  state.users[1].allocations = [alloc(1)]
   await setup(page, state)
   await page.goto('/users')
   await card(page, 'Maria')
@@ -639,115 +747,252 @@ test('remover um setor também só vale ao salvar, e setor inativo não aparece 
   await modal.getByRole('button', { name: 'Desalocar de Patrimônio' }).click()
   await expect(modal).toContainText('Será removido')
   await expect(modal).toContainText('1 alteração pendente')
-  expect(state.users[1].sectorIds).toEqual([1])
+  expect(sectorIdsOf(state.users[1])).toEqual([1])
   // Biblioteca está inativa: a busca não a oferece.
   await modal.getByLabel('Adicionar setor').fill('Bibli')
   await expect(modal.getByRole('option')).toHaveCount(0)
   await expect(modal).toContainText('Nenhum setor ativo encontrado')
   await modal.getByRole('button', { name: 'Salvar alterações' }).click()
   await expect(page.getByText('Alterações salvas.')).toBeVisible()
-  expect(state.users[1].sectorIds).toEqual([])
+  expect(sectorIdsOf(state.users[1])).toEqual([])
 })
 
 test('falha ao salvar mostra o erro e mantém o que não foi salvo como pendente', async ({
   page,
 }) => {
   const state = fixture()
-  state.fail['POST /users/2/sectors/3'] = 409
+  state.fail['PUT /users/2/sectors/3'] = 409
   await setup(page, state)
   await page.goto('/users')
   await card(page, 'Maria')
     .getByRole('button', { name: 'Gerenciar acesso' })
     .click()
   const modal = page.getByRole('dialog', { name: 'Acesso de Maria' })
-  await modal.getByRole('radio', { name: /Consulta/ }).check()
+  await modal.getByRole('checkbox', { name: 'Administrador' }).click()
   await addSector(modal, 'Tecnologia')
   await modal.getByRole('button', { name: 'Salvar alterações' }).click()
   await expect(modal.getByRole('alert')).toContainText('Parte das alterações')
-  // O perfil já foi salvo; o setor continua pendente.
-  expect(state.users[1].profileId).toBe(14)
+  // O papel de administrador já foi salvo; o setor continua pendente.
+  expect(state.users[1].administrator).toBe(true)
   await expect(modal).toContainText('1 alteração pendente')
 })
 
-test('remover o próprio acesso administrativo bloqueia a tela e os menus', async ({
-  page,
-}) => {
-  await setup(page)
+test('ninguém altera o próprio papel de administrador', async ({ page }) => {
+  const state = await setup(page)
   await page.goto('/users')
   await card(page, 'Camille')
     .getByRole('button', { name: 'Gerenciar acesso' })
     .click()
   const modal = page.getByRole('dialog', { name: 'Acesso de Camille' })
-  await expect(modal).toContainText('Alterar seu próprio perfil')
-  await modal.getByRole('radio', { name: /Consulta/ }).check()
+  const administrator = modal.getByRole('checkbox', { name: 'Administrador' })
+  await expect(administrator).toBeChecked()
+  await expect(administrator).toBeDisabled()
+  await expect(modal).toContainText(
+    'Você não pode alterar o seu próprio papel de administrador.',
+  )
+  // As próprias alocações podem mudar, mas o papel de administrador nunca é enviado.
+  await modal.getByRole('button', { name: 'Desalocar de Patrimônio' }).click()
   await modal.getByRole('button', { name: 'Salvar alterações' }).click()
-  // Mexer no próprio perfil pede confirmação, pois pode tirar o acesso.
+  await expect(page.getByText('Alterações salvas.')).toBeVisible()
+  expect(
+    state.requests.filter((r) => r.path.endsWith('/administrator')),
+  ).toHaveLength(0)
+  expect(state.users[0].administrator).toBe(true)
+})
+
+const rolesTable = (page: Page) =>
+  page.getByRole('table', { name: 'Cargos e suas permissões' })
+const roleRow = (page: Page, name: string) =>
+  rolesTable(page).getByRole('row').filter({ hasText: name })
+
+test('cargos exibem permissões e uso, e o administrador tem as ações', async ({
+  page,
+}) => {
+  await setup(page)
+  await page.goto('/roles')
+  await expect(rolesTable(page)).toBeVisible()
+  await expect(roleRow(page, 'Gestor de Setor')).toContainText(
+    'Gerenciar Setor',
+  )
+  await expect(roleRow(page, 'Gestor de Setor')).toContainText(
+    '1 usuário em 1 alocação',
+  )
+  await expect(roleRow(page, 'Operador de Campo')).toContainText('Sem uso')
+  await expect(roleRow(page, 'Consulta')).toContainText(
+    'Nenhuma permissão atribuída',
+  )
+  await expect(page.getByRole('button', { name: 'Novo cargo' })).toBeEnabled()
   await expect(
-    page.getByRole('dialog', { name: 'Salvar alterações', exact: true }),
-  ).toContainText('perder seu acesso')
-  await confirm(page, 'Salvar alterações')
-  await expect(
-    page.getByRole('heading', { name: 'Acesso restrito' }),
+    page.getByRole('button', { name: 'Editar cargo Consulta' }),
   ).toBeVisible()
+  // Excluir só aparece em cargo sem alocação e sem permissão: aqui, nenhum.
   await expect(
-    page
-      .getByRole('navigation', { name: 'Menu principal' })
-      .getByRole('link', { name: 'Usuários', exact: true }),
+    page.getByRole('button', { name: /^Excluir cargo / }),
   ).toHaveCount(0)
 })
 
-test('catálogo exibe perfis e permissões somente para consulta', async ({
+test('administrador cria um cargo escolhendo as permissões', async ({
   page,
 }) => {
   const state = await setup(page)
-  await page.goto('/profiles')
-  const table = page.getByRole('table', {
-    name: 'Perfis de acesso e suas permissões',
-  })
-  await expect(table).toBeVisible()
-  await expect(
-    table.getByRole('row').filter({ hasText: 'Administrador da Organização' }),
-  ).toContainText('Administrador')
-  await expect(
-    table.getByRole('row').filter({ hasText: 'Gestor de Setor' }),
-  ).toContainText('Gerenciar Setor')
-  await expect(
-    table.getByRole('row').filter({ hasText: 'Consulta' }),
-  ).toContainText('Nenhuma permissão atribuída')
-  await expect(page.getByText('Somente para consulta')).toBeVisible()
-  await expect(
-    page.getByRole('button', {
-      name: /Novo perfil|Editar perfil|Excluir perfil|Configurar permissões/,
-    }),
-  ).toHaveCount(0)
-  await expect(page.getByRole('checkbox')).toHaveCount(0)
+  await page.goto('/roles')
+  await page.getByRole('button', { name: 'Novo cargo' }).click()
+  const modal = page.getByRole('dialog', { name: 'Novo cargo' })
+  await modal.getByLabel('Nome do cargo').fill('  Auditoria  ')
+  await modal.getByLabel('Descrição (opcional)').fill('Confere os inventários')
+  await modal.getByRole('checkbox', { name: 'Gerenciar Item' }).click()
+  await modal.getByRole('button', { name: 'Salvar cargo' }).click()
+  await expect(page.getByText('Cargo salvo com sucesso.')).toBeVisible()
+  await expect(roleRow(page, 'Auditoria')).toContainText('Gerenciar Item')
   expect(
-    state.requests.filter(
-      (request) =>
-        request.path.startsWith('/profiles') && request.method !== 'GET',
-    ),
-  ).toHaveLength(0)
-  await page.getByRole('link', { name: 'Gerenciar usuários' }).click()
-  await expect(page.getByRole('heading', { name: 'Usuários' })).toBeVisible()
+    state.requests.find((r) => r.method === 'POST' && r.path === '/roles')
+      ?.body,
+  ).toEqual({
+    name: 'Auditoria',
+    description: 'Confere os inventários',
+    permissionIds: [202],
+  })
 })
 
-test('busca do catálogo filtra por perfil e permissão', async ({ page }) => {
-  await setup(page)
-  await page.goto('/profiles')
-  const table = page.getByRole('table')
-  await expect(table).toBeVisible()
-  await page.getByLabel('Buscar perfil ou permissão').fill('MANAGE_ITEM')
+test('cargo valida nome vazio e nome repetido', async ({ page }) => {
+  const state = await setup(page)
+  await page.goto('/roles')
+  await page.getByRole('button', { name: 'Novo cargo' }).click()
+  const modal = page.getByRole('dialog', { name: 'Novo cargo' })
+  await modal.getByLabel('Nome do cargo').fill('Consulta')
+  await modal.getByRole('button', { name: 'Salvar cargo' }).click()
+  await expect(modal.getByRole('alert')).toContainText(
+    'Já existe um cargo com este nome.',
+  )
+  expect(
+    state.requests.filter((r) => r.method === 'POST' && r.path === '/roles'),
+  ).toHaveLength(0)
+})
+
+test('mudar as permissões de um cargo em uso pede confirmação com o impacto', async ({
+  page,
+}) => {
+  const state = await setup(page)
+  await page.goto('/roles')
+  await page
+    .getByRole('button', { name: 'Editar cargo Gestor de Setor' })
+    .click()
+  const modal = page.getByRole('dialog', { name: 'Editar cargo' })
+  await expect(modal).toContainText('usado por 1 usuário em 1 alocação')
+  await modal.getByRole('checkbox', { name: 'Gerenciar Setor' }).click()
+  await modal.getByRole('button', { name: 'Salvar cargo' }).click()
+  const confirmation = page.getByRole('dialog', {
+    name: 'Alterar permissões do cargo',
+    exact: true,
+  })
+  await expect(confirmation).toContainText('1 usuário em 1 alocação')
+  await expect(confirmation).toContainText('vale na hora')
+  // Cancelar não envia nada.
+  await confirmation.getByRole('button', { name: 'Cancelar' }).click()
+  expect(state.requests.filter((r) => r.method === 'PUT')).toHaveLength(0)
+  await modal.getByRole('button', { name: 'Salvar cargo' }).click()
+  await page
+    .getByRole('dialog', { name: 'Alterar permissões do cargo', exact: true })
+    .getByRole('button', { name: 'Salvar' })
+    .click()
+  await expect(page.getByText('Cargo salvo com sucesso.')).toBeVisible()
+  expect(state.roles[0].permissionIds).toEqual([])
+  expect(state.requests.filter((r) => r.method === 'PUT')).toHaveLength(1)
+})
+
+test('editar só o nome de um cargo em uso não pede confirmação', async ({
+  page,
+}) => {
+  const state = await setup(page)
+  await page.goto('/roles')
+  await page
+    .getByRole('button', { name: 'Editar cargo Gestor de Setor' })
+    .click()
+  const modal = page.getByRole('dialog', { name: 'Editar cargo' })
+  await modal.getByLabel('Nome do cargo').fill('Coordenação')
+  await modal.getByRole('button', { name: 'Salvar cargo' }).click()
+  await expect(page.getByText('Cargo salvo com sucesso.')).toBeVisible()
+  expect(state.roles[0].name).toBe('Coordenação')
+})
+
+test('exclusão de cargo: só sem alocação e sem permissão, com confirmação', async ({
+  page,
+}) => {
+  const state = fixture()
+  state.roles.push({
+    id: 16,
+    name: 'Provisório',
+    description: null,
+    permissionIds: [],
+  })
+  await setup(page, state)
+  await page.goto('/roles')
+  // Em uso (Consulta) ou com permissão (Operador): sem o botão.
   await expect(
-    table.getByRole('rowheader', { name: 'Operador de Campo' }),
+    page.getByRole('button', { name: 'Excluir cargo Consulta' }),
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole('button', { name: 'Excluir cargo Operador de Campo' }),
+  ).toHaveCount(0)
+  await page.getByRole('button', { name: 'Excluir cargo Provisório' }).click()
+  const dialog = page.getByRole('dialog', {
+    name: 'Excluir cargo',
+    exact: true,
+  })
+  await expect(dialog).toContainText('Provisório')
+  await dialog.getByRole('button', { name: 'Cancelar' }).click()
+  expect(state.requests.some((r) => r.method === 'DELETE')).toBe(false)
+  await page.getByRole('button', { name: 'Excluir cargo Provisório' }).click()
+  await page
+    .getByRole('dialog', { name: 'Excluir cargo', exact: true })
+    .getByRole('button', { name: 'Excluir' })
+    .click()
+  await expect(roleRow(page, 'Provisório')).toHaveCount(0)
+  expect(
+    state.requests.filter((r) => r.method === 'DELETE').map((r) => r.path),
+  ).toEqual(['/roles/16'])
+})
+
+test('exclusão de cargo recusada pela API (409) mostra o aviso e atualiza a lista', async ({
+  page,
+}) => {
+  const state = fixture()
+  state.roles.push({
+    id: 16,
+    name: 'Provisório',
+    description: null,
+    permissionIds: [],
+  })
+  state.fail['DELETE /roles/16'] = 409
+  await setup(page, state)
+  await page.goto('/roles')
+  await page.getByRole('button', { name: 'Excluir cargo Provisório' }).click()
+  await page
+    .getByRole('dialog', { name: 'Excluir cargo', exact: true })
+    .getByRole('button', { name: 'Excluir' })
+    .click()
+  await expect(page.getByText('não pode ser excluído')).toBeVisible()
+  await expect(roleRow(page, 'Provisório')).toBeVisible()
+})
+
+test('busca de cargos filtra por nome e permissão', async ({ page }) => {
+  await setup(page)
+  await page.goto('/roles')
+  const table = rolesTable(page)
+  await expect(table).toBeVisible()
+  await page.getByLabel('Buscar cargo ou permissão').fill('Gerenciar Item')
+  await expect(
+    table.getByRole('rowheader', { name: /Operador de Campo/ }),
   ).toBeVisible()
   await expect(
-    table.getByRole('rowheader', { name: 'Administrador da Organização' }),
+    table.getByRole('rowheader', { name: /Gestor de Setor/ }),
   ).toHaveCount(0)
-  await page.getByLabel('Buscar perfil ou permissão').fill('nao existe')
+  await page.getByLabel('Buscar cargo ou permissão').fill('nao existe')
   await expect(
-    page.getByText('Nenhum perfil encontrado para esta busca.'),
+    page.getByText('Nenhum cargo encontrado para esta busca.'),
   ).toBeVisible()
 })
+
 test('mobile permite navegar e preencher formulários sem perder foco ao digitar', async ({
   page,
 }) => {
@@ -769,31 +1014,31 @@ test('falha de rede na listagem apresenta erro e permite tentar novamente', asyn
   page,
 }) => {
   await setup(page)
-  await page.route('http://127.0.0.1:18080/profiles', (route) =>
+  await page.route('http://127.0.0.1:18080/roles', (route) =>
     route.abort('failed'),
   )
-  await page.goto('/profiles')
+  await page.goto('/roles')
   await expect(
     page.getByRole('alert').filter({ hasText: 'conectar ao servidor' }),
   ).toBeVisible()
   await expect(
     page.getByRole('button', { name: 'Tentar novamente' }),
   ).toBeVisible()
-  await page.unroute('http://127.0.0.1:18080/profiles')
+  await page.unroute('http://127.0.0.1:18080/roles')
   await page.getByRole('button', { name: 'Tentar novamente' }).click()
   await expect(
-    page.getByRole('heading', { name: 'Perfis e permissões' }),
+    page.getByRole('heading', { name: 'Cargos e permissões' }),
   ).toBeVisible()
 })
 
-test('resposta de listagem não concede ADMIN sem permissão na sessão', async ({
+test('resposta de listagem não concede acesso de administrador sem papel na sessão', async ({
   page,
 }) => {
   const state = fixture()
   state.admin = false
   state.reader = false
   await setup(page, state)
-  await page.route('http://127.0.0.1:18080/profiles', (route) =>
+  await page.route('http://127.0.0.1:18080/roles', (route) =>
     route.fulfill({
       status: 200,
       headers: { 'Access-Control-Allow-Origin': '*' },
@@ -801,11 +1046,11 @@ test('resposta de listagem não concede ADMIN sem permissão na sessão', async 
       body: JSON.stringify({ message: 'OK' }),
     }),
   )
-  await page.goto('/profiles')
+  await page.goto('/roles')
   await expect(
     page.getByRole('heading', { name: 'Acesso restrito' }),
   ).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Novo perfil' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Novo cargo' })).toHaveCount(0)
 })
 
 test('admin desativa e reativa um usuário, com confirmação', async ({
@@ -962,7 +1207,7 @@ test('gestor não acessa a tela de usuários, nem pelo endereço', async ({
   ).toHaveLength(0)
 })
 
-test('modal de acesso mostra quem é o usuário, orienta quem não tem perfil e deixa desativar por último', async ({
+test('modal de acesso mostra quem é o usuário, orienta quem não tem setor e deixa desativar por último', async ({
   page,
 }) => {
   await setup(page)
@@ -974,18 +1219,18 @@ test('modal de acesso mostra quem é o usuário, orienta quem não tem perfil e 
   // Identidade e estado no cabeçalho.
   await expect(modal).toContainText('maria@example.com')
   await expect(modal.getByText('Ativo', { exact: true })).toBeVisible()
-  // Um cartão por perfil, com a descrição; ninguém marcado e sem "Perfil atual".
-  await expect(modal.getByRole('radio')).toHaveCount(5)
-  await expect(modal.getByRole('radio', { checked: true })).toHaveCount(0)
-  await expect(modal.getByText('Perfil atual')).toHaveCount(0)
-  await expect(modal).toContainText('Este usuário ainda não tem perfil')
+  // Sem administrador marcado e sem setor: ela ainda não tem acesso a nada.
+  await expect(
+    modal.getByRole('checkbox', { name: 'Administrador' }),
+  ).not.toBeChecked()
+  await expect(modal).toContainText('Nenhum setor associado')
   // A ação de cuidado fica isolada no fim.
   expect(
     await modal.getByRole('heading', { level: 3 }).allTextContents(),
-  ).toEqual(['Perfil de acesso', 'Setores associados (0)', 'Desativar conta'])
+  ).toEqual(['Administrador', 'Setores e cargos (0)', 'Desativar conta'])
 })
 
-test('modal marca o perfil atual e abre o botão de desativar com confirmação', async ({
+test('modal mostra o cargo do usuário em cada setor e abre o botão de desativar com confirmação', async ({
   page,
 }) => {
   await setup(page)
@@ -994,11 +1239,15 @@ test('modal marca o perfil atual e abre o botão de desativar com confirmação'
     .getByRole('button', { name: 'Gerenciar acesso' })
     .click()
   const modal = page.getByRole('dialog', { name: 'Acesso de Ana' })
-  await expect(modal.getByRole('radio', { checked: true })).toHaveCount(1)
   await expect(
-    modal.getByRole('radio', { name: /Gestor de Setor/ }),
-  ).toBeChecked()
-  await expect(modal.getByText('Perfil atual')).toBeVisible()
+    modal.getByRole('checkbox', { name: 'Administrador' }),
+  ).not.toBeChecked()
+  await expect(modal.getByLabel('Cargo em Patrimônio')).toContainText(
+    'Gestor de Setor',
+  )
+  await expect(modal.getByLabel('Cargo em Biblioteca')).toContainText(
+    'Consulta',
+  )
   await modal.getByRole('button', { name: 'Desativar usuário' }).click()
   await expect(
     page.getByRole('dialog', { name: 'Desativar usuário', exact: true }),
