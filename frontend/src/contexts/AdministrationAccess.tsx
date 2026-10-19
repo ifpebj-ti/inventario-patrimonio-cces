@@ -9,15 +9,17 @@ import {
   type ReactNode,
 } from 'react'
 import { useAuth } from '@/hooks/useAuth'
-import { capabilitiesOf, roleOf, type AccessRole } from '@/lib/access'
+import { capabilitiesOf } from '@/lib/access'
+import type { Allocation } from '@/contexts/Auth/types'
 
 type Capabilities = ReturnType<typeof capabilitiesOf>
 
 type Access = Capabilities & {
   loading: boolean
-  role: AccessRole
-  // Setores a que o usuário está alocado (o gestor só gerencia estes).
+  // Setores a que o usuário está alocado (o gestor só gerencia os que têm MANAGE_SECTOR).
   sectorIds: number[]
+  // Cargo e permissões do usuário em cada setor.
+  allocations: Allocation[]
   error: string | null
   refresh: () => Promise<void>
 }
@@ -25,9 +27,9 @@ type Access = Capabilities & {
 const AccessContext = createContext<Access | null>(null)
 const blocked = {
   loading: true,
-  role: 'consult' as AccessRole,
   sectorIds: [] as number[],
-  ...capabilitiesOf('consult'),
+  allocations: [] as Allocation[],
+  ...capabilitiesOf({ administrator: false, allocations: [] }),
   error: null as string | null,
 }
 
@@ -43,12 +45,15 @@ export const AdministrationAccessProvider = ({
       setState({ ...blocked, loading: false })
       return
     }
-    const role = roleOf(sessionUser.permissions)
+    const allocations = sessionUser.allocations ?? []
     setState({
       loading: false,
-      role,
       sectorIds: sessionUser.sectorIds ?? [],
-      ...capabilitiesOf(role),
+      allocations,
+      ...capabilitiesOf({
+        administrator: !!sessionUser.administrator,
+        allocations,
+      }),
       error: null,
     })
   }, [])

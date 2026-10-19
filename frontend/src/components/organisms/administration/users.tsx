@@ -3,29 +3,22 @@
 import { SelectField } from '@/components/ui/select-field'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { ListFilters } from '@/components/organisms/listFilters'
-import { profileLabel } from '@/lib/access-labels'
 import { Button as UiButton } from '@/components/ui/button'
 import { Label as UiLabel } from '@/components/ui/label'
 import { Input as UiInput } from '@/components/ui/input'
 
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import type {
-  ManagedUser,
-  Profile,
-  Sector,
-  Permission,
-} from '@/commons/models/administration'
+import type { ManagedUser, Role, Sector } from '@/commons/models/administration'
 import { useAuth } from '@/hooks/useAuth'
 import { useAdministrationAccess } from '@/contexts/AdministrationAccess'
 import {
   administrationFailure,
-  assignUserProfile,
-  listProfiles,
+  listRoles,
   listSectors,
   listUsers,
-  listPermissions,
   setUserActive,
+  setUserAdministrator,
   setUserSector,
 } from '@/services/administration'
 import {
@@ -44,19 +37,15 @@ const initialsOf = (name: string) =>
     .map((part) => part[0]?.toUpperCase())
     .join('')
 
-// Ativar/desativar sempre pede confirmação (reativar pela lista não). "save" só pede confirmação
-// quando a pessoa altera o próprio perfil, pois pode perder o acesso administrativo.
-type UserAction =
-  | { type: 'active'; user: ManagedUser; active: boolean }
-  | { type: 'save'; user: ManagedUser; changes: AccessChanges }
+// Ativar/desativar sempre pede confirmação (reativar pela lista não).
+type UserAction = { type: 'active'; user: ManagedUser; active: boolean }
 
 export const UsersScreen = () => {
   const { user: actor } = useAuth()
   const access = useAdministrationAccess()
   const [users, setUsers] = useState<ManagedUser[]>([])
-  const [profiles, setProfiles] = useState<Profile[]>([])
+  const [roles, setRoles] = useState<Role[]>([])
   const [sectors, setSectors] = useState<Sector[]>([])
-  const [permissions, setPermissions] = useState<Permission[]>([])
   const [sectorFilter, setSectorFilter] = useState('all')
   const [activeFilter, setActiveFilter] = useState('all')
   const [loading, setLoading] = useState(true)
@@ -77,20 +66,20 @@ export const UsersScreen = () => {
     setError(null)
     Promise.all([
       listUsers(
-        filter === 'all' || filter === 'none' ? undefined : Number(filter),
+        filter === 'all' || filter === 'none' || filter === 'admin'
+          ? undefined
+          : Number(filter),
         controller.signal,
       ),
-      listProfiles(controller.signal),
+      listRoles(controller.signal),
       listSectors(controller.signal),
-      listPermissions(controller.signal),
     ])
-      .then(([userRows, profileRows, sectorRows, permissionRows]) => {
+      .then(([userRows, roleRows, sectorRows]) => {
         if (request !== requestVersion.current || controller.signal.aborted)
           return
         setUsers(userRows)
-        setProfiles(profileRows)
+        setRoles(roleRows)
         setSectors(sectorRows)
-        setPermissions(permissionRows)
       })
       .catch((failure) => {
         if (!controller.signal.aborted)
@@ -116,57 +105,44 @@ export const UsersScreen = () => {
     )
     setEditing((current) => (current?.id === updated.id ? updated : current))
   }
-  // Envia as alterações do modal em sequência (não há endpoint em lote): perfil, depois os setores a
-  // incluir e os a remover. Se uma falhar, as anteriores já valeram: a tela mostra o que sobrou
-  // pendente e o erro.
+  // Envia as alterações do modal em sequência (não há endpoint em lote): o papel de administrador,
+  // depois os setores a alocar ou com cargo trocado e os a remover. Se uma falhar, as anteriores já
+  // valeram: a tela mostra o que sobrou pendente e o erro.
   const applyChanges = async (user: ManagedUser, changes: AccessChanges) => {
     setEditorError(null)
     let applied = 0
     let current = user
     try {
-      if (changes.profileId !== undefined) {
-        current = await assignUserProfile(user.id, changes.profileId)
+      if (changes.administrator !== undefined) {
+        current = await setUserAdministrator(user.id, changes.administrator)
         sync(current)
         applied++
       }
-      for (const sector of changes.allocate) {
-        current = await setUserSector(user.id, sector.id, true)
+      for (const { sector, roleId } of changes.upsert) {
+        current = await setUserSector(user.id, sector.id, roleId)
         sync(current)
         applied++
       }
       for (const sector of changes.deallocate) {
-        current = await setUserSector(user.id, sector.id, false)
+        current = await setUserSector(user.id, sector.id, null)
         sync(current)
         applied++
       }
-      setConfirmation(null)
       toast.success('Alterações salvas.')
     } catch (failure) {
       const problem = administrationFailure(failure)
-      const message =
-        problem.status === 400 &&
-        changes.profileId !== undefined &&
-        applied === 0
-          ? 'O perfil selecionado não está disponível. Atualize a lista antes de tentar novamente.'
-          : problem.message
-      setConfirmation(null)
       setEditorError(
         applied > 0
-          ? `${message} Parte das alterações já foi salva; o que não foi continua pendente.`
-          : message,
+          ? `${problem.message} Parte das alterações já foi salva; o que não foi continua pendente.`
+          : problem.message,
       )
       if (problem.status === 403) await access.refresh()
     } finally {
       if (current.id === actor?.id) await access.refresh()
     }
   }
-  const save = (user: ManagedUser, changes: AccessChanges) => {
-    if (user.id === actor?.id && changes.profileId !== undefined) {
-      setConfirmation({ type: 'save', user, changes })
-      return
-    }
+  const save = (user: ManagedUser, changes: AccessChanges) =>
     run(() => applyChanges(user, changes))
-  }
   // Ativa ou desativa (confirmado, ou direto ao reativar pela lista). O modal "Gerenciar acesso" pode
   // estar fechado: só ele mostra o erro; sem ele o erro vai para um toast.
   const setActive = async (user: ManagedUser, active: boolean) => {
@@ -189,9 +165,7 @@ export const UsersScreen = () => {
   const confirm = () =>
     run(async () => {
       if (!confirmation || !access.canManageUsers) return
-      if (confirmation.type === 'save')
-        await applyChanges(confirmation.user, confirmation.changes)
-      else await setActive(confirmation.user, confirmation.active)
+      await setActive(confirmation.user, confirmation.active)
     })
   // Reativar não pede confirmação (é inofensivo); desativar abre a confirmação.
   const quickToggle = (user: ManagedUser) => {
@@ -201,36 +175,6 @@ export const UsersScreen = () => {
     }
     run(() => setActive(user, true))
   }
-  const profileName = (id: number | null) =>
-    id === null
-      ? 'Sem perfil'
-      : profileLabel(
-          profiles.find((profile) => profile.id === id)?.name ||
-            `Perfil #${id}`,
-        )
-  // Perfil de gestão = tem a permissão ADMIN ou MANAGE_SECTOR. O gestor não atribui nem altera
-  // esses perfis; só o administrador.
-  const managementPermissionIds = new Set(
-    permissions
-      .filter((p) => p.name === 'ADMIN' || p.name === 'MANAGE_SECTOR')
-      .map((p) => p.id),
-  )
-  const isManagementProfile = (id: number | null) => {
-    const profile = profiles.find((row) => row.id === id)
-    return (
-      !!profile &&
-      profile.permissionIds.some((permissionId) =>
-        managementPermissionIds.has(permissionId),
-      )
-    )
-  }
-  const assignableProfiles = access.isAdmin
-    ? profiles
-    : profiles.filter((profile) => !isManagementProfile(profile.id))
-  const canManageUser = (target: ManagedUser) =>
-    access.isAdmin ||
-    (!isManagementProfile(target.profileId) &&
-      target.sectorIds.some((id) => access.sectorIds.includes(id)))
   // Ativar e desativar valem para todos os setores do usuário: só o administrador faz isso, e
   // ninguém mexe na própria conta.
   const canToggleUser = (target: ManagedUser) =>
@@ -239,8 +183,10 @@ export const UsersScreen = () => {
     .filter(
       (user) =>
         (filter === 'none'
-          ? user.profileId === null
-          : filter === 'all' || user.profileId === Number(filter)) &&
+          ? !user.administrator && user.sectorIds.length === 0
+          : filter === 'admin'
+            ? user.administrator
+            : true) &&
         `${user.name} ${user.email}`
           .toLocaleLowerCase()
           .includes(search.trim().toLocaleLowerCase()) &&
@@ -251,58 +197,35 @@ export const UsersScreen = () => {
         (activeFilter === 'all' || user.active === (activeFilter === 'active')),
     )
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
-  // Texto, consequências e tom de cada confirmação. Ações que tiram acesso ou desfazem algo
-  // (desativar, desalocar, mexer no próprio perfil) ficam em vermelho.
+  // Texto, consequências e tom de cada confirmação. Ações que tiram acesso (desativar) ficam em
+  // vermelho.
   const confirmationCopy = (action: UserAction) => {
     const name = <strong className="font-semibold">{action.user.name}</strong>
-    if (action.type === 'active') {
-      return action.active
-        ? {
-            title: 'Reativar usuário',
-            confirmLabel: 'Reativar',
-            tone: 'default' as const,
-            message: <>Deseja reativar {name}?</>,
-            details: ['O usuário volta a poder entrar no sistema.'],
-          }
-        : {
-            title: 'Desativar usuário',
-            confirmLabel: 'Desativar',
-            tone: 'destructive' as const,
-            message: <>Deseja desativar {name}?</>,
-            details: [
-              'O acesso é bloqueado imediatamente, inclusive a sessão que já estiver aberta.',
-              'O histórico é preservado.',
-              'Você pode reativar a conta quando quiser.',
-            ],
-          }
-    }
-    // Só chega aqui quando a pessoa altera o próprio perfil.
-    return {
-      title: 'Salvar alterações',
-      confirmLabel: 'Salvar',
-      tone: 'destructive' as const,
-      message: (
-        <>
-          Deseja salvar as alterações no seu próprio acesso
-          {action.changes.profileId !== undefined && (
-            <>
-              , inclusive o perfil{' '}
-              <strong className="font-semibold">
-                {profileName(action.changes.profileId)}
-              </strong>
-            </>
-          )}
-          ?
-        </>
-      ),
-      details: ['Você poderá perder seu acesso administrativo.'],
-    }
+    return action.active
+      ? {
+          title: 'Reativar usuário',
+          confirmLabel: 'Reativar',
+          tone: 'default' as const,
+          message: <>Deseja reativar {name}?</>,
+          details: ['O usuário volta a poder entrar no sistema.'],
+        }
+      : {
+          title: 'Desativar usuário',
+          confirmLabel: 'Desativar',
+          tone: 'destructive' as const,
+          message: <>Deseja desativar {name}?</>,
+          details: [
+            'O acesso é bloqueado imediatamente, inclusive a sessão que já estiver aberta.',
+            'O histórico é preservado.',
+            'Você pode reativar a conta quando quiser.',
+          ],
+        }
   }
 
   return (
     <AdminPage
       title="Usuários"
-      description="Gerencie o perfil de acesso e a participação de cada usuário em múltiplos setores."
+      description="Gerencie quem é administrador e o cargo de cada usuário em cada setor em que está alocado."
     >
       <ErrorNotice
         message={error}
@@ -320,8 +243,10 @@ export const UsersScreen = () => {
                 {
                   label:
                     filter === 'none'
-                      ? 'Sem perfil'
-                      : `Perfil: ${profiles.find((p) => String(p.id) === filter)?.name ?? filter}`,
+                      ? 'Sem acesso'
+                      : filter === 'admin'
+                        ? 'Administradores'
+                        : `Cargo: ${roles.find((r) => String(r.id) === filter)?.name ?? filter}`,
                   clear: () => setFilter('all'),
                 },
               ]
@@ -358,20 +283,21 @@ export const UsersScreen = () => {
           />
         </UiLabel>
         <UiLabel className="flex-col items-stretch gap-1.5 text-xs font-medium text-muted-foreground">
-          Perfil
+          Cargo
           <SelectField
-            aria-label="Filtrar por perfil"
+            aria-label="Filtrar por cargo"
             options={[
-              { value: 'all', label: 'Todos os perfis' },
-              { value: 'none', label: 'Sem perfil' },
-              ...profiles.map((profile) => ({
-                value: String(profile.id),
-                label: profileLabel(profile.name),
+              { value: 'all', label: 'Todos os cargos' },
+              { value: 'admin', label: 'Administradores' },
+              { value: 'none', label: 'Sem acesso' },
+              ...roles.map((role) => ({
+                value: String(role.id),
+                label: role.name,
               })),
             ]}
             value={filter}
             onValueChange={setFilter}
-            placeholder="Todos os perfis"
+            placeholder="Todos os cargos"
           />
         </UiLabel>
         <UiLabel className="flex-col items-stretch gap-1.5 text-xs font-medium text-muted-foreground">
@@ -415,14 +341,12 @@ export const UsersScreen = () => {
             </p>
             <div className="grid grid-cols-1 gap-3">
               {visible.map((user) => {
-                const sectorNames =
-                  user.sectorIds.length === 0
-                    ? []
-                    : user.sectorIds.map(
-                        (id) =>
-                          sectors.find((sector) => sector.id === id)?.name ||
-                          `Setor #${id}`,
-                      )
+                const sectorLabels = [...user.allocations]
+                  .sort((a, b) => a.sectorId - b.sectorId)
+                  .map(
+                    (allocation) =>
+                      `${sectors.find((sector) => sector.id === allocation.sectorId)?.name || `Setor #${allocation.sectorId}`} · ${allocation.roleName}`,
+                  )
                 const initials = initialsOf(user.name)
                 return (
                   <article
@@ -462,46 +386,42 @@ export const UsersScreen = () => {
                             {user.active ? 'Desativar' : 'Ativar'}
                           </UiButton>
                         )}
-                        {canManageUser(user) ? (
-                          <UiButton
-                            variant="outline"
-                            type="button"
-                            disabled={busy}
-                            onClick={() => open(user)}
-                          >
-                            Gerenciar acesso
-                          </UiButton>
-                        ) : (
-                          <p className="max-w-48 text-xs text-muted-foreground">
-                            Somente o administrador altera este acesso.
-                          </p>
-                        )}
+                        <UiButton
+                          variant="outline"
+                          type="button"
+                          disabled={busy}
+                          onClick={() => open(user)}
+                        >
+                          Gerenciar acesso
+                        </UiButton>
                       </div>
                     </div>
                     <div className="grid gap-3 border-t pt-4 sm:grid-cols-2">
                       <div className="space-y-1.5">
                         <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                          Perfil
+                          Papel
                         </p>
                         <StatusBadge
-                          tone={user.profileId === null ? 'neutral' : 'primary'}
+                          tone={user.administrator ? 'primary' : 'neutral'}
                         >
-                          {profileName(user.profileId)}
+                          {user.administrator
+                            ? 'Administrador'
+                            : 'Usuário por setor'}
                         </StatusBadge>
                       </div>
                       <div className="space-y-1.5">
                         <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                          Setores ({sectorNames.length})
+                          Setores e cargos ({sectorLabels.length})
                         </p>
-                        {sectorNames.length === 0 ? (
+                        {sectorLabels.length === 0 ? (
                           <p className="text-sm text-muted-foreground">
                             Nenhum setor associado.
                           </p>
                         ) : (
                           <div className="flex flex-wrap gap-1.5">
-                            {sectorNames.map((name) => (
-                              <StatusBadge key={name} tone="primary">
-                                {name}
+                            {sectorLabels.map((label) => (
+                              <StatusBadge key={label} tone="primary">
+                                {label}
                               </StatusBadge>
                             ))}
                           </div>
@@ -525,12 +445,10 @@ export const UsersScreen = () => {
           key={editing.id}
           user={editing}
           initials={initialsOf(editing.name)}
-          profiles={assignableProfiles}
+          roles={roles}
           sectors={sectors}
           isSelf={editing.id === actor?.id}
-          canRemoveSector={(id) =>
-            access.isAdmin || access.sectorIds.includes(id)
-          }
+          canGrantAdministrator={access.isAdmin && editing.id !== actor?.id}
           toggleNote={
             canToggleUser(editing)
               ? null

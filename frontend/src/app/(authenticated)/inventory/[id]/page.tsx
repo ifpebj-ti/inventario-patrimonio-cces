@@ -28,14 +28,19 @@ import { BarcodeQrScannerModal } from '@/components/organisms/barcodeQrScannerMo
 import { ItemDetailDrawer } from '@/components/organisms/itemDetailDrawer'
 import { useSpreadsheetImport } from '@/hooks/useSpreadsheetImport'
 import { useAdministrationAccess } from '@/contexts/AdministrationAccess'
+import { useInventorySector } from '@/hooks/useInventorySector'
 import { getSpreadsheetFailure } from '@/commons/utils/spreadsheet'
 
 export default function Inventory() {
   const { id } = useParams()
   const router = useRouter() // useRouter é usado para navegar entre páginas
   const [itemData, setItemData] = useState<Item[]>([])
-  // Gestor/admin gerenciam o inventário; operador também escaneia e valida; consulta só lê.
-  const { canManageInventories, canOperateItems } = useAdministrationAccess()
+  // O cargo vale por setor: gestor do setor (ou admin) gerencia o inventário; quem tem MANAGE_ITEM
+  // também escaneia e valida; os demais só leem.
+  const { canManageInventoryIn, canOperateItemsIn } = useAdministrationAccess()
+  const inventorySectorId = useInventorySector(Number(id))
+  const canManageInventories = canManageInventoryIn(inventorySectorId)
+  const canOperateItems = canOperateItemsIn(inventorySectorId)
   // Só libera a importação depois de saber se o inventário já tem itens.
   const [itemsLoaded, setItemsLoaded] = useState(false)
   // Inventário finalizado não aceita novos escaneamentos nem importações.
@@ -97,7 +102,7 @@ export default function Inventory() {
   const importBlocked =
     !canManageInventories || finalized || hasItems || !itemsLoaded
   const importBlockedMessage = !canManageInventories
-    ? 'Seu perfil não permite importar planilhas.'
+    ? 'Seu cargo neste setor não permite importar planilhas.'
     : finalized
       ? 'Inventário finalizado: não é possível importar novas planilhas.'
       : hasItems
@@ -105,7 +110,7 @@ export default function Inventory() {
         : undefined
   const scanBlocked = finalized || !canOperateItems
   const scanBlockedMessage = !canOperateItems
-    ? 'Seu perfil é somente leitura: não é possível escanear itens.'
+    ? 'Seu cargo neste setor é somente leitura: não é possível escanear itens.'
     : finalized
       ? 'Inventário finalizado: não é possível escanear itens.'
       : undefined

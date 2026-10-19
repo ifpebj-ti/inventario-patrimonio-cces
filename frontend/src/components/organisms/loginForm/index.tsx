@@ -44,7 +44,7 @@ export const LoginForm = () => {
   // Quem já tem sessão válida não precisa ver o botão de login.
   useEffect(() => {
     if (!loading && isAuthenticated)
-      router.replace(homeRoute(user?.permissions))
+      router.replace(homeRoute(user?.administrator))
   }, [loading, isAuthenticated, router, user])
 
   const handleCredential = async (credential?: string) => {

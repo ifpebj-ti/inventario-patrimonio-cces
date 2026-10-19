@@ -15,6 +15,7 @@ import { z } from 'zod'
 import { useEffect, useState } from 'react'
 import { InventoryResponse } from '@/services/inventory'
 import { listSectors, administrationFailure } from '@/services/administration'
+import { useAdministrationAccess } from '@/contexts/AdministrationAccess'
 import type { Sector } from '@/commons/models/administration'
 
 // Schema de validação do formulário de edição, utilizando a biblioteca Zod.
@@ -53,6 +54,7 @@ export const EditInventoryModal = ({
 }: EditInventoryModalProps) => {
   const creationDate = toDateInputValue(inventory?.createdAt)
   const [sectors, setSectors] = useState<Sector[]>([])
+  const { canManageInventoryIn } = useAdministrationAccess()
   const [sectorError, setSectorError] = useState<string | null>(null)
   const [sectorLoading, setSectorLoading] = useState(true)
   const [sectorReload, setSectorReload] = useState(0)
@@ -197,7 +199,8 @@ export const EditInventoryModal = ({
                   options={sectors
                     .filter(
                       (sector) =>
-                        sector.active || sector.id === inventory?.sectorId,
+                        sector.id === inventory?.sectorId ||
+                        (sector.active && canManageInventoryIn(sector.id)),
                     )
                     .map((sector) => ({
                       value: String(sector.id),

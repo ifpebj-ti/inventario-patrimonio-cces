@@ -268,10 +268,10 @@ export function SidebarNav() {
             allowed: access.canManageUsers,
           },
           {
-            href: '/profiles',
-            label: 'Perfis e permissões',
+            href: '/roles',
+            label: 'Cargos e permissões',
             icon: ShieldCheck,
-            allowed: access.isAdmin,
+            allowed: access.canManageRoles,
           },
         ]
           .filter((item) => item.allowed)

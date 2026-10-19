@@ -42,8 +42,9 @@ const parseDate = (value: string | null) => {
 export default function InventoryListPage() {
   const { inventories, isLoading, error, refreshInventories } = useInventory()
   const { user } = useAuth()
-  // Só admin e gestor criam, editam e excluem inventários; os demais perfis só consultam.
-  const { canManageInventories } = useAdministrationAccess()
+  // Só admin e gestor do setor criam, editam e excluem inventários; os demais cargos só consultam.
+  const { canCreateInventories, canManageInventoryIn } =
+    useAdministrationAccess()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [search, setSearch] = useState('')
@@ -66,12 +67,7 @@ export default function InventoryListPage() {
   const [sectorCatalog, setSectorCatalog] = useState<Sector[]>([])
 
   useEffect(() => {
-    if (
-      !user?.permissions.some((permission) =>
-        ['ADMIN', 'MANAGE_SECTOR'].includes(permission),
-      )
-    )
-      return
+    if (!canCreateInventories) return
     const controller = new AbortController()
     listSectors(controller.signal)
       .then(setSectorCatalog)
@@ -80,7 +76,7 @@ export default function InventoryListPage() {
           toast.error('Não foi possível carregar o catálogo de setores.')
       })
     return () => controller.abort()
-  }, [user?.permissions])
+  }, [canCreateInventories])
 
   const sectors = useMemo(
     () =>
@@ -89,8 +85,7 @@ export default function InventoryListPage() {
           ...sectorCatalog
             .filter(
               (sector) =>
-                user?.permissions.includes('ADMIN') ||
-                user?.sectorIds.includes(sector.id),
+                user?.administrator || user?.sectorIds.includes(sector.id),
             )
             .map((sector) => [sector.id, sector.name] as const),
           ...inventories
@@ -98,13 +93,13 @@ export default function InventoryListPage() {
               (item) =>
                 item.sectorId &&
                 item.sectorName &&
-                (user?.permissions.includes('ADMIN') ||
+                (user?.administrator ||
                   user?.sectorIds.includes(item.sectorId)),
             )
             .map((item) => [item.sectorId!, item.sectorName!] as const),
         ]),
       ).map(([id, name]) => ({ id, name })),
-    [inventories, user?.sectorIds, user?.permissions, sectorCatalog],
+    [inventories, user?.sectorIds, user?.administrator, sectorCatalog],
   )
 
   const years = useMemo(
@@ -186,12 +181,12 @@ export default function InventoryListPage() {
         <div>
           <h1 className="page-heading">Inventários</h1>
           <p className="page-description">
-            {canManageInventories
+            {canCreateInventories
               ? 'Consulte, filtre e gerencie os inventários cadastrados.'
               : 'Consulte e filtre os inventários do seu setor.'}
           </p>
         </div>
-        {canManageInventories && (
+        {canCreateInventories && (
           <UiButton
             type="button"
             className="inventory-new-button shrink-0"
@@ -250,18 +245,20 @@ export default function InventoryListPage() {
           content={filteredInventories}
           onRowDoubleClick={(item) => router.push(`/inventory/${item.id}`)}
           onDeleteItem={
-            canManageInventories
+            canCreateInventories
               ? (item) => setInventoryToDelete(item as InventoryResponse)
               : undefined
           }
           onEditItem={
-            canManageInventories
+            canCreateInventories
               ? (item) => setInventoryToEdit(item as InventoryResponse)
               : undefined
           }
+          canDeleteItem={(item) => canManageInventoryIn(item.sectorId)}
+          canEditItem={(item) => canManageInventoryIn(item.sectorId)}
         />
       )}
-      {canManageInventories && isNewOpen && (
+      {canCreateInventories && isNewOpen && (
         <NewInventoryModal
           onClose={() => setIsNewOpen(false)}
           onInventoryCreated={onCreated}
