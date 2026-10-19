@@ -8,6 +8,7 @@ import clp.inventory.repository.RoleRepository;
 import clp.inventory.repository.SectorAllocationRepository;
 import clp.inventory.repository.SectorRepository;
 import clp.inventory.repository.UserRepository;
+import java.util.HashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
@@ -16,6 +17,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class SectorAllocationService {
+
+  /** Máximo de usuários por chamada de alocação em lote. */
+  public static final int MAX_BATCH = 200;
 
   private final SectorAllocationRepository sectorAllocationRepository;
   private final UserRepository userRepository;
@@ -56,15 +60,65 @@ public class SectorAllocationService {
             .findById(roleId)
             .orElseThrow(() -> new IllegalArgumentException("Role not found with id: " + roleId));
     authorizationService.requireCanAllocate(actingUserId, sectorId, user, role);
+    upsert(user, sector, role);
+    return user;
+  }
+
+  /**
+   * Aloca vários usuários no setor com o mesmo cargo, tudo ou nada: se um só usuário não puder ser
+   * alocado (não existe, é a conta de sistema, ou o gestor não pode dar aquele cargo a ele), nenhum
+   * é. Quem já está no setor tem o cargo trocado.
+   */
+  @Transactional
+  public List<User> allocateMany(
+      long sectorId, List<Long> userIds, Long roleId, long actingUserId) {
+    authorizationService.requireSectorPermission(actingUserId, sectorId);
+    Sector sector =
+        sectorRepository
+            .findById(sectorId)
+            .orElseThrow(() -> new NoSuchElementException("Sector not found with id: " + sectorId));
+    if (userIds == null || userIds.isEmpty()) {
+      throw new IllegalArgumentException("Selecione ao menos um usuário.");
+    }
+    if (userIds.size() > MAX_BATCH) {
+      throw new IllegalArgumentException("Selecione no máximo " + MAX_BATCH + " usuários por vez.");
+    }
+    if (userIds.contains(null) || new HashSet<>(userIds).size() != userIds.size()) {
+      throw new IllegalArgumentException("A lista de usuários tem itens vazios ou repetidos.");
+    }
+    if (roleId == null) {
+      throw new IllegalArgumentException("Selecione o cargo dos usuários no setor.");
+    }
+    Role role =
+        roleRepository
+            .findById(roleId)
+            .orElseThrow(() -> new IllegalArgumentException("Role not found with id: " + roleId));
+    for (Long userId : userIds) {
+      User user = findAllocatableUser(userId);
+      authorizationService.requireCanAllocate(actingUserId, sectorId, user, role);
+      upsert(user, sector, role);
+    }
+    return usersAllocatedToSector(sectorId);
+  }
+
+  /** Usuários que podem ser alocados ao setor: ativos e que ainda não estão nele. */
+  public List<User> assignableUsers(long sectorId, long actingUserId) {
+    authorizationService.requireSectorPermission(actingUserId, sectorId);
+    if (!sectorRepository.existsById(sectorId)) {
+      throw new NoSuchElementException("Sector not found with id: " + sectorId);
+    }
+    return userRepository.findAssignableToSector(sectorId);
+  }
+
+  private void upsert(User user, Sector sector, Role role) {
     Optional<SectorAllocation> existing =
-        sectorAllocationRepository.findByUser_IdAndSector_Id(userId, sectorId);
+        sectorAllocationRepository.findByUser_IdAndSector_Id(user.getId(), sector.id());
     if (existing.isPresent()) {
       existing.get().setRole(role);
       sectorAllocationRepository.save(existing.get());
     } else {
       sectorAllocationRepository.save(new SectorAllocation(user, sector, role));
     }
-    return user;
   }
 
   @Transactional

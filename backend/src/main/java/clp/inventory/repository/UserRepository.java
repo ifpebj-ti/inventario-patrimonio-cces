@@ -22,4 +22,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
   // Listagens não mostram a conta de sistema; findById/findByEmail seguem enxergando-a, porque o
   // login, o /auth/me e a autorização dependem delas.
   List<User> findAllBySystemUserFalse();
+
+  // Quem pode ser alocado a um setor: ativo, que não é a conta de sistema e que ainda não está
+  // nele.
+  @Query(
+      "select u from User u where u.active = true and u.systemUser = false and u.id not in "
+          + "(select a.user.id from SectorAllocation a where a.sector.id = :sectorId) "
+          + "order by u.name")
+  List<User> findAssignableToSector(@Param("sectorId") long sectorId);
 }
