@@ -2,10 +2,10 @@
 
 O Inventarium usa **login com Google** (OAuth 2.0 / OpenID Connect, fluxo de ID token). Não há
 senha local, verificação de e-mail própria nem recuperação de senha para usuários comuns. Este login é a
-**única forma de criar um usuário**: quem entra pela primeira vez nasce **sem perfil** (um administrador
-atribui o perfil e os setores depois) e usuário nunca é excluído, só desativado (`active = false`, por um
+**única forma de criar um usuário**: quem entra pela primeira vez nasce **sem alocação e sem ser administrador** (um administrador
+ou o gestor do setor o aloca com um cargo depois) e usuário nunca é excluído, só desativado (`active = false`, por um
 administrador): conta desativada não entra e perde a sessão aberta. A exceção é a **conta de sistema** (`POST /auth/login`, usuário e
-senha, perfil `ADMIN_ORGANIZATION`), que serve ao primeiro acesso e tem limite de tentativas
+senha, sempre administradora), que serve ao primeiro acesso e tem limite de tentativas
 contra força bruta. Ela está descrita em [`backend/README.md`](../README.md#conta-de-sistema); o
 resto deste documento trata do fluxo Google.
 
@@ -47,9 +47,12 @@ POST /auth/google  { "credential": "<ID token>" }
     "id": 2,
     "name": "Fulano de Tal",
     "email": "fulano@ifpe.edu.br",
-    "profileId": 3,
+    "administrator": false,
     "sectorIds": [4, 8],
-    "permissions": ["MANAGE_SECTOR"]
+    "allocations": [
+      { "sectorId": 4, "roleId": 3, "roleName": "Gestor de Setor", "permissions": ["MANAGE_SECTOR"] },
+      { "sectorId": 8, "roleId": 5, "roleName": "Consulta", "permissions": [] }
+    ]
   }
 }
         │
@@ -150,14 +153,15 @@ o administrador desativa a conta.
 
 ## Modelo de dados
 
-A tabela `im_user` mantém a identidade, o perfil e a situação da conta:
+A tabela `im_user` mantém a identidade, o papel de administrador e a situação da conta (o cargo não fica aqui:
+vale por setor, em `im_sector_allocation.id_role`):
 
 ```
 id          bigint        PK
 name        varchar(100)  NOT NULL
 email       varchar(255)  NOT NULL, UNIQUE
 google_id   varchar(255)  UNIQUE, nullable conforme o tipo de conta
-id_profile  bigint        FK, nullable
+is_administrator boolean  NOT NULL (default false)
 is_system_user boolean    NOT NULL
 active      boolean       NOT NULL (default true)
 password_hash varchar(100) nullable, somente conta de sistema
@@ -211,9 +215,12 @@ Requer `Authorization: Bearer <JWT da aplicação>`.
   "id": 2,
   "name": "Fulano de Tal",
   "email": "fulano@ifpe.edu.br",
-  "profileId": 3,
+  "administrator": false,
   "sectorIds": [4, 8],
-  "permissions": ["MANAGE_SECTOR"]
+  "allocations": [
+    { "sectorId": 4, "roleId": 3, "roleName": "Gestor de Setor", "permissions": ["MANAGE_SECTOR"] },
+    { "sectorId": 8, "roleId": 5, "roleName": "Consulta", "permissions": [] }
+  ]
 }
 ```
 

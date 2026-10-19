@@ -1,13 +1,13 @@
 # inventory
 
-Contrato de autenticação abaixo. Setor, usuário, perfil e permissão estão documentados em
+Contrato de autenticação abaixo. Setor, usuário, cargo e permissão estão documentados em
 `docs/wiki/API-Setor-Perfil-e-Permissoes.md`.
 
 # - Autenticação
 
 O login com Google é o jeito de entrar dos usuários comuns e a **única forma de um usuário ser criado**:
-não há cadastro nem pré-cadastro pela API. Quem entra pela primeira vez nasce **sem perfil** e sem nenhuma
-permissão; um administrador atribui o perfil e os setores depois. Usuário nunca é excluído, só desativado
+não há cadastro nem pré-cadastro pela API. Quem entra pela primeira vez nasce **sem alocação** e sem ser administrador,
+ou seja, sem acesso; um administrador (ou o gestor do setor) o aloca em um setor com um cargo depois. Usuário nunca é excluído, só desativado
 (`PATCH /users/{id}/deactivate`, só administrador): uma conta desativada não consegue entrar nem manter a sessão
 aberta. Não há senha local para esses usuários, verificação de e-mail própria nem recuperação de senha. A exceção é a **conta de sistema** (admin),
 que entra por usuário e senha — veja "Conta de sistema" abaixo.
@@ -68,13 +68,13 @@ A mensagem de 401 é única de propósito: distinguir os motivos revelaria quais
 qual verificação falhou. O frontend classifica pelo status, nunca pelo texto do corpo — e trata
 o 500 como "serviço indisponível", não como conta recusada.
 
-`GET /auth/me` devolve o DTO de sessão do token: `{ id, name, email, profileId, sectorIds,
-permissions }`. Ele não serializa a entidade `User` nem expõe campos internos de autenticação.
+`GET /auth/me` devolve o DTO de sessão do token: `{ id, name, email, administrator, sectorIds,
+allocations }`, em que cada alocação traz o cargo do usuário no setor e as permissões dele. Ele não serializa a entidade `User` nem expõe campos internos de autenticação.
 
 ## Criação de conta
 
-Quem entra pela primeira vez tem a conta criada na hora, **sem perfil**, desde que o domínio do e-mail
-esteja permitido; um administrador atribui perfil e setores depois. O Google prova a posse da caixa: o
+Quem entra pela primeira vez tem a conta criada na hora, **sem alocação e sem ser administrador**, desde que o
+domínio do e-mail esteja permitido; um administrador (ou o gestor do setor) o aloca em setores com um cargo depois. O Google prova a posse da caixa: o
 `GoogleTokenProvider` recusa qualquer token com `email_verified: false`.
 
 O usuário é localizado pelo e-mail normalizado em minúsculas. A migration `3.0.xml` acrescenta
@@ -86,24 +86,22 @@ antigo pré-cadastro e a coluna `pending_google_login`).
 
 ## Conta de sistema
 
-Uma conta (`admin` por padrão) que entra por usuário e senha, sem Google, com o perfil
-`ADMIN_ORGANIZATION`. Serve para o primeiro acesso e para atribuir perfis aos usuários do Google.
+Uma conta (`admin` por padrão) que entra por usuário e senha, sem Google, e é sempre
+administradora (`is_administrator`). Serve para o primeiro acesso e para alocar e dar cargo aos usuários do Google.
 
 - A senha vem do `.env` (`SYSTEM_ADMIN_PASSWORD`), **sem valor padrão**: o repositório é público.
   O identificador de login vem de `SYSTEM_ADMIN_USERNAME` e é gravado na coluna `email`.
 - No boot, o backend cria a conta (ou atualiza o hash) a partir dessas variáveis. Trocar a senha é
-  trocar a variável e reiniciar. Senha vazia **desliga** o login por senha (a conta e o perfil
-  ficam, só o hash é apagado). Senha com menos de 12 caracteres é recusada e a conta não é
+  trocar a variável e reiniciar. Senha vazia **desliga** o login por senha (a conta e o papel de
+  administrador ficam, só o hash é apagado). Senha com menos de 12 caracteres é recusada e a conta não é
   criada nem alterada.
 - A conta de sistema nunca entra pelo Google.
-- A conta não aparece em `GET /users` nem em `GET /sectors/{id}/users`, e `PATCH /users/{id}/profile`
-  e a alocação em setor respondem `404` para ela. O perfil `ADMIN_ORGANIZATION`, que ela usa, não
-  pode ser renomeado, excluído nem perder a permissão `ADMIN` pela API (409), e `/permissions` é
-  somente leitura. Assim ninguém, nem outro admin, consegue deixar o sistema sem acesso
-  administrativo pela API. Qualquer outro usuário pode ter o perfil trocado por um admin.
-- `/profiles` e `/permissions` (somente leitura) exigem `ADMIN` ou `MANAGE_SECTOR`, e
-  `PATCH /users/{id}/profile` também: o gestor só atribui perfis sem permissão de gestão a usuários dos
-  seus setores. Uma permissão nova não se cria pela API: entra por migration do Liquibase.
+- A conta não aparece em `GET /users` nem em `GET /sectors/{id}/users`, e `PATCH /users/{id}/administrator`
+  e a alocação em setor respondem `404` para ela. Ninguém altera o próprio papel de administrador (`409`), e como
+  quem age é sempre um administrador ativo e diferente do alvo, o sistema nunca fica sem administrador.
+- `/roles` (CRUD de cargos) só o administrador altera; o gestor (cargo com `MANAGE_SECTOR` em algum setor) lê a lista
+  para escolher o cargo ao alocar alguém, mas só atribui cargos sem permissão de gestão. `/permissions` é somente
+  leitura: uma permissão nova não se cria pela API, entra por migration do Liquibase.
 
 `POST /auth/login` — sem autenticação.
 
