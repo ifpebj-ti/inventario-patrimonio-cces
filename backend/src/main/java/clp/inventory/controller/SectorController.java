@@ -1,7 +1,9 @@
 package clp.inventory.controller;
 
+import clp.inventory.dto.AllocateMembersDto;
 import clp.inventory.dto.SectorDto;
 import clp.inventory.dto.UserDto;
+import clp.inventory.dto.UserSummaryDto;
 import clp.inventory.model.Sector;
 import clp.inventory.service.SectorAllocationService;
 import clp.inventory.service.SectorService;
@@ -14,10 +16,11 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Criar, editar, ativar, desativar e excluir setor exige a permissão ADMIN (a exclusão só vale para
- * setor sem usuário, inventário nem auditoria; senão 409); listar e buscar por id exige ADMIN ou
- * MANAGE_SECTOR com vínculo ao setor; gestores só listam seus setores (ver AuthorizationService e
- * docs/wiki/Proposta-de-Modelagem-Organizacoes-Setores-e-Permissoes.md).
+ * Criar, editar, ativar, desativar e excluir setor exige ser administrador (a exclusão só vale para
+ * setor sem usuário, inventário nem auditoria; senão 409). Listar e buscar por id vale para o
+ * administrador e para quem está alocado ao setor; gestores só listam os seus setores. Ver a lista
+ * de membros e alocar usuários (GET /{id}/users, GET /{id}/assignable-users e PUT /{id}/members)
+ * exige administrador ou gestor (MANAGE_SECTOR) daquele setor. Ver AuthorizationService.
  */
 @RestController
 @RequestMapping("/sectors")
@@ -111,6 +114,39 @@ public class SectorController {
       return ResponseEntity.ok(dtos);
     } catch (NoSuchElementException e) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+    }
+  }
+
+  /** Quem ainda pode ser alocado ao setor (ativos que não estão nele): nome e e-mail, só. */
+  @GetMapping("/{id}/assignable-users")
+  public ResponseEntity<List<UserSummaryDto>> assignableUsers(
+      @PathVariable long id, HttpServletRequest request) {
+    try {
+      return ResponseEntity.ok(
+          sectorAllocationService.assignableUsers(id, actingUserId(request)).stream()
+              .map(UserSummaryDto::from)
+              .toList());
+    } catch (NoSuchElementException e) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+    }
+  }
+
+  /** Aloca vários usuários com o mesmo cargo, tudo ou nada; devolve os membros do setor. */
+  @PutMapping("/{id}/members")
+  public ResponseEntity<List<UserDto>> allocateMembers(
+      @PathVariable long id, @RequestBody AllocateMembersDto dto, HttpServletRequest request) {
+    try {
+      List<UserDto> members =
+          sectorAllocationService
+              .allocateMany(id, dto.userIds(), dto.roleId(), actingUserId(request))
+              .stream()
+              .map(u -> UserDto.from(u, sectorAllocationService.allocationsOf(u.getId())))
+              .toList();
+      return ResponseEntity.ok(members);
+    } catch (NoSuchElementException e) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+    } catch (IllegalArgumentException e) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
     }
   }
 

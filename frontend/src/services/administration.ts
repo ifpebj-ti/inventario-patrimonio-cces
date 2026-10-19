@@ -2,6 +2,7 @@ import axios from 'axios'
 import { z } from 'zod'
 import { api } from './api'
 import {
+  assignableUserSchema,
   managedUserSchema,
   permissionSchema,
   roleSchema,
@@ -65,6 +66,25 @@ export const listSectorUsers = async (id: number, signal?: AbortSignal) =>
   parse(
     z.array(managedUserSchema),
     (await api.get(`/sectors/${id}/users`, { signal })).data,
+  )
+// Usuários ativos que ainda não estão no setor (só administrador e gestor do setor).
+export const listAssignableUsers = async (
+  sectorId: number,
+  signal?: AbortSignal,
+) =>
+  parse(
+    z.array(assignableUserSchema),
+    (await api.get(`/sectors/${sectorId}/assignable-users`, { signal })).data,
+  )
+// Aloca vários usuários no setor com o mesmo cargo, tudo ou nada; devolve os membros do setor.
+export const allocateUsers = async (
+  sectorId: number,
+  userIds: number[],
+  roleId: number,
+) =>
+  parse(
+    z.array(managedUserSchema),
+    (await api.put(`/sectors/${sectorId}/members`, { userIds, roleId })).data,
   )
 export const saveSector = async (
   data: { name: string; code: string },

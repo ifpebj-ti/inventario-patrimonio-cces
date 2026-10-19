@@ -391,4 +391,21 @@ test.describe('cargo diferente em cada setor', () => {
       0,
     )
   })
+
+  test('setores: o botão de usuários só aparece no setor em que gerencia', async ({
+    page,
+  }) => {
+    await setup(page, 'dual')
+    await page.goto('/sectors')
+    const sector = (name: string) =>
+      page.locator('article').filter({ hasText: name })
+    await expect(
+      sector('Setor A').getByRole('button', { name: 'Usuários associados' }),
+    ).toBeVisible()
+    // No setor B ele só opera itens: o setor aparece, mas sem gerir usuários.
+    await expect(sector('Setor B')).toBeVisible()
+    await expect(
+      sector('Setor B').getByRole('button', { name: 'Usuários associados' }),
+    ).toHaveCount(0)
+  })
 })

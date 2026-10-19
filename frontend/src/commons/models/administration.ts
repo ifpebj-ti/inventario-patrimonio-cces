@@ -52,7 +52,15 @@ export const managedUserSchema = z.object({
   active: z.boolean().default(true),
 })
 
+// Quem pode ser alocado a um setor: só o necessário para escolher (sem cargos nem setores).
+export const assignableUserSchema = z.object({
+  id: z.number().int().positive(),
+  name: z.string(),
+  email: z.string(),
+})
+
 export type Sector = z.infer<typeof sectorSchema>
+export type AssignableUser = z.infer<typeof assignableUserSchema>
 export type Role = z.infer<typeof roleSchema>
 export type Allocation = z.infer<typeof allocationSchema>
 export type Permission = z.infer<typeof permissionSchema>

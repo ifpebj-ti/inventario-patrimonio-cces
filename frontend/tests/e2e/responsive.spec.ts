@@ -137,6 +137,8 @@ const mock = async (page: Page) => {
     if (path === '/roles') return send(roles)
     if (path === '/permissions') return send(permissions)
     if (path === '/users') return send(users)
+    if (/^\/sectors\/\d+\/assignable-users$/.test(path))
+      return send([{ id: 3, name: 'Pedro', email: 'pedro@example.com' }])
     return send([])
   })
 }
@@ -280,6 +282,22 @@ for (const viewport of viewports.slice(0, 2)) {
         .click()
       await fitsViewport(page, '')
       await shot(page, 'gerenciar-acesso')
+    })
+
+    test('setores: barra lateral de usuários e adicionar usuários', async ({
+      page,
+    }) => {
+      await mock(page)
+      await page.goto('/sectors')
+      await page
+        .getByRole('button', { name: 'Usuários associados' })
+        .first()
+        .click()
+      await fitsViewport(page, 'Usuários de Biblioteca Central')
+      await shot(page, 'setor-usuarios')
+      await page.getByRole('button', { name: 'Adicionar usuários' }).click()
+      await fitsViewport(page, 'Adicionar usuários a Biblioteca Central')
+      await shot(page, 'setor-adicionar-usuarios')
     })
 
     test('setores: novo setor', async ({ page }) => {
