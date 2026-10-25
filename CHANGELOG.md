@@ -61,6 +61,7 @@ O histórico é atualizado manualmente na própria pull request antes do merge e
 
 ### Security
 
+- Corrigidas as vulnerabilidades HIGH e CRITICAL do frontend apontadas pelo Trivy: `next` 16.3.8 → 16.4.1 (GHSA-2464-fhr4-w9xw, GHSA-673q-mjm6-r5xr e CVE-2026-94482), `follow-redirects` 1.16.0 → 1.16.1 (CVE-2026-111755 e CVE-2026-111756) e `zod` 3.25.76 → 4.6.7 (CVE-2023-54404, corrigida só na série 4). A migração do zod troca `required_error` por `error` e tipa `z.coerce.number<number>()`; foram adicionados testes das validações (`npm run test:unit`, executados no job de testes do frontend). Resta apenas `cookie` 0.4.2 (CVE-2024-47764, severidade LOW), dependência transitiva do `nookies`.
 - O backend recusa `*` em `CORS_ALLOWED_ORIGINS` na inicialização e responde `403` a origens não listadas, no preflight e na requisição real (ameaça 15 da modelagem de ameaças passa a mitigada).
 - Removido de `backend/docs/GOOGLE_AUTH_SETUP.md` um valor de exemplo de `SECURITY_TOKEN_SECRET`; se algum ambiente o usou, o segredo deve ser rotacionado.
 
