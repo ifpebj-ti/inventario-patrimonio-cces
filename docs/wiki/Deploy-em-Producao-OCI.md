@@ -311,7 +311,7 @@ O comando imprime uma senha nova para o usuário `admin`. Troque-a logo depois d
 
 A VM privada roda a stack de `infra/observability/` (ADR 0007). **Conceitos:** *métricas* são números ao longo do tempo (CPU, memória, requisições) guardados pelo **Prometheus**; *logs* são as mensagens dos containers, guardadas pelo **Loki**; *traces* mostram o caminho de uma requisição pelo sistema, guardados pelo **Tempo**; o **Grafana** é a tela que lê os três; o **SonarQube** analisa a qualidade do código.
 
-**Estado atual:** esta etapa instala a stack na VM de observabilidade e abre a rede. Ainda **não** há coletor na VM da aplicação (Grafana Alloy) nem métricas/traces no backend, então o Grafana abre com os três *datasources* funcionando, mas sem dados da aplicação, e não há dashboards provisionados. Os coletores e o backend entram nas próximas etapas.
+**Estado atual:** esta seção instala a stack na VM de observabilidade e abre a rede. Sem coletor o Grafana abre com os três *datasources* funcionando, mas sem dados; o coletor Alloy (seção 4.11) envia o consumo e os logs das VMs. Métricas da aplicação e traces dependem de mudanças no backend, em outro PR.
 
 **1. Aplicar o Terraform** (aumenta a VM para 2 OCPUs / 8 GB e abre as portas no NSG para a subnet da aplicação):
 
@@ -354,6 +354,32 @@ Depois abra `https://grafana.inventariumifpe.me` (só IP de admin), entre com `a
 Na VM de observabilidade: `sudo docker ps` (todos `Up`) e `sudo docker stats --no-stream` (memória de cada serviço dentro do limite).
 
 **Limitações:** Loki, Tempo e Prometheus não têm autenticação (só o NSG protege); os dados não têm backup; a retenção é de 15 dias (métricas), 7 dias (logs) e 3 dias (traces). Se o SonarQube reiniciar em loop, confirme `sysctl vm.max_map_count` (deve ser 262144).
+
+
+### 4.11 Coletor Grafana Alloy (consumo e logs das VMs)
+
+O **Alloy** é o "carteiro": roda em cada VM (container `alloy`, ver `infra/alloy/`), lê o consumo do servidor (CPU, memória, disco, rede), o consumo de cada container e os logs dos containers, e **envia** tudo para a VM de observabilidade (métricas para o Prometheus, logs para o Loki). Ele não abre porta para fora (a interface dele escuta só em `127.0.0.1:12345`). O dashboard **Inventarium - Infraestrutura** (pasta *Inventarium* no Grafana) mostra esses dados e tem um seletor de VM (`app` ou `observability`).
+
+Ainda **não** há métricas da aplicação (requisições, JVM) nem traces: isso depende de mudanças no backend, em outro PR.
+
+**Instalar** (na raiz do repositório, no Git Bash; o Alloy só funciona depois da stack da seção 4.10):
+
+```bash
+# 1) Atualizar o Grafana com o dashboard novo (o script é idempotente)
+bash infra/scripts/deploy-observability.sh 137.131.249.225
+# 2) Alloy na VM da aplicação (envia para 10.42.0.74)
+bash infra/scripts/deploy-alloy.sh app 137.131.249.225
+# 3) Alloy na VM de observabilidade (envia para ela mesma, 127.0.0.1)
+bash infra/scripts/deploy-alloy.sh observability 137.131.249.225
+```
+
+**Como testar**
+
+- Em cada VM: `sudo docker ps` mostra o container `alloy` como `Up`, e `sudo docker logs alloy --tail 30` não deve ter erros (um aviso sobre `udev` é inofensivo).
+- No Grafana, abra *Dashboards → Inventarium → Inventarium - Infraestrutura* e escolha a VM no seletor: os medidores de CPU, memória e disco e os gráficos aparecem em 1 a 2 minutos.
+- Em *Explore → Prometheus*, a consulta `node_memory_MemTotal_bytes` deve devolver uma série por VM (rótulo `vm`). Em *Explore → Loki*, `{vm="app"}` mostra os logs dos containers (backend, front, Postgres, Portainer).
+
+**Se faltar algo:** os painéis *CPU/Memória por container* dependem do cAdvisor embutido, que lê os cgroups do Docker; se ficarem vazios, confira `sudo docker logs alloy` e abra uma issue (a VM usa Docker com `overlay2` e cgroup v1, o caso suportado). O Alloy precisa do socket do Docker (somente leitura) e de leitura do host: esse acesso equivale ao que o Portainer já tem e está registrado no modelo de ameaças (I-15). O consumo de memória do Alloy é limitado a 512 MB.
 
 
 ## 5. Solução de problemas

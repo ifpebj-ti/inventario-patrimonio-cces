@@ -20,6 +20,7 @@ Restrições: projeto acadêmico com custo baixo, uma VM de 2 OCPUs / 8 GB, sem 
 6. **Segredos** (senha do Grafana e do Postgres do Sonar) são gerados na VM em `/opt/inventarium-observability/.env` (0600) na primeira execução; nunca passam pelo Git, Terraform ou user-data.
 7. **Instalação por script, não por cloud-init.** `infra/scripts/deploy-observability.sh` copia a stack por SSH (via a VM da aplicação como salto) e roda `bootstrap-observability.sh`, que ajusta `vm.max_map_count` para o SonarQube, valida o Compose e sobe os containers. É idempotente e atualiza uma VM que já existe sem recriá-la, no mesmo critério do `deploy-nginx.sh`.
 8. **Tempo 2.10 e não 3.x**, porque a série 3 mudou a arquitetura de ingestão e a configuração monolítica validada é a da 2.x.
+9. **Coletor Grafana Alloy em cada VM** (`infra/alloy/`, container em modo de rede `host`): um único agente lê o servidor (exporter *unix* embutido), os containers (cAdvisor embutido) e os logs (descoberta pelo socket do Docker) e envia por push ao Prometheus e ao Loki, com o rótulo `vm`. A instalação é por `deploy-alloy.sh` (aplicação ou observabilidade), igual ao deploy da stack. O dashboard **Inventarium - Infraestrutura** é provisionado por arquivo no Grafana. O recebimento de traces e as métricas do backend ficam para o PR do backend.
 
 ## Consequencias
 
@@ -27,6 +28,7 @@ Restrições: projeto acadêmico com custo baixo, uma VM de 2 OCPUs / 8 GB, sem 
 - Loki, Tempo e Prometheus **não têm autenticação**: a proteção é só o NSG (acesso restrito à subnet da aplicação). Qualquer processo comprometido na VM da aplicação pode escrever (e ler) telemetria.
 - A VM passa a ser um ponto único de falha da observabilidade; os dados vivem em volumes Docker na própria VM e **não têm backup** (aceito: telemetria é descartável; o SonarQube pode ser reanalisado).
 - Memória apertada: SonarQube + LGTM em 8 GB deixam pouca folga.
+- O Alloy precisa do socket do Docker e de leitura do host (mesmo risco do Portainer); as métricas por container dependem do cAdvisor funcionar com o driver de armazenamento do Docker da VM (`overlay2`).
 
 ## Alternativas Consideradas
 
