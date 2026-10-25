@@ -1,0 +1,144 @@
+# Stack de observabilidade e qualidade de codigo da VM privada (Oracle Linux 8, 2 OCPUs / 8 GB).
+# Os coletores (Grafana Alloy) da VM da aplicacao ENVIAM metricas (Prometheus remote write), logs
+# (Loki) e traces (Tempo, OTLP) para ca; nada e puxado de fora. As portas ficam abertas so para a
+# subnet da aplicacao (NSG) e o acesso humano passa pelo Nginx da VM da aplicacao.
+#
+# Cada servico tem limite de memoria: o SonarQube e o maior consumidor e, sem limite, derruba a VM.
+# A soma dos limites (~6,8 GB) deixa folga para o SO e o Docker.
+# Segredos e versoes vem do .env gerado na VM (0600) por bootstrap-observability.sh; nunca do Git.
+name: inventarium-observability
+
+services:
+  prometheus:
+    container_name: obs-prometheus
+    image: prom/prometheus:v3.15.1
+    restart: unless-stopped
+    mem_limit: 1g
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --storage.tsdb.retention.size=8GB
+      # Recebe as metricas empurradas pelo Alloy da VM da aplicacao.
+      - --web.enable-remote-write-receiver
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - obs-net
+
+  loki:
+    container_name: obs-loki
+    image: grafana/loki:3.7.9
+    restart: unless-stopped
+    mem_limit: 768m
+    command: ["-config.file=/etc/loki/loki.yml"]
+    volumes:
+      - ./loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki-data:/loki
+    ports:
+      - "3100:3100"
+    networks:
+      - obs-net
+
+  tempo:
+    container_name: obs-tempo
+    image: grafana/tempo:2.10.10
+    restart: unless-stopped
+    mem_limit: 768m
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+    volumes:
+      - ./tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    networks:
+      - obs-net
+
+  grafana:
+    container_name: obs-grafana
+    image: grafana/grafana:13.2.4
+    restart: unless-stopped
+    mem_limit: 768m
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?defina GRAFANA_ADMIN_PASSWORD no .env da VM}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_SERVER_ROOT_URL: https://grafana.inventariumifpe.me/
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - obs-net
+
+  sonarqube-db:
+    container_name: obs-sonarqube-db
+    image: postgres:15-alpine
+    restart: unless-stopped
+    mem_limit: 512m
+    environment:
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: ${SONAR_DB_PASSWORD:?defina SONAR_DB_PASSWORD no .env da VM}
+      POSTGRES_DB: sonar
+    volumes:
+      - sonarqube-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sonar -d sonar"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - obs-net
+
+  sonarqube:
+    container_name: obs-sonarqube
+    image: sonarqube:26.10.0.133078-community
+    restart: unless-stopped
+    mem_limit: 3g
+    depends_on:
+      sonarqube-db:
+        condition: service_healthy
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonarqube-db:5432/sonar
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: ${SONAR_DB_PASSWORD}
+    # O Elasticsearch embutido exige vm.max_map_count >= 262144 e muitos descritores de arquivo.
+    # O sysctl e aplicado no host por bootstrap-observability.sh.
+    ulimits:
+      nofile:
+        soft: 131072
+        hard: 131072
+      nproc: 8192
+    volumes:
+      - sonarqube-data:/opt/sonarqube/data
+      - sonarqube-extensions:/opt/sonarqube/extensions
+      - sonarqube-logs:/opt/sonarqube/logs
+    ports:
+      - "9000:9000"
+    networks:
+      - obs-net
+
+volumes:
+  prometheus-data:
+  loki-data:
+  tempo-data:
+  grafana-data:
+  sonarqube-db-data:
+  sonarqube-data:
+  sonarqube-extensions:
+  sonarqube-logs:
+
+networks:
+  obs-net:
+    driver: bridge

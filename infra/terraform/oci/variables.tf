@@ -178,11 +178,11 @@ variable "observability_instance_shape" {
 variable "observability_instance_ocpus" {
   description = "OCPUs da VM de observabilidade quando o shape for flexivel."
   type        = number
-  default     = 1
+  default     = 2
 }
 
 variable "observability_instance_memory_gbs" {
   description = "Memoria em GB da VM de observabilidade quando o shape for flexivel."
   type        = number
-  default     = 2
+  default     = 8
 }

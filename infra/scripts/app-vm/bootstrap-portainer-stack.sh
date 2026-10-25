@@ -80,7 +80,7 @@ publish_webhook() {
   [ -n "$webhook" ] || die "a stack existe, mas sem webhook de atualizacao. Ative 'GitOps updates > Webhook' na UI do Portainer."
   url="https://${PUBLIC_HOST}/api/stacks/webhooks/${webhook}"
   (umask 077; printf '%s\n' "$url" > "$WEBHOOK_FILE")
-  log "WEBHOOK (segredo! guarde como secret PORTAINER_STACK_WEBHOOK_URL do environment 'production'):"
+  log "WEBHOOK (segredo! guarde como secret de repositorio PORTAINER_STACK_WEBHOOK_URL):"
   printf '%s\n' "$url"
 }
 

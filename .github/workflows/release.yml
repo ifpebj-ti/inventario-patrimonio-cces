@@ -136,3 +136,39 @@ jobs:
           TAG: ${{ needs.release.outputs.tag }}
           RELEASE_NOTES_PATH: ${{ steps.notes.outputs.path }}
         run: node .github/scripts/release/publish-github-release.js
+
+  deploy-production:
+    name: Deploy to production
+    needs:
+      - release
+      - publish-github-release
+    if: needs.release.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      - name: Mask webhook URL
+        env:
+          PORTAINER_STACK_WEBHOOK_URL: ${{ secrets.PORTAINER_STACK_WEBHOOK_URL }}
+        run: |
+          if [ -n "${PORTAINER_STACK_WEBHOOK_URL}" ]; then
+            echo "::add-mask::${PORTAINER_STACK_WEBHOOK_URL}"
+          fi
+
+      - name: Trigger Portainer webhook and run smoke test
+        env:
+          PORTAINER_STACK_WEBHOOK_URL: ${{ secrets.PORTAINER_STACK_WEBHOOK_URL }}
+          TAG: ${{ needs.release.outputs.tag }}
+          API_HEALTH_URL: https://api.inventariumifpe.me/actuator/health
+          FRONTEND_URL: https://inventariumifpe.me/
+        run: node .github/scripts/release/deploy-production.js

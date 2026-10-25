@@ -22,7 +22,10 @@ import type { Sector } from '@/commons/models/administration'
 const editInventorySchema = z.object({
   name: z.string().min(3, 'O nome deve ter pelo menos 3 caracteres.'),
   description: z.string().optional(),
-  sectorId: z.coerce.number().int().positive('Selecione o setor responsável.'),
+  sectorId: z.coerce
+    .number<number>()
+    .int()
+    .positive('Selecione o setor responsável.'),
   plannedEndDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Informe uma data válida'),

@@ -202,6 +202,9 @@ jobs:
 
             if [ -n "${VERSION_TAG}" ]; then
               printf "%s\n" "${image}:${VERSION_TAG}" >> "${tags_file}"
+              # "latest" aponta para a mesma imagem da release e só é publicado depois dos scans do Trivy.
+              # O webhook do Portainer usa essa tag; a tag vX.Y.Z fica para o rollback.
+              printf "%s\n" "${image}:latest" >> "${tags_file}"
             else
               printf "%s\n" "${local_tag}" >> "${tags_file}"
             fi

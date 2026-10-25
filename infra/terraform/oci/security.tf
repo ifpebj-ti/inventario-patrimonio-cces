@@ -77,3 +77,24 @@ resource "oci_core_network_security_group_security_rule" "observability_egress" 
   destination               = "0.0.0.0/0"
   destination_type          = "CIDR_BLOCK"
 }
+
+# Portas da stack de observabilidade (infra/observability), abertas SO para a subnet da aplicacao:
+# o Nginx da VM da aplicacao alcanca Sonar e Grafana, e o Alloy empurra metricas, logs e traces.
+# Nada aqui e exposto a internet: a VM de observabilidade nao tem IP publico.
+resource "oci_core_network_security_group_security_rule" "observability_stack_from_app_subnet" {
+  for_each = local.observability_stack_ports
+
+  network_security_group_id = oci_core_network_security_group.observability.id
+  description               = each.key
+  direction                 = "INGRESS"
+  protocol                  = "6"
+  source                    = var.app_public_subnet_cidr
+  source_type               = "CIDR_BLOCK"
+
+  tcp_options {
+    destination_port_range {
+      min = each.value
+      max = each.value
+    }
+  }
+}
