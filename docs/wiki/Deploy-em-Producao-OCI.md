@@ -365,7 +365,7 @@ Ainda **não** há métricas da aplicação (requisições, JVM) nem traces: iss
 **Instalar** (na raiz do repositório, no Git Bash; o Alloy só funciona depois da stack da seção 4.10):
 
 ```bash
-# 1) Atualizar o Grafana com o dashboard novo (o script é idempotente)
+# 1) Levar o dashboard novo ao Grafana (idempotente; o script reinicia o Grafana para ele ler o provisionamento)
 bash infra/scripts/deploy-observability.sh 137.131.249.225
 # 2) Alloy na VM da aplicação (envia para 10.42.0.74)
 bash infra/scripts/deploy-alloy.sh app 137.131.249.225
