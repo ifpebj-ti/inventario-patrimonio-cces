@@ -135,7 +135,7 @@ flowchart TD
     scans["Semgrep + Trivy + Code Scanning"]
     merge["Merge em main"]
     release["Release versionada"]
-    deployProd["Deploy controlado na VM de produção<br/>futuro"]
+    deployProd["Deploy por webhook do Portainer<br/>+ smoke test"]
     monitor["Logs, métricas, alertas e rollback<br/>futuro"]
 
     pr --> quality --> scans --> merge --> release --> deployProd --> monitor
@@ -145,8 +145,8 @@ flowchart TD
 
 | Ponto | Como está hoje |
 | --- | --- |
-| Deploy em VM | As imagens são publicadas no GHCR, mas a atualização da stack ainda depende de operação externa ou manual. |
-| Evidência de ambiente | Ainda não há smoke test automatizado contra a URL de produção. |
+| Deploy em VM | O job `deploy-production` aciona o webhook do Portainer a cada release. A release publica cada imagem como `vX.Y.Z` e `latest`; a stack usa `latest` e o webhook não recebe parâmetros. Sem o secret `PORTAINER_STACK_WEBHOOK_URL` ele é ignorado e o deploy segue manual. |
+| Evidência de ambiente | O mesmo job faz um smoke test (`/actuator/health` da API e a página inicial) por até 5 minutos; ele não prova qual versão subiu. |
 | Testes de frontend | O frontend ainda não possui suíte automatizada; o ESLint é o check atual dessa aplicação. |
 | Observabilidade | Logs, métricas, alertas e dashboards ainda não estão fechados como artefato de infraestrutura. |
 | Rollback operacional | O rollback deve usar a troca para uma tag versionada anterior, mas o procedimento operacional ainda precisa ser consolidado. |

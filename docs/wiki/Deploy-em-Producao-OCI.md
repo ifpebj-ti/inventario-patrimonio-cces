@@ -123,13 +123,13 @@ foreach ($h in 'inventariumifpe.me','www','api','portainer','sonar','grafana') {
 3. Em **Origens JavaScript autorizadas**, clique em **Adicionar URI** e informe `https://inventariumifpe.me`. Mantenha `http://localhost:3000` para desenvolvimento. Não há *URI de redirecionamento*: o fluxo usa ID token.
 4. Em **Tela de consentimento OAuth**, confira se o app está publicado ou se os usuários de teste incluem quem vai entrar. Em modo *Testing* só os usuários de teste conseguem logar.
 
-### ⭐ 3.6 GitHub: variável de build e environment (10 minutos)
+### ⭐ 3.6 GitHub: variável de build (10 minutos)
 
 O endereço da API é **embutido no build do frontend**. Hoje a variável do repositório aponta para um IP antigo por HTTP; sem trocá-la, a próxima release geraria um front que chama o endereço errado.
 
 1. No repositório, abra **Settings → Secrets and variables → Actions → Variables**.
 2. Edite `NEXT_PUBLIC_API_URL` para `https://api.inventariumifpe.me` (sem barra no final). Confirme que `NEXT_PUBLIC_GOOGLE_CLIENT_ID` está preenchida.
-3. Abra **Settings → Environments → New environment**, crie `production` e, se quiser aprovação manual de cada deploy, ative **Required reviewers**. O secret do webhook entra aqui no passo 3.10.
+3. O secret do webhook entra no passo 3.10 (secret de repositório; o projeto tem um único ambiente e não usa *Environments* do GitHub).
 4. **Gere uma release depois de trocar a variável** (a release publica as imagens com a URL nova). Qualquer PR com tipo de release `patch` ou `minor` servirá. Anote a tag publicada (por exemplo `v5.0.2`): ela vai em `IMAGE_TAG`.
 
 > O GHCR é público e o repositório também: o Portainer baixa as imagens e lê o compose sem credenciais.
@@ -199,7 +199,11 @@ O segundo comando troca o certificado de teste pelo real e liga os *vhosts* HTTP
 
 ### ⭐ 3.10 Webhook de deploy no GitHub
 
-Em **Settings → Environments → production → Add secret**, crie `PORTAINER_STACK_WEBHOOK_URL` com a URL do passo anterior. O workflow de deploy (issue #212) usa esse secret para atualizar a stack a cada release.
+Em **Settings → Secrets and variables → Actions → Secrets → New repository secret**, crie `PORTAINER_STACK_WEBHOOK_URL` com a URL do passo anterior. O job `deploy-production` do workflow `release.yml` usa esse secret para atualizar a stack a cada release: ele chama o webhook (`POST`, sem parâmetros) e depois faz um *smoke test*, repetindo `GET` em `https://api.inventariumifpe.me/actuator/health` e `https://inventariumifpe.me/` por até 5 minutos. Sem o secret, o job termina sem falhar e o deploy continua manual. A URL é mascarada nos logs.
+
+> **Por que `IMAGE_TAG=latest`:** testamos localmente (Portainer 2.39.5) e o webhook **ignora** parâmetros na URL, como `?IMAGE_TAG=vX.Y.Z`: ele só redeploya com as variáveis já salvas na stack. Por isso a stack roda com `IMAGE_TAG=latest`. Cada release publica a mesma imagem com duas tags, `vX.Y.Z` e `latest` (esta só depois dos scans do Trivy), e o webhook, com *Re-pull image* ligado, baixa o `latest` novo.
+>
+> **Qual versão está no ar?** O `latest` não diz a versão, mas a imagem leva o label `org.opencontainers.image.version`: `sudo docker inspect inventarium-back --format '{{index .Config.Labels "org.opencontainers.image.version"}}'`.
 
 ### ⭐ 3.11 Validar
 
@@ -225,11 +229,11 @@ Confira também o objeto no bucket pelo Console da OCI (*Object Storage → Buck
 
 ### 4.1 Novo deploy (a cada release)
 
-O pipeline chama o webhook; o Portainer baixa o compose da `main` e as imagens `IMAGE_TAG` do GHCR (`pull_policy: always`) e recria os containers. Acompanhe em *Stacks → inventarium* ou `sudo docker ps`. Enquanto a issue #212 não for implantada, o deploy é manual: no Portainer, *Stacks → inventarium → Pull and redeploy* (com *Re-pull image*).
+O pipeline chama o webhook; o Portainer baixa o compose da `main` e as imagens `IMAGE_TAG` do GHCR (`pull_policy: always`) e recria os containers. Acompanhe em *Stacks → inventarium* ou `sudo docker ps`. Se o secret `PORTAINER_STACK_WEBHOOK_URL` não existir, o deploy é manual: no Portainer, *Stacks → inventarium → Pull and redeploy* (com *Re-pull image*). Em caso de falha do job `deploy-production`, veja o log do workflow (a URL do webhook nunca aparece) e `docker logs portainer`.
 
 ### 4.2 Rollback
 
-No Portainer: *Stacks → inventarium → Environment variables*, troque `IMAGE_TAG` para a versão anterior (por exemplo `v5.0.1`), marque *Re-pull image and redeploy* e atualize. Para voltar ao fluxo normal use `IMAGE_TAG=latest` (assim que o pipeline publicar essa tag) ou a versão nova. **O rollback de imagem não reverte migrações do Liquibase**: se a versão nova alterou o schema de forma incompatível, restaure o backup (4.5).
+No Portainer: *Stacks → inventarium → Environment variables*, troque `IMAGE_TAG` para a versão anterior (por exemplo `v5.0.1`), marque *Re-pull image and redeploy* e atualize. Para voltar ao fluxo normal, ponha `IMAGE_TAG=latest` de novo (senão os próximos webhooks continuam redeployando a versão fixada). **O rollback de imagem não reverte migrações do Liquibase**: se a versão nova alterou o schema de forma incompatível, restaure o backup (4.5).
 
 ### 4.3 Atualizar o Nginx ou os scripts
 
@@ -321,7 +325,7 @@ O comando imprime uma senha nova para o usuário `admin`. Troque-a logo depois d
 
 - O Portainer concentra o controle do Docker e os segredos da stack; a proteção principal é a allowlist de IPs.
 - A CSP do frontend mantém `'unsafe-inline'` em scripts por causa do Next.js (evolução: nonce).
-- A tag `latest` é mutável; para auditoria e rollback use as tags `vX.Y.Z`.
+- A tag `latest` é mutável; para auditoria e rollback use as tags `vX.Y.Z` (ver 4.2). Com `latest` na stack, uma release que falhe no smoke test já está no ar: o rollback é manual.
 - O rollback de imagem não desfaz migrações do banco.
 - Falhas de renovação do certificado só viram alerta quando a observabilidade tiver uma regra para isso.
 - O payload da API do Portainer para criar a stack Git com webhook deve ser revalidado ao atualizar a versão do Portainer.
