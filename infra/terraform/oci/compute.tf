@@ -95,4 +95,11 @@ resource "oci_core_instance" "observability" {
     source_id   = data.oci_core_images.observability.images[0].id
     source_type = "image"
   }
+
+  lifecycle {
+    # A imagem "mais recente" muda com o tempo e nao pode trocar o disco de uma VM que ja guarda
+    # dados (SonarQube, Grafana). O cloud-init so roda no primeiro boot, entao alterar o user_data
+    # tambem nao tem efeito. Mesmo criterio da VM da aplicacao.
+    ignore_changes = [source_details[0].source_id, metadata["user_data"]]
+  }
 }

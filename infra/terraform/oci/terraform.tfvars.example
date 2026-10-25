@@ -43,5 +43,5 @@ app_instance_ocpus      = 1
 app_instance_memory_gbs = 2
 
 observability_instance_shape      = "VM.Standard.E5.Flex"
-observability_instance_ocpus      = 1
-observability_instance_memory_gbs = 2
+observability_instance_ocpus      = 2
+observability_instance_memory_gbs = 8

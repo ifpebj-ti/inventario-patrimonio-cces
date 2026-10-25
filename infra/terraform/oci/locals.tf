@@ -8,6 +8,16 @@ locals {
   app_private_ip           = cidrhost(var.app_public_subnet_cidr, 10)
   observability_private_ip = cidrhost(var.observability_private_subnet_cidr, 10)
 
+  # Portas da stack de observabilidade (infra/observability/docker-compose.observability.yml).
+  observability_stack_ports = {
+    "SonarQube (Nginx da aplicacao)"    = 9000
+    "Grafana (Nginx da aplicacao)"      = 3000
+    "Prometheus remote write (Alloy)"   = 9090
+    "Loki push (Alloy)"                 = 3100
+    "Tempo OTLP gRPC (backend e Alloy)" = 4317
+    "Tempo OTLP HTTP (backend e Alloy)" = 4318
+  }
+
   app_ssh_ingress_rules = [
     for cidr in var.allowed_ssh_cidrs : {
       cidr = cidr
