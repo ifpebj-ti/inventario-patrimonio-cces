@@ -57,7 +57,7 @@ jobs:
       - name: ShellCheck
         run: |
           set -euo pipefail
-          shellcheck -x -s bash infra/scripts/*.sh infra/scripts/app-vm/*.sh infra/scripts/tests/*.sh
+          shellcheck -x -s bash infra/scripts/*.sh infra/scripts/app-vm/*.sh infra/scripts/observability-vm/*.sh infra/scripts/tests/*.sh
 
       - name: Run the scripts on Oracle Linux 8
         run: bash infra/scripts/test-app-vm.sh
