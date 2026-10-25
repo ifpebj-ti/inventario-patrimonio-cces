@@ -5,10 +5,16 @@ import { z } from 'zod'
 // "admin"), então não reaproveita commons/validations/email.
 export default z.object({
   username: z
-    .string({ required_error: 'Informe o usuário' })
+    .string({
+      error: (issue) =>
+        issue.input === undefined ? 'Informe o usuário' : undefined,
+    })
     .trim()
     .min(1, 'Informe o usuário'),
   password: z
-    .string({ required_error: 'Informe a senha' })
+    .string({
+      error: (issue) =>
+        issue.input === undefined ? 'Informe a senha' : undefined,
+    })
     .min(1, 'Informe a senha'),
 })
