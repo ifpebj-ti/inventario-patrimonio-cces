@@ -307,6 +307,55 @@ O comando imprime uma senha nova para o usuário `admin`. Troque-a logo depois d
 - Senha do Postgres: altere no banco (`ALTER USER`) e na stack ao mesmo tempo.
 - Webhook: no Portainer, desative e reative *GitOps updates → Webhook* para gerar outro e atualize o secret do GitHub.
 
+### 4.10 VM de observabilidade (Prometheus, Loki, Tempo, Grafana e SonarQube)
+
+A VM privada roda a stack de `infra/observability/` (ADR 0007). **Conceitos:** *métricas* são números ao longo do tempo (CPU, memória, requisições) guardados pelo **Prometheus**; *logs* são as mensagens dos containers, guardadas pelo **Loki**; *traces* mostram o caminho de uma requisição pelo sistema, guardados pelo **Tempo**; o **Grafana** é a tela que lê os três; o **SonarQube** analisa a qualidade do código.
+
+**Estado atual:** esta etapa instala a stack na VM de observabilidade e abre a rede. Ainda **não** há coletor na VM da aplicação (Grafana Alloy) nem métricas/traces no backend, então o Grafana abre com os três *datasources* funcionando, mas sem dados da aplicação, e não há dashboards provisionados. Os coletores e o backend entram nas próximas etapas.
+
+**1. Aplicar o Terraform** (aumenta a VM para 2 OCPUs / 8 GB e abre as portas no NSG para a subnet da aplicação):
+
+```powershell
+cd infra\terraform\oci
+terraform plan -out tfplan
+terraform apply tfplan
+```
+
+Confira no plano que a VM de observabilidade só é **redimensionada** (`update in-place`), nunca recriada (`replace`). O redimensionamento reinicia a VM.
+
+**2. Instalar a stack** (na raiz do repositório, na sua máquina; o SSH passa pela VM da aplicação):
+
+```powershell
+bash infra/scripts/deploy-observability.sh 137.131.249.225
+```
+
+O script envia os arquivos, ajusta o kernel para o SonarQube (`vm.max_map_count`), gera os segredos em `/opt/inventarium-observability/.env` (0600) na primeira vez, valida o Compose e sobe os containers. Pode ser repetido para atualizar. Para ver a senha do Grafana:
+
+```powershell
+ssh -J opc@137.131.249.225 opc@10.42.0.74 "sudo grep GRAFANA_ADMIN_PASSWORD /opt/inventarium-observability/.env"
+```
+
+**3. Como testar**
+
+```bash
+# Na VM da aplicação (ssh opc@<IP>): confere as portas pela rede privada (esperado: respostas OK)
+curl -s http://10.42.0.74:9090/-/ready        # Prometheus: "Prometheus Server is Ready."
+curl -s http://10.42.0.74:3100/ready          # Loki: "ready" (pode levar ~15 s)
+curl -s http://10.42.0.74:3000/api/health     # Grafana: "database": "ok"
+curl -s http://10.42.0.74:9000/api/system/status   # SonarQube: "status":"UP" (leva alguns minutos)
+
+# Enviar um log de teste e ler de volta
+curl -s -X POST http://10.42.0.74:3100/loki/api/v1/push -H 'Content-Type: application/json' \
+  -d "{\"streams\":[{\"stream\":{\"job\":\"teste\"},\"values\":[[\"$(date +%s)000000000\",\"ola observabilidade\"]]}]}"
+```
+
+Depois abra `https://grafana.inventariumifpe.me` (só IP de admin), entre com `admin` e a senha acima, vá em *Connections → Data sources* e clique em **Test** em Prometheus, Loki e Tempo (os três devem dizer "successfully"), e em *Explore → Loki* consulte `{job="teste"}`. O SonarQube abre em `https://sonar.inventariumifpe.me`; o login inicial é `admin` / `admin` e **a senha deve ser trocada no primeiro acesso**.
+
+Na VM de observabilidade: `sudo docker ps` (todos `Up`) e `sudo docker stats --no-stream` (memória de cada serviço dentro do limite).
+
+**Limitações:** Loki, Tempo e Prometheus não têm autenticação (só o NSG protege); os dados não têm backup; a retenção é de 15 dias (métricas), 7 dias (logs) e 3 dias (traces). Se o SonarQube reiniciar em loop, confirme `sysctl vm.max_map_count` (deve ser 262144).
+
+
 ## 5. Solução de problemas
 
 | Sintoma | Causa provável | O que fazer |

@@ -117,6 +117,8 @@ Revisão de 2026-10-11, referente ao ADR 0006 (veja [Architecture Decision Recor
 | I-10 | Exposição de endpoints internos (Actuator) | Só `/actuator/health` (e probes) é encaminhado pela API; o resto devolve 404 | — |
 | I-11 | Acesso remoto indevido à VM | SSH só por chave e só para `allowed_ssh_cidrs`; VM de observabilidade sem IP público | Manter a allowlist atualizada |
 | I-12 | XSS no front por política de conteúdo frouxa | CSP publicada em modo `Report-Only` na primeira semana, depois imposta; `frame-ancestors 'none'`, `object-src 'none'`, `base-uri 'self'` | A CSP mantém `'unsafe-inline'` em scripts por causa do Next.js (relacionado à ameaça 21); nonce fica como evolução |
+| I-13 | Telemetria sem autenticação (Loki, Tempo e Prometheus) alcançável por quem tomar a VM da aplicação | NSG libera as portas só para a subnet da aplicação; a VM de observabilidade não tem IP público; Grafana só para IPs de admin; SonarQube com login obrigatório | Um processo comprometido na VM da aplicação pode ler ou escrever telemetria. Não registrar dados sensíveis em logs e traces; avaliar autenticação nos receptores |
+| I-14 | Esgotamento de memória ou disco da VM de observabilidade | Limite de memória em todos os serviços (testado no CI) e retenção curta (15 dias métricas, 7 dias logs, 3 dias traces) | Dados sem backup; o disco precisa ser acompanhado e a retenção ajustada |
 
 ## Priorizacao sugerida
 
