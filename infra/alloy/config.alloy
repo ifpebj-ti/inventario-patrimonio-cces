@@ -1,0 +1,91 @@
+// Grafana Alloy: coleta metricas do servidor e dos containers e os logs dos containers, e ENVIA tudo
+// para a VM de observabilidade (push). Nada abre porta para a internet.
+// Variaveis de ambiente (definidas pelo compose):
+//   OBS_HOST: IP da VM de observabilidade (10.42.0.74 na VM da aplicacao; 127.0.0.1 nela mesma)
+//   VM_NAME:  rotulo da VM ("app" ou "observability"), usado para filtrar nos dashboards
+
+logging {
+  level = "warn"
+}
+
+// ---- Destinos -------------------------------------------------------------------------------
+
+prometheus.remote_write "obs" {
+  endpoint {
+    url = "http://" + sys.env("OBS_HOST") + ":9090/api/v1/write"
+  }
+
+  external_labels = {
+    vm = sys.env("VM_NAME"),
+  }
+}
+
+loki.write "obs" {
+  endpoint {
+    url = "http://" + sys.env("OBS_HOST") + ":3100/loki/api/v1/push"
+  }
+}
+
+// ---- Metricas do servidor (CPU, memoria, disco, rede) ---------------------------------------
+// O exporter embutido le o host pelos pontos de montagem /host/* definidos no compose.
+
+prometheus.exporter.unix "host" {
+  rootfs_path = "/host/root"
+  procfs_path = "/host/proc"
+  sysfs_path  = "/host/sys"
+  udev_data_path = "/host/root/run/udev/data"
+}
+
+prometheus.scrape "host" {
+  job_name        = "node"
+  targets         = prometheus.exporter.unix.host.targets
+  scrape_interval = "30s"
+  forward_to      = [prometheus.remote_write.obs.receiver]
+}
+
+// ---- Metricas dos containers (CPU e memoria por container) ----------------------------------
+
+prometheus.exporter.cadvisor "containers" {
+  docker_host      = "unix:///var/run/docker.sock"
+  docker_only      = true
+  storage_duration = "5m"
+}
+
+prometheus.scrape "containers" {
+  job_name        = "cadvisor"
+  targets         = prometheus.exporter.cadvisor.containers.targets
+  scrape_interval = "30s"
+  forward_to      = [prometheus.remote_write.obs.receiver]
+}
+
+// ---- Logs dos containers --------------------------------------------------------------------
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+
+  rule {
+    target_label = "vm"
+    replacement  = sys.env("VM_NAME")
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.containers.output
+  forward_to = [loki.write.obs.receiver]
+}
