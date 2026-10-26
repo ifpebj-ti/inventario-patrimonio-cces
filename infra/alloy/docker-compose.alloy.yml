@@ -1,0 +1,40 @@
+# Coletor Grafana Alloy. Roda em CADA VM (aplicacao e observabilidade) e envia metricas e logs para a
+# VM de observabilidade. Modo de rede "host": ele le o servidor como ele e, e na VM de observabilidade
+# alcanca o Prometheus e o Loki por 127.0.0.1.
+#
+# Seguranca: o socket do Docker da acesso total ao Docker (equivale a root no host). E o mesmo risco
+# que o Portainer ja assume; o Alloy so le (descoberta de containers e logs) e nao expoe porta externa
+# (a interface do Alloy escuta so em 127.0.0.1).
+name: inventarium-alloy
+
+services:
+  alloy:
+    container_name: alloy
+    image: grafana/alloy:v1.21.2
+    restart: unless-stopped
+    network_mode: host
+    pid: host
+    # Com cgroup v2 o container so enxerga o proprio cgroup; sem isto o cAdvisor nao ve os outros containers.
+    cgroup: host
+    mem_limit: 512m
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=127.0.0.1:12345
+      - --disable-reporting
+    environment:
+      OBS_HOST: ${OBS_HOST:?defina OBS_HOST (IP da VM de observabilidade)}
+      VM_NAME: ${VM_NAME:?defina VM_NAME (app ou observability)}
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+      - alloy-data:/var/lib/alloy/data
+      - /:/host/root:ro,rslave
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+
+volumes:
+  alloy-data:

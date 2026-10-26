@@ -127,3 +127,13 @@ test("service config files referenced by the compose exist", () => {
     assert.ok(fs.existsSync(path.join(dir, file)), `${file} ausente`);
   }
 });
+
+test("the bootstrap restarts Grafana so new provisioning is loaded", () => {
+  const script = fs.readFileSync(
+    path.join(repoRoot, "infra/scripts/observability-vm/bootstrap-observability.sh"),
+    "utf8",
+  );
+  const up = script.indexOf("up -d");
+  const restart = script.search(/restart grafana/);
+  assert.ok(up > 0 && restart > up, "o restart do grafana deve vir depois do up -d");
+});

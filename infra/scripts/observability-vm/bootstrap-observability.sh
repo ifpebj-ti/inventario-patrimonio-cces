@@ -59,6 +59,11 @@ docker compose --env-file "$ENV_FILE" -f docker-compose.observability.yml config
 log "subindo a stack (baixa as imagens na primeira vez)"
 docker compose --env-file "$ENV_FILE" -f docker-compose.observability.yml up -d --remove-orphans
 
+# O Grafana so le o provisionamento (datasources e dashboards) ao iniciar, e o compose nao reinicia um
+# container cujo compose nao mudou. Sem isto, um dashboard novo copiado acima nao aparece.
+log "reiniciando o Grafana para carregar o provisionamento"
+docker compose --env-file "$ENV_FILE" -f docker-compose.observability.yml restart grafana
+
 log "concluido. Containers:"
 docker compose --env-file "$ENV_FILE" -f docker-compose.observability.yml ps --format 'table {{.Name}}\t{{.Status}}'
 log "senha do Grafana: sudo grep GRAFANA_ADMIN_PASSWORD $ENV_FILE"
