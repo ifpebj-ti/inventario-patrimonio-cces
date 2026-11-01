@@ -6,6 +6,7 @@ import clp.inventory.model.SectorAllocation;
 import clp.inventory.model.User;
 import clp.inventory.repository.SectorAllocationRepository;
 import clp.inventory.repository.UserRepository;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -21,9 +22,11 @@ import org.springframework.web.server.ResponseStatusException;
  * <ul>
  *   <li>MANAGE_SECTOR: vê e gerencia os inventários do setor e aloca nele apenas usuários com
  *       cargos sem permissão de gestão.
- *   <li>MANAGE_ITEM: vê os inventários do setor e opera os itens (validar e observar), sem criar,
- *       editar ou finalizar inventários.
- *   <li>Cargo sem permissão: somente leitura nos inventários do setor.
+ *   <li>MANAGE_ITEM: opera os itens do setor (validar e observar), sem criar, editar ou finalizar
+ *       inventários. Inclui a Consulta.
+ *   <li>VIEW_SECTOR (Consulta): lê os inventários, itens e observações do setor, sem alterar nada.
+ *       É a base da leitura: as de gestão a incluem.
+ *   <li>Cargo sem nenhuma dessas: alocado, mas sem acesso aos dados do setor.
  * </ul>
  *
  * Quais permissões cada cargo tem é dado (editável pelo administrador); o código só confere as
@@ -31,8 +34,13 @@ import org.springframework.web.server.ResponseStatusException;
  */
 @Service
 public class AuthorizationService {
+  public static final String VIEW_SECTOR = "VIEW_SECTOR";
   public static final String MANAGE_SECTOR = "MANAGE_SECTOR";
   public static final String MANAGE_ITEM = "MANAGE_ITEM";
+
+  /** Permissões que dão leitura no setor: a Consulta e as de gestão, que a incluem. */
+  public static final List<String> VIEW_PERMISSIONS =
+      List.of(VIEW_SECTOR, MANAGE_ITEM, MANAGE_SECTOR);
 
   private final UserRepository userRepository;
   private final SectorAllocationRepository sectorAllocationRepository;
@@ -115,9 +123,17 @@ public class AuthorizationService {
         .collect(Collectors.toSet());
   }
 
-  /** Leitura de setor: admin ou alocado ao setor (qualquer cargo). */
+  /** O cargo dá leitura: tem a Consulta, ou alguma permissão de gestão (que a inclui). */
+  public boolean canRoleView(Role role) {
+    return role != null && VIEW_PERMISSIONS.stream().anyMatch(role::hasPermission);
+  }
+
+  /**
+   * Leitura de setor: administrador, ou cargo do usuário naquele setor que dá leitura. Estar
+   * alocado não basta: um cargo sem permissões não lê os dados do setor.
+   */
   public boolean canViewSector(long userId, long sectorId) {
-    return isAdmin(userId) || isAllocatedTo(userId, sectorId);
+    return isAdmin(userId) || roleIn(userId, sectorId).map(this::canRoleView).orElse(false);
   }
 
   public void requireViewSector(long userId, long sectorId) {
@@ -147,7 +163,10 @@ public class AuthorizationService {
     }
   }
 
-  /** Leitura: admin ou alocado ao setor. Inventário antigo sem setor: admin ou quem o criou. */
+  /**
+   * Leitura: administrador ou cargo que dá leitura no setor do inventário. Inventário antigo sem
+   * setor: administrador ou quem o criou.
+   */
   public boolean canViewInventory(long userId, Inventory inventory) {
     if (isAdmin(userId)) {
       return true;
@@ -155,7 +174,7 @@ public class AuthorizationService {
     if (inventory.sector() == null) {
       return inventory.User().getId().equals(userId);
     }
-    return isAllocatedTo(userId, inventory.sector().id());
+    return canViewSector(userId, inventory.sector().id());
   }
 
   public void requireViewInventory(long userId, Inventory inventory) {

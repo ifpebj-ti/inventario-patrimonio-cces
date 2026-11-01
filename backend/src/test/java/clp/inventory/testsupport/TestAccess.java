@@ -1,9 +1,11 @@
 package clp.inventory.testsupport;
 
+import clp.inventory.model.Permission;
 import clp.inventory.model.Role;
 import clp.inventory.model.Sector;
 import clp.inventory.model.SectorAllocation;
 import clp.inventory.model.User;
+import clp.inventory.repository.PermissionRepository;
 import clp.inventory.repository.RoleRepository;
 import clp.inventory.repository.SectorAllocationRepository;
 import clp.inventory.repository.SectorRepository;
@@ -27,6 +29,7 @@ public class TestAccess {
 
   private final UserRepository users;
   private final RoleRepository roles;
+  private final PermissionRepository permissions;
   private final SectorRepository sectors;
   private final SectorAllocationRepository allocations;
   private final Map<Long, String> intendedRole = new ConcurrentHashMap<>();
@@ -34,10 +37,12 @@ public class TestAccess {
   public TestAccess(
       UserRepository users,
       RoleRepository roles,
+      PermissionRepository permissions,
       SectorRepository sectors,
       SectorAllocationRepository allocations) {
     this.users = users;
     this.roles = roles;
+    this.permissions = permissions;
     this.sectors = sectors;
     this.allocations = allocations;
   }
@@ -60,6 +65,19 @@ public class TestAccess {
 
   public Role role(String name) {
     return roles.findAll().stream().filter(r -> name.equals(r.name())).findFirst().orElseThrow();
+  }
+
+  /**
+   * Cria um cargo com exatamente estas permissões (direto no repositório, sem a normalização da
+   * API). Com nenhuma permissão, é um cargo que não dá acesso aos dados.
+   */
+  public Role customRole(String name, String... permissionNames) {
+    Role role = new Role(name, "Cargo de teste");
+    role.setPermissions(
+        java.util.Arrays.stream(permissionNames)
+            .map(permissionName -> permissions.findByName(permissionName).orElseThrow())
+            .collect(java.util.stream.Collectors.<Permission>toSet()));
+    return roles.save(role);
   }
 
   public SectorAllocation allocate(User user, Sector sector) {

@@ -253,7 +253,7 @@ public class InventoryService {
     if (authorizationService.isAdmin(userId)) {
       return inventoryRepository.findAll();
     }
-    return inventoryRepository.findVisibleToUser(userId);
+    return inventoryRepository.findVisibleToUser(userId, AuthorizationService.VIEW_PERMISSIONS);
   }
 
   /** Inventários de um setor; exige poder consultar o setor. */

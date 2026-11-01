@@ -125,14 +125,17 @@ class RoleE2ETest {
         .filteredOn(r -> r.name().equals(TestAccess.CONSULT))
         .allSatisfy(
             r -> {
-              assertThat(r.permissionIds()).isEmpty();
+              // A Consulta é a base da leitura: o cargo de consulta só tem ela.
+              assertThat(r.permissionIds()).containsExactly(permissionId(admin, "VIEW_SECTOR"));
               assertThat(r.management()).isFalse();
             });
     assertThat(roles)
         .filteredOn(r -> r.name().equals(TestAccess.MANAGER))
         .allSatisfy(
             r -> {
-              assertThat(r.permissionIds()).containsExactly(permissionId(admin, "MANAGE_SECTOR"));
+              assertThat(r.permissionIds())
+                  .containsExactlyInAnyOrder(
+                      permissionId(admin, "MANAGE_SECTOR"), permissionId(admin, "VIEW_SECTOR"));
               assertThat(r.management()).isTrue();
               assertThat(r.deletable()).isFalse();
             });
@@ -141,7 +144,38 @@ class RoleE2ETest {
             .stream()
             .map(PermissionDto::name)
             .toList();
-    assertThat(permissionNames).containsExactlyInAnyOrder("MANAGE_SECTOR", "MANAGE_ITEM");
+    assertThat(permissionNames)
+        .containsExactlyInAnyOrder("VIEW_SECTOR", "MANAGE_SECTOR", "MANAGE_ITEM");
+  }
+
+  @Test
+  void managementPermissionsAlwaysIncludeTheViewPermission() {
+    User admin = admin();
+    long view = permissionId(admin, "VIEW_SECTOR");
+    long manageSector = permissionId(admin, "MANAGE_SECTOR");
+
+    RoleDto onlyView = create(admin, "Só consulta " + System.nanoTime(), Set.of(view));
+    assertThat(onlyView.permissionIds()).containsExactly(view);
+    assertThat(onlyView.management()).isFalse();
+    assertThat(onlyView.deletable()).isFalse();
+
+    RoleDto managing = create(admin, "Gerencia " + System.nanoTime(), Set.of(manageSector));
+    assertThat(managing.permissionIds()).containsExactlyInAnyOrder(manageSector, view);
+    // Editar também normaliza: trocar para só gerenciar item ainda devolve a Consulta.
+    long manageItem = permissionId(admin, "MANAGE_ITEM");
+    var updated =
+        call(
+            admin,
+            HttpMethod.PUT,
+            "/roles/" + managing.id(),
+            body(managing.name(), null, Set.of(manageItem)),
+            RoleDto.class);
+    assertThat(updated.getBody().permissionIds()).containsExactlyInAnyOrder(manageItem, view);
+
+    // Sem nenhuma permissão o cargo não dá acesso aos dados, e pode ser excluído quando sem uso.
+    RoleDto none = create(admin, "Sem acesso " + System.nanoTime(), Set.of());
+    assertThat(none.permissionIds()).isEmpty();
+    assertThat(none.deletable()).isTrue();
   }
 
   @Test
@@ -150,7 +184,9 @@ class RoleE2ETest {
     long manageItem = permissionId(admin, "MANAGE_ITEM");
 
     RoleDto created = create(admin, "Auditor " + System.nanoTime(), Set.of(manageItem));
-    assertThat(created.permissionIds()).containsExactly(manageItem);
+    // Gerenciar inclui a Consulta: ela entra junto, mesmo sem ter sido enviada.
+    assertThat(created.permissionIds())
+        .containsExactlyInAnyOrder(manageItem, permissionId(admin, "VIEW_SECTOR"));
     assertThat(created.management()).isFalse();
     assertThat(created.allocationCount()).isZero();
 

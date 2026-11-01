@@ -95,16 +95,16 @@ class SeedDataE2ETest {
   }
 
   @Test
-  void seed_createsTwoPermissions() {
+  void seed_createsThreePermissions() {
     var response =
         restTemplate.exchange(
             "/permissions", HttpMethod.GET, new HttpEntity<>(authHeaders()), List.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(response.getBody()).hasSize(2);
+    assertThat(response.getBody()).hasSize(3);
     assertThat(response.getBody())
         .extracting(p -> ((Map<?, ?>) p).get("name"))
-        .containsExactlyInAnyOrder("MANAGE_SECTOR", "MANAGE_ITEM");
+        .containsExactlyInAnyOrder("VIEW_SECTOR", "MANAGE_SECTOR", "MANAGE_ITEM");
   }
 
   @Test
@@ -119,18 +119,18 @@ class SeedDataE2ETest {
 
   @Test
   void seed_gestorSetorHasManageSectorPermission() {
-    assertThat(permissionNamesOf(TestAccess.MANAGER)).containsExactly("MANAGE_SECTOR");
+    assertThat(permissionNamesOf(TestAccess.MANAGER))
+        .containsExactlyInAnyOrder("MANAGE_SECTOR", "VIEW_SECTOR");
   }
 
   @Test
   void seed_operadorCampoHasManageItemPermission() {
-    assertThat(permissionNamesOf(TestAccess.OPERATOR)).containsExactly("MANAGE_ITEM");
+    assertThat(permissionNamesOf(TestAccess.OPERATOR))
+        .containsExactlyInAnyOrder("MANAGE_ITEM", "VIEW_SECTOR");
   }
 
   @Test
-  void seed_consultaHasNoPermissions() {
-    var consulta = findRoleByName(TestAccess.CONSULT);
-
-    assertThat((List<?>) consulta.get("permissionIds")).isEmpty();
+  void seed_consultaOnlyHasTheViewPermission() {
+    assertThat(permissionNamesOf(TestAccess.CONSULT)).containsExactly("VIEW_SECTOR");
   }
 }

@@ -94,12 +94,12 @@ class PermissionE2ETest {
   }
 
   @Test
-  void list_asAdmin_returnsTheTwoSeededPermissions() {
+  void list_asAdmin_returnsTheThreeSeededPermissions() {
     var permissions = listAsAdmin();
 
     assertThat(permissions)
         .extracting(p -> p.get("name"))
-        .containsExactlyInAnyOrder("MANAGE_SECTOR", "MANAGE_ITEM");
+        .containsExactlyInAnyOrder("VIEW_SECTOR", "MANAGE_SECTOR", "MANAGE_ITEM");
   }
 
   @Test
@@ -185,7 +185,7 @@ class PermissionE2ETest {
             "/permissions", new HttpEntity<>(body, adminHeaders()), Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
-    assertThat(listAsAdmin()).hasSize(2);
+    assertThat(listAsAdmin()).hasSize(3);
   }
 
   @Test
@@ -222,7 +222,7 @@ class PermissionE2ETest {
             "/permissions/" + id, HttpMethod.DELETE, new HttpEntity<>(adminHeaders()), Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
-    assertThat(listAsAdmin()).hasSize(2);
+    assertThat(listAsAdmin()).hasSize(3);
   }
 
   @Test

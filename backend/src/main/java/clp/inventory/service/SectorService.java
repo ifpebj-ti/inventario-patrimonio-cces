@@ -109,11 +109,11 @@ public class SectorService {
     return findSectorByIdInternal(id);
   }
 
-  /** Admin vê todos os setores; os demais perfis veem os setores a que estão alocados. */
+  /** Admin vê todos os setores; os demais, os setores em que o cargo deles dá leitura. */
   public List<Sector> listAllSectors(long actingUserId) {
     return authorizationService.isAdmin(actingUserId)
         ? sectorRepository.findAll()
-        : sectorRepository.findAllocatedToUser(actingUserId);
+        : sectorRepository.findViewableByUser(actingUserId, AuthorizationService.VIEW_PERMISSIONS);
   }
 
   private Sector findSectorByIdInternal(long id) {
