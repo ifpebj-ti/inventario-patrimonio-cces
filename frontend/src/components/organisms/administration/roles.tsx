@@ -1,7 +1,7 @@
 'use client'
 
 import { Plus } from 'lucide-react'
-import { permissionLabel } from '@/lib/access-labels'
+import { comparePermissions, permissionLabel } from '@/lib/access-labels'
 
 import { cn } from '@/lib/utils'
 import { chipToneClass } from '@/lib/tone'
@@ -112,13 +112,33 @@ export const RolesScreen = () => {
     )
     setFormError(null)
   }
+  // Consultar é a base da leitura e as permissões de gerenciar a incluem: marcar uma de gerenciar
+  // marca Consultar e a trava; a API faz o mesmo ao salvar.
+  const viewId = permissions.find(
+    (permission) => permission.name === 'VIEW_SECTOR',
+  )?.id
+  const managementIds = permissions
+    .filter((permission) => permission.name !== 'VIEW_SECTOR')
+    .map((permission) => permission.id)
+  const viewLocked = form.permissionIds.some((id) => managementIds.includes(id))
+  const orderedPermissions = [...permissions].sort((a, b) =>
+    comparePermissions(a.name, b.name),
+  )
   const toggle = (id: number, checked: boolean) =>
-    setForm((current) => ({
-      ...current,
-      permissionIds: checked
+    setForm((current) => {
+      if (id === viewId && !checked && viewLocked) return current
+      const next = checked
         ? [...current.permissionIds, id]
-        : current.permissionIds.filter((value) => value !== id),
-    }))
+        : current.permissionIds.filter((value) => value !== id)
+      const manages = next.some((value) => managementIds.includes(value))
+      return {
+        ...current,
+        permissionIds:
+          manages && viewId !== undefined && !next.includes(viewId)
+            ? [...next, viewId]
+            : next,
+      }
+    })
 
   const persist = (data: RoleForm) =>
     run(async () => {
@@ -311,7 +331,7 @@ export const RolesScreen = () => {
                           </ul>
                         ) : (
                           <span className="text-muted-foreground">
-                            Nenhuma permissão atribuída
+                            Sem acesso aos dados
                           </span>
                         )}
                       </UiTableCell>
@@ -430,17 +450,18 @@ export const RolesScreen = () => {
             <AdminModalSection
               divided
               title="Permissões"
-              description="O que o cargo pode fazer no setor em que o usuário estiver alocado. Sem nenhuma permissão, o cargo é somente leitura."
+              description="O que o cargo pode fazer no setor em que o usuário estiver alocado. Consultar só lê; as de gerenciar também alteram e incluem a consulta. Sem nenhuma permissão, o cargo não dá acesso aos dados do setor."
             >
               <fieldset className="space-y-2" disabled={busy}>
                 <legend className="sr-only">Permissões do cargo</legend>
-                {permissions.map((permission) => (
+                {orderedPermissions.map((permission) => (
                   <UiLabel
                     key={permission.id}
                     className="items-start gap-3 rounded-lg border p-3 text-sm"
                   >
                     <UiCheckbox
                       checked={form.permissionIds.includes(permission.id)}
+                      disabled={permission.id === viewId && viewLocked}
                       onCheckedChange={(checked) =>
                         toggle(permission.id, checked === true)
                       }
@@ -453,6 +474,11 @@ export const RolesScreen = () => {
                       {permission.description && (
                         <span className="block font-normal text-muted-foreground">
                           {permission.description}
+                        </span>
+                      )}
+                      {permission.id === viewId && viewLocked && (
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          Incluída em Gerenciar Item e Gerenciar Setor.
                         </span>
                       )}
                     </span>
