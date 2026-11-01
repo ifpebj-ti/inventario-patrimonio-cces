@@ -48,16 +48,21 @@ Dois conceitos separados:
   cada um vem do **cargo que tem naquele setor**. Um cargo é um conjunto de permissões escolhido pelo
   administrador. O código só confere permissões, nunca o nome do cargo.
 
-O catálogo de permissões é fixo (definido em código e migration) e tem 2 permissões:
+O catálogo de permissões é fixo (definido em código e migration) e tem 3 permissões:
 
 | Permissão | O que libera no setor em que o cargo vale |
 | --- | --- |
+| `VIEW_SECTOR` (Consultar) | **Base da leitura**: lê, só do setor em que o cargo vale, a lista e o detalhe dos inventários, os itens e as observações, exporta a planilha e vê o histórico de validação. **Não altera nada** (nem valida, escaneia, edita, importa nem exclui). |
 | `MANAGE_SECTOR` | Cria, edita, finaliza e exclui inventários do setor, importa e limpa itens, edita os dados dos itens; aloca e desaloca usuários no próprio setor, **só com cargos sem `MANAGE_SECTOR`**; lê a lista de cargos e permissões. |
-| `MANAGE_ITEM` | Vê os inventários do setor e opera os itens: valida (escaneia) e registra observações. Não cria, edita nem finaliza inventários e não altera os dados do item. |
-| (nenhuma) | Cargo sem permissões: somente leitura nos inventários e no setor. |
+| `MANAGE_ITEM` | Opera os itens do setor: valida (escaneia) e registra observações. Não cria, edita nem finaliza inventários e não altera os dados do item. **Inclui a Consulta.** |
+| (nenhuma) | Cargo sem permissões: o usuário está alocado, mas **não lê os dados do setor** (inventários, itens, exportação). |
+
+As permissões de gerenciar (`MANAGE_SECTOR` e `MANAGE_ITEM`) **incluem** `VIEW_SECTOR`: quem altera precisa enxergar.
+O servidor garante isso ao salvar um cargo (se tem uma de gerenciar, `VIEW_SECTOR` entra junto, mesmo que o corpo
+não a traga), e a leitura é decidida por "o cargo tem `VIEW_SECTOR`, `MANAGE_ITEM` ou `MANAGE_SECTOR`".
 
 Os cargos de origem (criados pela migration 7.0) são **Gestor de Setor** (`MANAGE_SECTOR`), **Operador de Campo**
-(`MANAGE_ITEM`) e **Consulta** (sem permissões), mas são só dados: o administrador pode renomeá-los, mudar as
+(`MANAGE_ITEM`) e **Consulta** (`VIEW_SECTOR`), mas são só dados: o administrador pode renomeá-los, mudar as
 permissões e criar outros. **Cargo de gestão** é o que tem `MANAGE_SECTOR`.
 
 **Exemplo:** o mesmo usuário é Gestor de Setor no setor A e Operador de Campo no setor B. No A ele gerencia os
@@ -309,8 +314,8 @@ escolher o cargo ao alocar alguém no setor); operador, consulta e quem não est
 
 Corpo de `POST`/`PUT`: `{ "name": "Auditoria", "description": "…", "permissionIds": [2] }`. `name`: obrigatório,
 máximo 100 caracteres, **único** entre os cargos (`400` se vazio, longo ou repetido); `description`: opcional, até
-255; `permissionIds`: ids do catálogo de `/permissions` (`400` se algum não existir; lista vazia = cargo somente
-leitura).
+255; `permissionIds`: ids do catálogo de `/permissions` (`400` se algum não existir; lista vazia = cargo sem
+acesso aos dados; se tiver `MANAGE_SECTOR` ou `MANAGE_ITEM`, `VIEW_SECTOR` é incluída na resposta).
 
 Resposta (`RoleDto`):
 
@@ -356,8 +361,8 @@ migration, não por tela.
 | `GET /permissions/{id}` | Busca por id (`404` se não existe) |
 
 Resposta (`PermissionDto`): `{ "id": 1, "name": "MANAGE_SECTOR", "description": "..." }`. A tela de cargos usa
-esta lista para mostrar quais permissões podem ser marcadas em um cargo. Permissões hoje: `MANAGE_SECTOR` e
-`MANAGE_ITEM` (a permissão `ADMIN` saiu: administrador virou coluna do usuário).
+esta lista para mostrar quais permissões podem ser marcadas em um cargo. Permissões hoje: `VIEW_SECTOR`,
+`MANAGE_ITEM` e `MANAGE_SECTOR` (a permissão `ADMIN` saiu: administrador virou coluna do usuário).
 
 ---
 
@@ -417,3 +422,4 @@ Para quem já tinha algo montado em cima da versão 1.x. **Mudança incompatíve
 | 1.9 | 2026-10-18 | Entra `DELETE /sectors/{id}` (só `ADMIN`, `409` se o setor tiver usuário, inventário ou auditoria) e o campo `deletable` em `SectorDto` (issue #234). |
 | 2.0 | 2026-10-18 | **Major.** Cargo por alocação no lugar do perfil global; `/profiles` vira `/roles` com CRUD só para o administrador (excluir só sem alocação e sem permissão); `PUT /users/{id}/sectors/{sectorId}` com `roleId` obrigatório; `PATCH /users/{id}/administrator`; administrador vira coluna do usuário e a permissão `ADMIN` sai; `/auth/me` traz `administrator` e `allocations` (sub-issue de #154). |
 | 2.1 | 2026-10-19 | Entram `GET /sectors/{id}/assignable-users` (só `id`, `name` e `email` de quem pode ser alocado) e `PUT /sectors/{id}/members` (alocação em lote com um cargo, tudo ou nada); nada existente muda de contrato (sub-issue de #154). |
+| 2.2 | 2026-11-01 | Entra a permissão `VIEW_SECTOR` (Consultar), a base da leitura: ler os inventários, itens e a exportação de um setor exige o cargo ter `VIEW_SECTOR` (ou `MANAGE_ITEM`/`MANAGE_SECTOR`, que a incluem); **cargo sem nenhuma permissão não lê os dados do setor** (antes bastava estar alocado). `GET /inventory/user-inventories` e `GET /sectors` só trazem setores em que o cargo dá leitura. A migration 8.0 dá `VIEW_SECTOR` a todos os cargos existentes, então ninguém perde acesso; salvar cargo com `MANAGE_*` inclui `VIEW_SECTOR` (sub-issue de #154). |

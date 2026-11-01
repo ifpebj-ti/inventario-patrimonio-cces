@@ -27,11 +27,15 @@ import {
   useOperation,
 } from './shared'
 
-// Cargo de menos permissões: é o padrão ao alocar (o administrador ou gestor ajusta).
-export const leastPrivilegedRole = (roles: Role[]) =>
-  [...roles].sort(
+// Cargo padrão ao alocar (quem aloca ajusta): o de menos permissões **entre os que dão acesso**, que
+// é o de só Consultar. Um cargo sem permissões não lê os dados do setor, então não serve de padrão
+// (só se nenhum cargo der acesso).
+export const leastPrivilegedRole = (roles: Role[]) => {
+  const sorted = [...roles].sort(
     (a, b) => a.permissionIds.length - b.permissionIds.length || a.id - b.id,
-  )[0]
+  )
+  return sorted.find((role) => role.permissionIds.length > 0) ?? sorted[0]
+}
 
 /**
  * Escolhe um ou mais usuários do sistema (os ativos que ainda não estão no setor) e um cargo, e

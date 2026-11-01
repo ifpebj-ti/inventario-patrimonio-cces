@@ -2,6 +2,7 @@ package clp.inventory.repository;
 
 import clp.inventory.model.Inventory;
 import jakarta.persistence.LockModeType;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -23,11 +24,15 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
 
   boolean existsBySector_Id(long sectorId);
 
-  // Quem não é admin enxerga os inventários dos setores a que está alocado. Inventários antigos
+  // Quem não é admin enxerga os inventários dos setores em que o cargo dele dá leitura
+  // (`viewPermissions`: Consulta ou as de gestão); estar alocado sozinho não basta. Inventários
+  // antigos
   // sem setor continuam visíveis apenas para quem os criou.
   @Query(
       "select i from Inventory i where i.sector.id in "
-          + "(select a.sector.id from SectorAllocation a where a.user.id = :userId) "
+          + "(select a.sector.id from SectorAllocation a join a.role r join r.permissions p "
+          + "where a.user.id = :userId and p.name in :viewPermissions) "
           + "or (i.sector is null and i.user.id = :userId)")
-  List<Inventory> findVisibleToUser(@Param("userId") long userId);
+  List<Inventory> findVisibleToUser(
+      @Param("userId") long userId, @Param("viewPermissions") Collection<String> viewPermissions);
 }

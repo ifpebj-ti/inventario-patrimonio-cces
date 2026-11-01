@@ -166,13 +166,13 @@ class InventoryCompletionTest {
     grant("ADMIN");
     when(inventories.findAll()).thenReturn(List.of(inventory));
     assertThat(service.getUserInventories(7L)).containsExactly(inventory);
-    verify(inventories, never()).findVisibleToUser(anyLong());
+    verify(inventories, never()).findVisibleToUser(anyLong(), any());
   }
 
   @Test
   void managerListIncludesOnlyInventoriesOfAllocatedSectors() {
     grant("MANAGE_SECTOR");
-    when(inventories.findVisibleToUser(7L)).thenReturn(List.of(inventory));
+    when(inventories.findVisibleToUser(eq(7L), any())).thenReturn(List.of(inventory));
     assertThat(service.getUserInventories(7L)).containsExactly(inventory);
     verify(inventories, never()).findAll();
   }
@@ -180,7 +180,7 @@ class InventoryCompletionTest {
   @Test
   void operatorAndConsultListAreRestrictedToAllocatedSectors() {
     grant("MANAGE_ITEM");
-    when(inventories.findVisibleToUser(7L)).thenReturn(List.of(inventory));
+    when(inventories.findVisibleToUser(eq(7L), any())).thenReturn(List.of(inventory));
     assertThat(service.getUserInventories(7L)).containsExactly(inventory);
     verify(inventories, never()).findAll();
   }

@@ -31,7 +31,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 class MigrationRolesPerAllocationTest {
 
   private static final String UNTIL_6_0 = "db/changelog/changelog-until-6.0.xml";
-  private static final String MASTER = "db/changelog/db.changelog-master.xml";
+  // A 7.0 é a última migration que este teste cobre: a 8.0 (permissão de Consulta) tem teste
+  // próprio.
+  private static final String THROUGH_7_0 = "db/changelog/changelog-until-7.0.xml";
 
   @Container static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15");
 
@@ -139,7 +141,7 @@ class MigrationRolesPerAllocationTest {
     allocate(4, 3, 1);
     allocate(5, 4, 1);
 
-    migrate(MASTER);
+    migrate(THROUGH_7_0);
 
     // Quem tinha o perfil de administrador vira administrador; ninguém mais.
     assertThat(count("SELECT count(*) FROM im_user WHERE is_administrator")).isEqualTo(2);
@@ -160,7 +162,7 @@ class MigrationRolesPerAllocationTest {
   @Test
   void removesTheAdministratorProfileAndPermissionAndRenamesTheSeeds() throws Exception {
     migrate(UNTIL_6_0);
-    migrate(MASTER);
+    migrate(THROUGH_7_0);
 
     assertThat(count("SELECT count(*) FROM im_role")).isEqualTo(3);
     assertThat(count("SELECT count(*) FROM im_role WHERE name = 'ADMIN_ORGANIZATION'")).isZero();
@@ -191,7 +193,7 @@ class MigrationRolesPerAllocationTest {
   @Test
   void allocationWithoutRoleIsRejectedAfterTheMigration() throws Exception {
     migrate(UNTIL_6_0);
-    migrate(MASTER);
+    migrate(THROUGH_7_0);
     execute(
         "INSERT INTO im_sector (id, name, active, created_at, updated_at)"
             + " VALUES (1, 'Setor A', true, now(), now())");

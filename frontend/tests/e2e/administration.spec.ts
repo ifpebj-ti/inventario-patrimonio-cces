@@ -28,19 +28,19 @@ const fixture = () => ({
       id: GESTOR,
       name: 'Gestor de Setor',
       description: 'Gestor',
-      permissionIds: [201],
+      permissionIds: [201, 203],
     },
     {
       id: OPERADOR,
       name: 'Operador de Campo',
       description: 'Operador',
-      permissionIds: [202],
+      permissionIds: [202, 203],
     },
     {
       id: CONSULTA,
       name: 'Consulta',
       description: null as string | null,
-      permissionIds: [] as number[],
+      permissionIds: [203] as number[],
     },
   ],
   permissions: [
@@ -53,6 +53,12 @@ const fixture = () => ({
       id: 202,
       name: 'MANAGE_ITEM',
       description: 'Opera os itens do setor: valida e registra observações.',
+    },
+    {
+      id: 203,
+      name: 'VIEW_SECTOR',
+      description:
+        'Consulta os inventários, itens e observações do setor, sem alterar nada.',
     },
   ],
   users: [
@@ -742,8 +748,11 @@ test('ninguém altera o próprio papel de administrador', async ({ page }) => {
 
 const rolesTable = (page: Page) =>
   page.getByRole('table', { name: 'Cargos e suas permissões' })
+// A linha começa pelo nome do cargo; casar só o início evita pegar "Consulta" dentro de "Consultar".
 const roleRow = (page: Page, name: string) =>
-  rolesTable(page).getByRole('row').filter({ hasText: name })
+  rolesTable(page)
+    .getByRole('row')
+    .filter({ hasText: new RegExp(`^${name}`) })
 
 test('cargos exibem permissões e uso, e o administrador tem as ações', async ({
   page,
@@ -758,9 +767,8 @@ test('cargos exibem permissões e uso, e o administrador tem as ações', async 
     '1 usuário em 1 alocação',
   )
   await expect(roleRow(page, 'Operador de Campo')).toContainText('Sem uso')
-  await expect(roleRow(page, 'Consulta')).toContainText(
-    'Nenhuma permissão atribuída',
-  )
+  await expect(roleRow(page, 'Consulta')).toContainText('Consultar')
+  await expect(roleRow(page, 'Consulta')).not.toContainText('Gerenciar')
   await expect(page.getByRole('button', { name: 'Novo cargo' })).toBeEnabled()
   await expect(
     page.getByRole('button', { name: 'Editar cargo Consulta' }),
@@ -769,6 +777,71 @@ test('cargos exibem permissões e uso, e o administrador tem as ações', async 
   await expect(
     page.getByRole('button', { name: /^Excluir cargo / }),
   ).toHaveCount(0)
+})
+
+test('Consultar é a base: marcar uma de gerenciar marca e trava a consulta', async ({
+  page,
+}) => {
+  await setup(page)
+  await page.goto('/roles')
+  await page.getByRole('button', { name: 'Novo cargo' }).click()
+  const modal = page.getByRole('dialog', { name: 'Novo cargo' })
+  // Da mais simples para a mais ampla.
+  expect(
+    await modal
+      .getByRole('checkbox')
+      .evaluateAll((boxes) =>
+        boxes.map((box) => box.getAttribute('aria-label')),
+      ),
+  ).toEqual(['Consultar', 'Gerenciar Item', 'Gerenciar Setor'])
+  const view = modal.getByRole('checkbox', { name: 'Consultar' })
+  const item = modal.getByRole('checkbox', { name: 'Gerenciar Item' })
+  await modal.getByLabel('Nome do cargo').fill('Auditoria')
+  await expect(view).not.toBeChecked()
+  await expect(view).toBeEnabled()
+
+  await item.click()
+  await expect(view).toBeChecked()
+  await expect(view).toBeDisabled()
+  await expect(modal).toContainText(
+    'Incluída em Gerenciar Item e Gerenciar Setor.',
+  )
+  // Tirar a de gerenciar destrava a consulta, que continua marcada e pode ser desmarcada.
+  await item.click()
+  await expect(view).toBeChecked()
+  await expect(view).toBeEnabled()
+  await view.click()
+  await expect(view).not.toBeChecked()
+  await expect(modal).toContainText('Nenhuma permissão selecionada')
+})
+
+test('cargo sem permissões não dá acesso aos dados e não é o padrão ao alocar', async ({
+  page,
+}) => {
+  const state = fixture()
+  state.roles.push({
+    id: 16,
+    name: 'Sem acesso',
+    description: null,
+    permissionIds: [],
+  })
+  await setup(page, state)
+  await page.goto('/roles')
+  await expect(roleRow(page, 'Sem acesso')).toContainText(
+    'Sem acesso aos dados',
+  )
+
+  await page.goto('/sectors')
+  const sheet = await openMembers(page, 'Tecnologia')
+  await sheet.getByRole('button', { name: 'Adicionar usuários' }).click()
+  const modal = page.getByRole('dialog', {
+    name: 'Adicionar usuários a Tecnologia',
+  })
+  // O cargo sem permissão existe na lista, mas o que vem escolhido é o de só Consultar.
+  await expect(modal.getByLabel('Cargo dos usuários')).toContainText('Consulta')
+  expect(await optionTexts(modal.getByLabel('Cargo dos usuários'))).toContain(
+    'Sem acesso',
+  )
 })
 
 test('administrador cria um cargo escolhendo as permissões', async ({
@@ -790,7 +863,7 @@ test('administrador cria um cargo escolhendo as permissões', async ({
   ).toEqual({
     name: 'Auditoria',
     description: 'Confere os inventários',
-    permissionIds: [202],
+    permissionIds: [202, 203],
   })
 })
 
@@ -808,7 +881,8 @@ test('modais de cargo e de setor seguem o padrão: seções, estado no rodapé e
   await novo.getByLabel('Nome do cargo').fill('Auditoria')
   await expect(novo).toContainText('Nenhuma permissão selecionada')
   await novo.getByRole('checkbox', { name: 'Gerenciar Item' }).click()
-  await expect(novo).toContainText('1 permissão selecionada')
+  // Gerenciar inclui a Consulta: são duas marcadas.
+  await expect(novo).toContainText('2 permissões selecionadas')
   // O × do cabeçalho fecha sem enviar nada.
   await novo.getByRole('button', { name: 'Fechar diálogo' }).click()
   await expect(novo).toHaveCount(0)
@@ -879,7 +953,8 @@ test('mudar as permissões de um cargo em uso pede confirmação com o impacto',
     .getByRole('button', { name: 'Salvar' })
     .click()
   await expect(page.getByText('Cargo salvo com sucesso.')).toBeVisible()
-  expect(state.roles[0].permissionIds).toEqual([])
+  // Tirou Gerenciar Setor; a Consulta, que é a base, continua.
+  expect(state.roles[0].permissionIds).toEqual([203])
   expect(state.requests.filter((r) => r.method === 'PUT')).toHaveLength(1)
 })
 
