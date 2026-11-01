@@ -176,6 +176,11 @@ O segundo comando troca o certificado de teste pelo real e liga os *vhosts* HTTP
    SPRING_MAIL_PASSWORD=<senha de app do Gmail>
    SYSTEM_ADMIN_USERNAME=admin
    SYSTEM_ADMIN_PASSWORD=<openssl rand -base64 24>    # mínimo 12 caracteres
+   # Opcional: contas de teste (uma senha por conta, mínimo 12 caracteres). Vazias = desligadas.
+   # Ligue só se quiser que pessoas testem em produção; senhas fortes (openssl rand -base64 24).
+   TEST_VIEWER_PASSWORD=
+   TEST_OPERATOR_PASSWORD=
+   TEST_MANAGER_PASSWORD=
    CORS_ALLOWED_ORIGINS=https://inventariumifpe.me
    FORWARD_HEADERS_STRATEGY=native
    IMAGE_TAG=<tag da release do passo 3.6, ex.: v5.0.2>
