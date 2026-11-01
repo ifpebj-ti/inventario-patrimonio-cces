@@ -151,6 +151,33 @@ depende dele. O `/auth/google` não tem limite de tentativas: não há segredo p
 entra é um ID token assinado pelo Google).
 
 
+## Contas de teste
+
+Três contas, no mesmo estilo da conta de sistema (usuário e senha, sem Google, pelo mesmo formulário "Entrar com
+usuário e senha"), para quem for **testar** o sistema experimentar cada permissão do catálogo. Cada uma tem um cargo de
+teste no **"Setor de Testes"**, que ganha um **inventário de exemplo** ("Inventário de teste", 8 itens fictícios).
+
+| Usuário | Cargo de teste | Permissões | O que consegue fazer no Setor de Testes |
+|---|---|---|---|
+| `teste.consulta` | Teste · Consulta | `VIEW_SECTOR` | Só consulta: lê inventários, itens, observações e exporta; não altera nada. |
+| `teste.operador` | Teste · Operador | `MANAGE_ITEM` + `VIEW_SECTOR` | Valida itens (escanear) e registra observações; não edita os dados do item nem gerencia inventários. |
+| `teste.gestor` | Teste · Gestor | `MANAGE_SECTOR` + `VIEW_SECTOR` | Gerencia os inventários do setor, edita itens, importa planilha e aloca usuários no setor. |
+
+- **Uma senha por conta**, no `.env` (ou na stack do Portainer): `TEST_VIEWER_PASSWORD`, `TEST_OPERATOR_PASSWORD` e
+  `TEST_MANAGER_PASSWORD`, **sem valor padrão** (o repositório é público). Os testers recebem login e senha pelo canal do
+  time; as senhas nunca vão para o repositório.
+- **Cada conta é independente.** Senha vazia desliga o login daquela conta (a conta e a alocação ficam, só o hash é
+  apagado) e, se ela ainda não existia, não a cria. Senha com menos de 12 caracteres é recusada: nada é criado nem
+  alterado. Trocar a senha é trocar a variável e reiniciar o backend. Para desligar tudo, esvazie as três e reinicie.
+- **Idempotente.** A cada subida o backend só cria o que falta (setor, cargos de teste, alocações, inventário de
+  exemplo). O que já existe não é alterado: edições do administrador nos cargos de teste e as alocações são respeitadas.
+  Só o initializer procura esses cargos pelo nome; a autorização continua olhando só as permissões.
+- **São contas de sistema** (único jeito de ter senha, sem Google): não são administradoras e ficam **fora** de `GET /users` e
+  de `GET /sectors/{id}/users`; a alocação delas não se altera pela API (`404`), só pelo initializer. O limite de tentativas
+  de login é o mesmo do admin (por usuário no backend e por IP no Nginx).
+- **Em produção:** ligue só se quiser que pessoas testem lá, com senhas fortes e desligando depois. O gestor de teste, por
+  gerenciar, vê **nome e e-mail dos usuários ativos** no modal de alocar e pode alocá-los no Setor de Testes.
+
 # - Limpeza de Dados com clear-all-data.sh
 
 ## Visão Geral

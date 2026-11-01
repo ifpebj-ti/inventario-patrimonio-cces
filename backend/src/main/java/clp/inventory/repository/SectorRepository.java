@@ -3,6 +3,7 @@ package clp.inventory.repository;
 import clp.inventory.model.Sector;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -18,6 +19,8 @@ public interface SectorRepository extends JpaRepository<Sector, Long> {
           + "where a.user.id = :userId and p.name in :viewPermissions)")
   List<Sector> findViewableByUser(
       @Param("userId") long userId, @Param("viewPermissions") Collection<String> viewPermissions);
+
+  Optional<Sector> findByName(String name);
 
   boolean existsByName(String name);
 
