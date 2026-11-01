@@ -106,6 +106,15 @@ sed '/POSTGRES_DB/d' /tmp/ok.env > /tmp/missing.env
 expect_error ".env sem variavel obrigatoria e rejeitado" "POSTGRES_DB" /tmp/missing.env
 sed 's/^SYSTEM_ADMIN_PASSWORD=.*/SYSTEM_ADMIN_PASSWORD=curta/' /tmp/ok.env > /tmp/shortpw.env
 expect_error "senha de admin com menos de 12 caracteres e rejeitada" "12 caracteres" /tmp/shortpw.env
+for test_var in TEST_VIEWER_PASSWORD TEST_OPERATOR_PASSWORD TEST_MANAGER_PASSWORD; do
+  { cat /tmp/ok.env; echo "$test_var=curta"; } > /tmp/shorttest.env
+  expect_error "senha de conta de teste ($test_var) com menos de 12 caracteres e rejeitada" "$test_var" /tmp/shorttest.env
+done
+{ cat /tmp/ok.env; echo "TEST_VIEWER_PASSWORD=senha-teste-consulta-1"; echo "TEST_OPERATOR_PASSWORD=senha-teste-operador-1"; echo "TEST_MANAGER_PASSWORD=senha-teste-gestor-1"; } > /tmp/testpw.env
+out="$("$portainer" /tmp/testpw.env --dry-run 2>&1)" || fail "senhas de conta de teste validas deveriam passar: $out"
+echo "$out" | grep -q 'senha-teste-' && fail "dry-run vazou a senha de uma conta de teste"
+echo "$out" | grep -q 'variaveis ignoradas' && fail "variaveis das contas de teste foram descartadas como nao usadas"
+ok "senhas das contas de teste sao aceitas, repassadas e mascaradas"
 sed 's/^SECURITY_TOKEN_SECRET=.*/SECURITY_TOKEN_SECRET=fraco/' /tmp/ok.env > /tmp/weak.env
 expect_error "SECURITY_TOKEN_SECRET curto e rejeitado" "32 caracteres" /tmp/weak.env
 sed 's/^IMAGE_TAG=.*/IMAGE_TAG=/' /tmp/ok.env > /tmp/notag.env
