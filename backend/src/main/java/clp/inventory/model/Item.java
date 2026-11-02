@@ -26,7 +26,10 @@ public class Item {
   // Valor em centavos, para evitar erros de arredondamento de ponto flutuante.
   private long price;
 
-  private String locale;
+  // Só a entrada de dados: a planilha e o cadastro avulso trazem a sala como texto, que vira uma
+  // Room
+  // do setor. Não é gravada; a sala do item é `room`.
+  @Transient private String locale;
 
   @Column(nullable = false)
   private String qrCode;
@@ -101,7 +104,7 @@ public class Item {
     return responsible;
   }
 
-  /** Texto da sala para exibição: o nome da sala cadastrada ou, sem sala, o texto antigo. */
+  /** Nome da sala cadastrada; sem sala, o texto recebido na entrada (ainda não convertido). */
   public String locale() {
     return room != null ? room.name() : locale;
   }
@@ -158,12 +161,8 @@ public class Item {
     this.locale = locale;
   }
 
-  /** Define a sala cadastrada e mantém o texto de exibição (locale) igual ao nome dela. */
   public void setRoom(Room room) {
     this.room = room;
-    if (room != null) {
-      this.locale = room.name();
-    }
   }
 
   public void setFoundRoom(Room foundRoom) {

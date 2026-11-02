@@ -9,8 +9,9 @@
         auditoria guarda a encontrada, a esperada e se houve divergencia.
 
         A estrutura usa as tags do Liquibase. So a conversao dos dados usa <sql>, porque nao existe tag para
-        INSERT ... SELECT com agrupamento. A coluna im_item.locale NAO e apagada (fica como texto de exibicao e para
-        poder voltar atras).
+        INSERT ... SELECT com agrupamento. No fim, a coluna im_item.locale e apagada: o nome da sala passa a vir de
+        im_room, sem uma segunda copia do texto para manter igual. Itens de inventario sem setor (legado; hoje o
+        inventario exige setor) nao tem onde virar sala e perdem o texto.
     -->
 
     <!-- Tabela de salas: o nome e unico dentro do setor (comparando o nome normalizado). -->
@@ -130,5 +131,10 @@
                AND room.normalized_name = translate(lower(btrim(regexp_replace(it.locale, '\s+', ' ', 'g'))),
                                                     'áàâãäéèêëíìîïóòôõöúùûüç', 'aaaaaeeeeiiiiooooouuuuc');
         </sql>
+    </changeSet>
+
+    <!-- O texto livre ja virou sala (changesets acima); a coluna deixa de existir. -->
+    <changeSet id="20261102-06" author="inventarium">
+        <dropColumn tableName="im_item" columnName="locale"/>
     </changeSet>
 </databaseChangeLog>

@@ -264,9 +264,6 @@ public class ItemService {
       room = sector == null ? null : roomService.findOrCreate(sector, updatedItem.locale());
     }
     item.setRoom(room);
-    if (room == null) {
-      item.setLocale(sector == null ? updatedItem.locale() : null);
-    }
   }
 
   @Transactional

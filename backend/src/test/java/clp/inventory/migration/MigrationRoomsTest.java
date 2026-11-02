@@ -173,7 +173,7 @@ class MigrationRoomsTest {
   }
 
   @Test
-  void blankLocaleAndInventoriesWithoutSectorGetNoRoom_andLocaleColumnIsKept() throws Exception {
+  void blankLocaleAndInventoriesWithoutSectorGetNoRoom_andLocaleColumnIsDropped() throws Exception {
     migrate(UNTIL_8_0);
     seed();
 
@@ -181,8 +181,12 @@ class MigrationRoomsTest {
 
     assertThat(count("SELECT count(*) FROM im_item WHERE id IN (7, 8, 10) AND id_room IS NULL"))
         .isEqualTo(3);
-    assertThat(strings("SELECT locale FROM im_item WHERE id = 3")).containsExactly("sala  105");
-    assertThat(strings("SELECT locale FROM im_item WHERE id = 10")).containsExactly("Sala X");
+    // O texto livre já virou sala, então a coluna deixa de existir.
+    assertThat(
+            count(
+                "SELECT count(*) FROM information_schema.columns WHERE table_name = 'im_item'"
+                    + " AND column_name = 'locale'"))
+        .isZero();
     assertThat(count("SELECT count(*) FROM im_item")).isEqualTo(10);
     assertThat(count("SELECT count(*) FROM im_item WHERE id_found_room IS NOT NULL")).isZero();
   }

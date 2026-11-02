@@ -238,8 +238,8 @@ encontrada é só registro: **não altera** a sala cadastrada.
   lê `foundRoomId` do corpo, e grava a mesma auditoria. Inventário finalizado segue `409`.
 - Validar de novo um item já validado só gera outro registro se a sala informada for diferente da registrada. Desmarcar a
   validação (`PUT` com `isValid` falso) limpa a sala encontrada.
-- `ItemDto` ganha `roomId`, `roomName`, `foundRoomId`, `foundRoomName` e `divergent`; `locale` continua, com o nome da
-  sala cadastrada (ou o texto antigo, se o item não tem sala). `ItemAuditDto` ganha `foundRoomId`, `foundRoomName`,
+- `ItemDto` ganha `roomId`, `roomName`, `foundRoomId`, `foundRoomName` e `divergent`; `locale` continua só como nome da
+  sala cadastrada (nulo se o item não tem sala); a coluna do banco foi removida. `ItemAuditDto` ganha `foundRoomId`, `foundRoomName`,
   `expectedRoomId`, `expectedRoomName` e `divergent`.
 - Editar a sala cadastrada (gestor/administrador, `PUT /item/{id}`): por `roomId` (sala do setor do inventário) ou, para
   clientes antigos, pelo texto de `locale`, que acha ou cria a sala pelo nome. O operador continua sem editar dados do
