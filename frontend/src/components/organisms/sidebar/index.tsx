@@ -26,6 +26,8 @@ import { ConfirmationModal } from '@/components/organisms/modalConfirmation'
 import { useState } from 'react'
 import { homeRoute } from '@/lib/home-route'
 import { accessLabel } from '@/lib/access'
+import { formatAppVersion } from '@/lib/app-version'
+import { APP_VERSION } from '@/commons/env'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Menu, LogOut, ChevronsUpDown } from 'lucide-react'
@@ -65,6 +67,8 @@ const UserAvatar = ({
     </AvatarFallback>
   </Avatar>
 )
+
+const appVersion = formatAppVersion(APP_VERSION)
 
 export function Sidebar() {
   const { isCollapsed, toggleCollapse, isMobileOpen, closeMobile } =
@@ -253,6 +257,12 @@ export function Sidebar() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <p
+            className="mt-1 truncate text-center text-[10px] text-muted-foreground"
+            title={`Inventarium ${appVersion}`}
+          >
+            {isCollapsed ? appVersion : `Inventarium ${appVersion}`}
+          </p>
         </div>
       </aside>
 
@@ -286,19 +296,24 @@ export function Sidebar() {
           </div>
 
           {/* Rodapé Mobile: Perfil e Logout */}
-          <div className="mt-auto flex shrink-0 items-center gap-3 border-t bg-muted/50 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-            <UserAvatar initials={initials} className="size-9" />
-            {userIdentity}
-            <UiButton
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsLogoutModalOpen(true)}
-              aria-label="Sair da conta"
-              title="Sair da conta"
-              className="ml-auto shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-            >
-              <LogOut />
-            </UiButton>
+          <div className="mt-auto shrink-0 border-t bg-muted/50 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            <div className="flex items-center gap-3">
+              <UserAvatar initials={initials} className="size-9" />
+              {userIdentity}
+              <UiButton
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsLogoutModalOpen(true)}
+                aria-label="Sair da conta"
+                title="Sair da conta"
+                className="ml-auto shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              >
+                <LogOut />
+              </UiButton>
+            </div>
+            <p className="mt-2 text-center text-[10px] text-muted-foreground">
+              Inventarium {appVersion}
+            </p>
           </div>
         </SheetContent>
       </Sheet>
