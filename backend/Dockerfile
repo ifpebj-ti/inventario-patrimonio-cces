@@ -21,9 +21,9 @@ RUN apk upgrade --no-cache \
 COPY --from=builder /app/build/libs/*.jar app.jar
 
 USER spring:spring
-EXPOSE 8080
+EXPOSE 8080 8081
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=5 \
-  CMD curl --fail http://localhost:8080/actuator/health/liveness || exit 1
+  CMD curl --fail http://localhost:8081/actuator/health/liveness || exit 1
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
