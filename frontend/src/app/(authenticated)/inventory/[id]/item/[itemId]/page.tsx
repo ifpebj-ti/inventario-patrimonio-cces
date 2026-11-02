@@ -8,6 +8,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAdministrationAccess } from '@/contexts/AdministrationAccess'
 import { useInventorySector } from '@/hooks/useInventorySector'
 import { Spinner } from '@/components/ui/spinner'
+import { SelectField } from '@/components/ui/select-field'
+import { StatusBadge } from '@/components/ui/status-badge'
+import { useSectorRooms } from '@/hooks/useSectorRooms'
 
 import { Card as UiCard } from '@/components/ui/card'
 
@@ -31,6 +34,8 @@ type Draft = {
   description: string
   responsible: string
   locale: string
+  // Sala cadastrada escolhida na lista de salas do setor ('' = sem sala).
+  roomId: string
   price: string
 }
 const draftFrom = (item: Item): Draft => ({
@@ -38,6 +43,7 @@ const draftFrom = (item: Item): Draft => ({
   description: item.description || '',
   responsible: item.responsible || '',
   locale: item.locale || '',
+  roomId: item.roomId != null ? String(item.roomId) : '',
   price: String(item.price ?? '').replace('.', ','),
 })
 
@@ -56,6 +62,9 @@ export default function ItemDetailPage() {
   const inventorySectorId = useInventorySector(Number(id))
   const canManageInventories = canManageInventoryIn(inventorySectorId)
   const canOperateItems = canOperateItemsIn(inventorySectorId)
+  // Com salas cadastradas, a sala do item é escolhida na lista; sem salas, segue o texto livre.
+  const { rooms } = useSectorRooms(inventorySectorId)
+  const hasRooms = rooms.length > 0
 
   useEffect(() => {
     let active = true
@@ -95,6 +104,9 @@ export default function ItemDetailPage() {
         ...draft,
         code: draft.code.trim(),
         price,
+        roomId: hasRooms && draft.roomId ? Number(draft.roomId) : null,
+        // O texto da sala só é editável em setor sem salas.
+        locale: hasRooms ? item.locale : draft.locale,
       })
       setItem(saved)
       setDraft(null)
@@ -177,7 +189,7 @@ export default function ItemDetailPage() {
                 {[
                   ['Descrição', item.description],
                   ['Carga (responsável)', item.responsible],
-                  ['Sala / Local', item.locale],
+                  ['Sala cadastrada', item.locale],
                   [
                     'Valor',
                     Number(item.price).toLocaleString('pt-BR', {
@@ -196,6 +208,17 @@ export default function ItemDetailPage() {
                   </div>
                 ))}
               </dl>
+              {item.isValid && item.foundRoomName && (
+                <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
+                  <span className="font-medium text-muted-foreground">
+                    Sala encontrada:
+                  </span>
+                  <span className="text-foreground">{item.foundRoomName}</span>
+                  {item.divergent && (
+                    <StatusBadge tone="warning">Divergente</StatusBadge>
+                  )}
+                </div>
+              )}
             </UiCard>
             <UiCard
               role="region"
@@ -287,13 +310,32 @@ export default function ItemDetailPage() {
                   />
                 </UiLabel>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <UiLabel className="flex-col items-stretch gap-1.5 text-sm font-medium text-foreground">
-                    Sala / Local
-                    <UiInput
-                      value={draft.locale}
-                      onChange={(event) => change('locale', event.target.value)}
-                    />
-                  </UiLabel>
+                  {hasRooms ? (
+                    <div className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
+                      <span id="item-room-label">Sala cadastrada</span>
+                      <SelectField
+                        aria-label="Sala cadastrada"
+                        options={rooms.map((room) => ({
+                          value: String(room.id),
+                          label: room.name,
+                        }))}
+                        value={draft.roomId}
+                        onValueChange={(value) => change('roomId', value)}
+                        placeholder="Selecione a sala"
+                        disabled={busy}
+                      />
+                    </div>
+                  ) : (
+                    <UiLabel className="flex-col items-stretch gap-1.5 text-sm font-medium text-foreground">
+                      Sala / Local
+                      <UiInput
+                        value={draft.locale}
+                        onChange={(event) =>
+                          change('locale', event.target.value)
+                        }
+                      />
+                    </UiLabel>
+                  )}
                   <UiLabel className="flex-col items-stretch gap-1.5 text-sm font-medium text-foreground">
                     Valor (R$)
                     <UiInput

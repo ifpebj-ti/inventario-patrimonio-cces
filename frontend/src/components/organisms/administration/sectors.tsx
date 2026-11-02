@@ -20,6 +20,7 @@ import {
   setSectorActive,
 } from '@/services/administration'
 import { SectorMembersSheet } from './sectorMembersSheet'
+import { SectorRoomsSheet } from './sectorRoomsSheet'
 import {
   AdminConfirmation,
   AdminModal,
@@ -44,6 +45,8 @@ export const SectorsScreen = () => {
   const [removal, setRemoval] = useState<Sector | null>(null)
   // Setor cuja barra lateral de usuários está aberta.
   const [viewing, setViewing] = useState<Sector | null>(null)
+  // Setor cuja barra lateral de salas está aberta.
+  const [roomsOf, setRoomsOf] = useState<Sector | null>(null)
   const { busy, run } = useOperation()
 
   const load = useCallback(async (signal?: AbortSignal) => {
@@ -288,6 +291,15 @@ export const SectorsScreen = () => {
                         Usuários associados
                       </UiButton>
                     )}
+                    {(isAdmin || managedSectorIds.includes(sector.id)) && (
+                      <UiButton
+                        variant="outline"
+                        type="button"
+                        onClick={() => setRoomsOf(sector)}
+                      >
+                        Salas
+                      </UiButton>
+                    )}
                     {isAdmin && (
                       <>
                         <UiButton
@@ -430,6 +442,9 @@ export const SectorsScreen = () => {
           'Só é possível excluir setor sem usuários e sem inventários associados.',
         ]}
       />
+      {roomsOf && (
+        <SectorRoomsSheet sector={roomsOf} onClose={() => setRoomsOf(null)} />
+      )}
       {viewing && (
         <SectorMembersSheet
           sector={viewing}

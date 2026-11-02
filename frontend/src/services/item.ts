@@ -51,6 +51,18 @@ export const updateItemRequest = async (updatedItem: Item): Promise<Item> => {
   return response.data
 }
 
+// Valida o item informando a sala em que foi encontrado (obrigatória em setor com salas).
+export const validateItemRequest = async (
+  itemId: number,
+  roomId: number | null,
+): Promise<Item> => {
+  const response = await api.patch<Item>(
+    `/item/${itemId}/validate`,
+    roomId === null ? undefined : { roomId },
+  )
+  return response.data
+}
+
 // Atualiza apenas as observações de um item, usando o método PATCH para uma atualização parcial.
 export const updateItemNotesRequest = async (
   itemId: number,

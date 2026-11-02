@@ -14,6 +14,13 @@ export interface Item {
   qr_code?: string
   responsible: string
   locale?: string // A interrogação '?' indica que 'locale' é opcional (pode existir ou não)
+  // Sala cadastrada do item (do setor) e sala em que foi encontrado na validação.
+  roomId?: number | null
+  roomName?: string | null
+  foundRoomId?: number | null
+  foundRoomName?: string | null
+  // Validado numa sala diferente da cadastrada.
+  divergent?: boolean
   isValid?: boolean
   observations?: Observation[]
   validatedAt?: string
