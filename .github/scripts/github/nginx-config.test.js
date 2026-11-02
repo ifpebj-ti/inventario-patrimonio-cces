@@ -129,6 +129,26 @@ test("API exposes only the actuator health endpoints", () => {
   assert.match(api.block, /location\s+\/actuator\/\s*\{\s*return\s+404;/);
 });
 
+test("the public health goes to the management port and nothing else is proxied there", () => {
+  const api = tlsServers.find(({ block }) => /server_name\s+api\.inventariumifpe\.me\s*;/.test(block));
+  const health = api.block.match(/location\s+~\s+\^\/actuator\/health[^{]*\{([^}]*)\}/);
+
+  assert.ok(health, "location do health não encontrada");
+  assert.match(health[1], /proxy_pass\s+http:\/\/api_management_upstream;/);
+  // A regex é exata: nenhum prefixo livre (como /actuator/ ou /actuator/prometheus) chega ao upstream.
+  assert.doesNotMatch(api.block.replace(health[0], ""), /api_management_upstream/);
+  assert.doesNotMatch(api.block, /prometheus/);
+});
+
+test("the management upstream prefers 8081 and keeps 8080 only as a transition backup", () => {
+  const apiSite = listConf("sites-tls").find(({ text }) => /api_management_upstream/.test(text));
+  const upstream = apiSite.text.match(/upstream\s+api_management_upstream\s*\{([^}]*)\}/);
+
+  assert.ok(upstream, "upstream não encontrado");
+  assert.match(upstream[1], /server\s+127\.0\.0\.1:8081\s*;/);
+  assert.match(upstream[1], /server\s+127\.0\.0\.1:8080\s+backup\s*;/);
+});
+
 test("only /auth/login gets the strict per-IP limit; /auth/google and /auth/me stay on the general zone", () => {
   const api = tlsServers.find(({ block }) => /server_name\s+api\.inventariumifpe\.me\s*;/.test(block));
 

@@ -37,6 +37,10 @@ const stackVariables = [
   "CORS_ALLOWED_ORIGINS",
   "BACKEND_PORT",
   "FRONTEND_PORT",
+  "BACKEND_MANAGEMENT_PORT",
+  "TRACING_EXPORT_ENABLED",
+  "TRACING_OTLP_ENDPOINT",
+  "TRACING_SAMPLING_PROBABILITY",
   "SPRING_JPA_HIBERNATE_DDL_AUTO",
   "GOOGLE_ALLOWED_DOMAINS",
   "AUTH_LOGIN_USER_MAX_FAILURES",
@@ -108,6 +112,30 @@ test("publishes application ports only on loopback", { skip }, () => {
       assert.equal(port.host_ip, "127.0.0.1", `${name} deve usar loopback`);
     }
   }
+});
+
+test("the backend management port (metrics) is published only on loopback", { skip }, () => {
+  const back = resolved().services["inventarium-back"];
+  const management = back.ports.find((port) => Number(port.target) === 8081);
+
+  assert.ok(management, "porta de gerenciamento 8081 não publicada");
+  assert.equal(management.host_ip, "127.0.0.1");
+  assert.equal(Number(management.published), 8081);
+});
+
+test("tracing is off by default and sampling is configurable", { skip }, () => {
+  const environment = resolved().services["inventarium-back"].environment;
+
+  assert.equal(environment.TRACING_EXPORT_ENABLED, "false");
+  assert.equal(environment.TRACING_SAMPLING_PROBABILITY, "1.0");
+
+  const enabled = resolved({
+    ...baseEnv,
+    TRACING_EXPORT_ENABLED: "true",
+    TRACING_OTLP_ENDPOINT: "http://10.42.0.74:4318/v1/traces",
+  }).services["inventarium-back"].environment;
+  assert.equal(enabled.TRACING_EXPORT_ENABLED, "true");
+  assert.equal(enabled.TRACING_OTLP_ENDPOINT, "http://10.42.0.74:4318/v1/traces");
 });
 
 test("pulls release images from GHCR by IMAGE_TAG", { skip }, () => {
