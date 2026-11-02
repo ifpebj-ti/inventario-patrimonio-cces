@@ -17,7 +17,8 @@ datasources:
       # Do log para o trace correspondente (campo traceId escrito pelo backend).
       derivedFields:
         - name: traceId
-          matcherRegex: 'traceId=(\w+)'
+          # O log do Spring Boot traz o trace entre colchetes: [<traceId com 32 hex>-<spanId com 16 hex>]
+          matcherRegex: '\[(\w{32})-\w{16}\]'
           url: '$${__value.raw}'
           datasourceUid: tempo
 
