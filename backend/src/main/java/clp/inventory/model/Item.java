@@ -42,6 +42,16 @@ public class Item {
   @JoinColumn(name = "id_inventory")
   private Inventory inventory;
 
+  // Sala cadastrada do item (do setor do inventário).
+  @ManyToOne
+  @JoinColumn(name = "id_room")
+  private Room room;
+
+  // Sala em que o item foi encontrado na última validação; só registro, não altera a cadastrada.
+  @ManyToOne
+  @JoinColumn(name = "id_found_room")
+  private Room foundRoom;
+
   @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
   @JoinColumn(name = "id_item", nullable = false)
   private List<Observation> observations = new ArrayList<>();
@@ -91,8 +101,22 @@ public class Item {
     return responsible;
   }
 
+  /** Texto da sala para exibição: o nome da sala cadastrada ou, sem sala, o texto antigo. */
   public String locale() {
-    return locale;
+    return room != null ? room.name() : locale;
+  }
+
+  public Room room() {
+    return room;
+  }
+
+  public Room foundRoom() {
+    return foundRoom;
+  }
+
+  /** Validado numa sala diferente da cadastrada. */
+  public boolean divergent() {
+    return room != null && foundRoom != null && room.id() != foundRoom.id();
   }
 
   public String qrCode() {
@@ -132,6 +156,18 @@ public class Item {
 
   public void setLocale(String locale) {
     this.locale = locale;
+  }
+
+  /** Define a sala cadastrada e mantém o texto de exibição (locale) igual ao nome dela. */
+  public void setRoom(Room room) {
+    this.room = room;
+    if (room != null) {
+      this.locale = room.name();
+    }
+  }
+
+  public void setFoundRoom(Room foundRoom) {
+    this.foundRoom = foundRoom;
   }
 
   public void setQrCode(String qrCode) {

@@ -5,6 +5,7 @@ import clp.inventory.dto.ObservationDto;
 import clp.inventory.model.Inventory;
 import clp.inventory.model.Item;
 import clp.inventory.model.Observation;
+import clp.inventory.model.Room;
 import clp.inventory.model.Sector;
 import clp.inventory.repository.InventoryRepository;
 import clp.inventory.repository.ItemRepository;
@@ -30,18 +31,21 @@ public class ItemService {
   private final AuthorizationService authorizationService;
   private final UserService userService;
   private final ItemAuditService itemAuditService;
+  private final RoomService roomService;
 
   public ItemService(
       ItemRepository itemRepository,
       InventoryRepository inventoryRepository,
       AuthorizationService authorizationService,
       UserService userService,
-      ItemAuditService itemAuditService) {
+      ItemAuditService itemAuditService,
+      RoomService roomService) {
     this.itemRepository = itemRepository;
     this.inventoryRepository = inventoryRepository;
     this.authorizationService = authorizationService;
     this.userService = userService;
     this.itemAuditService = itemAuditService;
+    this.roomService = roomService;
   }
 
   /** Leitura de um item: quem enxerga o inventário a que ele pertence. */
@@ -99,28 +103,43 @@ public class ItemService {
   }
 
   /**
-   * Validar item e editar dados exigem poder operar o inventário. Operadores só alteram a validação
-   * (e observações); os demais dados são do gestor/admin. Depois da finalização do inventário a
-   * validação deixa de poder ser alterada.
-   */
-  /**
-   * Valida o item e registra a auditoria. Exige poder operar o inventário e não é permitido depois
-   * da finalização. Validar de novo um item já validado não gera outro registro.
+   * Valida o item informando a sala em que ele foi encontrado, e registra a auditoria (com a sala
+   * encontrada, a cadastrada e se divergem). Exige poder operar o inventário e não é permitido
+   * depois da finalização. Em setor com salas cadastradas a sala é obrigatória (400); em setor sem
+   * salas valida como antes. Validar de novo um item já validado só gera outro registro se a sala
+   * informada for diferente da já registrada.
    */
   @Transactional
-  public Item validateItem(long itemId, long userId) {
+  public Item validateItem(long itemId, long userId, Long roomId) {
     Item item = requireItem(itemId);
     Inventory inventory = inventoryOf(item);
     authorizationService.requireOperateInventory(userId, inventory);
+    requireOpen(inventory);
+    if (item.isValid() && sameFoundRoom(item, roomId)) {
+      return item;
+    }
+    applyValidation(item, inventory, userId, roomId);
+    return itemRepository.save(item);
+  }
+
+  private static void requireOpen(Inventory inventory) {
     if (inventory.status() == Inventory.Status.CONCLUIDO) {
       throw new ResponseStatusException(
           HttpStatus.CONFLICT, "Inventário finalizado: não é possível validar itens.");
     }
-    if (item.isValid()) {
-      return item;
-    }
+  }
 
+  /** Sem sala informada num item já validado não há o que registrar de novo. */
+  private static boolean sameFoundRoom(Item item, Long roomId) {
+    return roomId == null
+        || (item.foundRoom() != null && item.foundRoom().id() == roomId.longValue());
+  }
+
+  /** Marca o item como validado na sala informada e grava a auditoria. */
+  private void applyValidation(Item item, Inventory inventory, long userId, Long roomId) {
     Sector targetSector = inventory.sector();
+    Room foundRoom = resolveFoundRoom(inventory, roomId);
+
     // O setor de quem valida é o do inventário quando a pessoa está alocada a ele; administrador
     // não pertence a um setor, então a validação dele nunca é parcial.
     boolean sameSector =
@@ -137,6 +156,7 @@ public class ItemService {
 
     item.setValid(true);
     item.setValidatedAt(LocalDateTime.now());
+    item.setFoundRoom(foundRoom);
     itemRepository.save(item);
     itemAuditService.record(
         item,
@@ -146,8 +166,26 @@ public class ItemService {
         targetSector,
         eventType,
         status,
-        null);
-    return item;
+        null,
+        foundRoom);
+  }
+
+  /** A sala exigida: obrigatória em setor com salas, e sempre uma sala do setor do inventário. */
+  private Room resolveFoundRoom(Inventory inventory, Long roomId) {
+    Sector sector = inventory.sector();
+    if (roomId != null) {
+      if (sector == null) {
+        throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST, "O inventário não tem setor: não há salas para informar.");
+      }
+      return roomService.requireRoomOfSector(roomId, sector.id());
+    }
+    if (sector != null && roomService.sectorHasRooms(sector.id())) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST,
+          "Informe a sala em que o item foi encontrado para validá-lo (roomId).");
+    }
+    return null;
   }
 
   @Transactional
@@ -155,8 +193,8 @@ public class ItemService {
     Item existingItem = requireItem(updatedItem.id());
     Inventory inventory = inventoryOf(existingItem);
     authorizationService.requireOperateInventory(userId, inventory);
-    if (inventory.status() == Inventory.Status.CONCLUIDO
-        && updatedItem.isValid() != existingItem.isValid()) {
+    boolean validationChanged = updatedItem.isValid() != existingItem.isValid();
+    if (inventory.status() == Inventory.Status.CONCLUIDO && validationChanged) {
       throw new ResponseStatusException(
           HttpStatus.CONFLICT, "Inventário finalizado: não é possível validar itens.");
     }
@@ -175,10 +213,18 @@ public class ItemService {
       }
     }
 
+    // A sala cadastrada muda por roomId (clientes novos) ou pelo texto de locale (clientes
+    // antigos).
+    Long currentRoomId = existingItem.room() != null ? existingItem.room().id() : null;
+    boolean roomChanged =
+        updatedItem.roomId() != null
+            ? !Objects.equals(currentRoomId, updatedItem.roomId())
+            : !Objects.equals(existingItem.locale(), updatedItem.locale());
+
     if (!authorizationService.canManageInventory(userId, inventory)
         && !(Objects.equals(existingItem.code(), updatedItem.code())
             && Objects.equals(existingItem.description(), updatedItem.description())
-            && Objects.equals(existingItem.locale(), updatedItem.locale())
+            && !roomChanged
             && Objects.equals(existingItem.responsible(), updatedItem.responsible())
             && priceParseLong == existingItem.price())) {
       throw new ResponseStatusException(
@@ -189,18 +235,38 @@ public class ItemService {
     existingItem.setName("");
     existingItem.setDescription(updatedItem.description());
     existingItem.setPrice(priceParseLong);
-    existingItem.setLocale(updatedItem.locale());
+    if (roomChanged) {
+      changeRoom(existingItem, inventory, updatedItem);
+    }
     existingItem.setResponsible(updatedItem.responsible());
-    existingItem.setValid(updatedItem.isValid());
-    if (updatedItem.isValid()) {
-      if (existingItem.validatedAt() == null) {
-        existingItem.setValidatedAt(LocalDateTime.now());
-      }
-    } else {
+
+    if (updatedItem.isValid() && !existingItem.isValid()) {
+      // Marcar como validado pelo PUT segue a mesma regra e a mesma auditoria de PATCH /validate.
+      applyValidation(existingItem, inventory, userId, updatedItem.foundRoomId());
+    } else if (!updatedItem.isValid()) {
+      existingItem.setValid(false);
       existingItem.setValidatedAt(null);
+      existingItem.setFoundRoom(null);
     }
 
     return itemRepository.save(existingItem);
+  }
+
+  private void changeRoom(Item item, Inventory inventory, ItemDto updatedItem) {
+    Sector sector = inventory.sector();
+    Room room;
+    if (updatedItem.roomId() != null) {
+      room =
+          sector == null
+              ? null
+              : roomService.requireRoomOfSector(updatedItem.roomId(), sector.id());
+    } else {
+      room = sector == null ? null : roomService.findOrCreate(sector, updatedItem.locale());
+    }
+    item.setRoom(room);
+    if (room == null) {
+      item.setLocale(sector == null ? updatedItem.locale() : null);
+    }
   }
 
   @Transactional

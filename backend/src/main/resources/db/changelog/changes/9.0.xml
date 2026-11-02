@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+    <!--
+        Salas por setor. Ate aqui a sala do item era so um texto livre (im_item.locale), sem lista: "Sala 105",
+        "sala 105" e "S. 105" eram valores diferentes. Agora cada setor tem as suas salas (im_room) e o item aponta
+        para a sala cadastrada (id_room); na validacao grava-se tambem a sala onde foi encontrado (id_found_room), e a
+        auditoria guarda a encontrada, a esperada e se houve divergencia.
+
+        Migracao dos dados (uma transacao so): para cada setor, os locale distintos dos itens dos inventarios dele
+        viram salas. Dois locale que so diferem em maiusculas, acentos ou espacos viram a MESMA sala; o nome exibido e
+        a grafia mais frequente (a primeira em ordem alfabetica em caso de empate). locale vazio nao vira sala. A coluna
+        locale NAO e apagada (fica como texto de exibicao e para poder voltar atras).
+
+        Normalizacao (a mesma do Java, RoomNames.normalize): trim, espacos repetidos em um, minusculas e sem acento.
+    -->
+    <changeSet id="20261102-01" author="inventarium">
+        <sql>
+            CREATE SEQUENCE im_room_id START WITH 1 INCREMENT BY 1;
+
+            CREATE TABLE im_room (
+                id BIGINT NOT NULL,
+                id_sector BIGINT NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                normalized_name VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT now(),
+                updated_at TIMESTAMP NOT NULL DEFAULT now(),
+                CONSTRAINT pk_room PRIMARY KEY (id),
+                CONSTRAINT fk_room_sector FOREIGN KEY (id_sector) REFERENCES im_sector (id),
+                CONSTRAINT uk_room_sector_name UNIQUE (id_sector, normalized_name)
+            );
+
+            ALTER TABLE im_item ADD COLUMN id_room BIGINT;
+            ALTER TABLE im_item ADD COLUMN id_found_room BIGINT;
+            ALTER TABLE im_item ADD CONSTRAINT fk_item_room FOREIGN KEY (id_room) REFERENCES im_room (id);
+            ALTER TABLE im_item ADD CONSTRAINT fk_item_found_room FOREIGN KEY (id_found_room) REFERENCES im_room (id);
+
+            ALTER TABLE im_item_audit ADD COLUMN id_found_room BIGINT;
+            ALTER TABLE im_item_audit ADD COLUMN id_expected_room BIGINT;
+            ALTER TABLE im_item_audit ADD COLUMN divergent BOOLEAN NOT NULL DEFAULT false;
+            ALTER TABLE im_item_audit ADD CONSTRAINT fk_audit_found_room FOREIGN KEY (id_found_room) REFERENCES im_room (id);
+            ALTER TABLE im_item_audit ADD CONSTRAINT fk_audit_expected_room FOREIGN KEY (id_expected_room) REFERENCES im_room (id);
+
+            INSERT INTO im_room (id, id_sector, name, normalized_name)
+            SELECT nextval('im_room_id'), ranked.id_sector, ranked.display, ranked.norm
+              FROM (
+                  SELECT counted.id_sector, counted.display, counted.norm,
+                         row_number() OVER (PARTITION BY counted.id_sector, counted.norm
+                                            ORDER BY counted.total DESC, counted.display) AS position
+                    FROM (
+                        SELECT inv.id_sector,
+                               btrim(regexp_replace(it.locale, '\s+', ' ', 'g')) AS display,
+                               translate(lower(btrim(regexp_replace(it.locale, '\s+', ' ', 'g'))),
+                                         'áàâãäéèêëíìîïóòôõöúùûüç', 'aaaaaeeeeiiiiooooouuuuc') AS norm,
+                               count(*) AS total
+                          FROM im_item it
+                          JOIN im_inventory inv ON inv.id = it.id_inventory
+                         WHERE inv.id_sector IS NOT NULL
+                           AND it.locale IS NOT NULL
+                           AND btrim(it.locale) != ''
+                         GROUP BY inv.id_sector,
+                                  btrim(regexp_replace(it.locale, '\s+', ' ', 'g')),
+                                  translate(lower(btrim(regexp_replace(it.locale, '\s+', ' ', 'g'))),
+                                            'áàâãäéèêëíìîïóòôõöúùûüç', 'aaaaaeeeeiiiiooooouuuuc')
+                    ) counted
+              ) ranked
+             WHERE ranked.position = 1;
+
+            UPDATE im_item it
+               SET id_room = room.id
+              FROM im_inventory inv, im_room room
+             WHERE inv.id = it.id_inventory
+               AND room.id_sector = inv.id_sector
+               AND it.locale IS NOT NULL
+               AND btrim(it.locale) != ''
+               AND room.normalized_name = translate(lower(btrim(regexp_replace(it.locale, '\s+', ' ', 'g'))),
+                                                    'áàâãäéèêëíìîïóòôõöúùûüç', 'aaaaaeeeeiiiiooooouuuuc');
+        </sql>
+    </changeSet>
+</databaseChangeLog>
