@@ -214,6 +214,40 @@ remover **um** usuário use `PUT`/`DELETE /users/{id}/sectors/{sectorId}`.
 
 ---
 
+## Salas do setor e validação com sala
+
+Cada setor tem as suas **salas**. O item aponta para a sala cadastrada (`roomId`) e, ao ser validado, grava a sala em que
+foi **encontrado** (`foundRoomId`); a divergência entre as duas fica no item (`divergent`) e na auditoria. A sala
+encontrada é só registro: **não altera** a sala cadastrada.
+
+| Método e rota | Permissão exigida | Sucesso |
+| --- | --- | --- |
+| `GET /sectors/{id}/rooms` | quem lê o setor (Consultar, Gerenciar Item ou Gerenciar Setor) ou administrador | `200` |
+| `POST /sectors/{id}/rooms` `{ "name" }` | administrador ou gestor (`MANAGE_SECTOR`) do setor | `201` |
+| `PUT /rooms/{id}` `{ "name" }` | administrador ou gestor do setor da sala | `200` |
+| `DELETE /rooms/{id}` | administrador ou gestor do setor da sala | `204` |
+
+- `RoomDto`: `id`, `name`, `sectorId`, `itemCount` (itens cadastrados nela) e `deletable` (falso se algum item, cadastrado
+  ou encontrado, ou registro de auditoria aponta para ela).
+- O nome é aparado, tem os espaços repetidos reduzidos a um e é único **no setor** sem diferenciar maiúsculas, acentos e
+  espaços ("Sala 105" = "sala  105"); duas "Sala 105" de setores diferentes são salas diferentes. Nome vazio, com mais de
+  100 caracteres ou repetido no setor é `400`; setor ou sala inexistente é `404`; excluir sala com item ou auditoria é `409`.
+- **Validar exige a sala em setor que tem salas.** `PATCH /item/{id}/validate` aceita o corpo `{ "roomId": N }`. Em setor
+  com ao menos uma sala, sem `roomId` (ou com sala de outro setor) a resposta é `400` e nada é gravado. Em setor **sem**
+  salas valida como antes (sem corpo). `PUT /item/{id}` que muda `isValid` de falso para verdadeiro segue a mesma regra e
+  lê `foundRoomId` do corpo, e grava a mesma auditoria. Inventário finalizado segue `409`.
+- Validar de novo um item já validado só gera outro registro se a sala informada for diferente da registrada. Desmarcar a
+  validação (`PUT` com `isValid` falso) limpa a sala encontrada.
+- `ItemDto` ganha `roomId`, `roomName`, `foundRoomId`, `foundRoomName` e `divergent`; `locale` continua, com o nome da
+  sala cadastrada (ou o texto antigo, se o item não tem sala). `ItemAuditDto` ganha `foundRoomId`, `foundRoomName`,
+  `expectedRoomId`, `expectedRoomName` e `divergent`.
+- Editar a sala cadastrada (gestor/administrador, `PUT /item/{id}`): por `roomId` (sala do setor do inventário) ou, para
+  clientes antigos, pelo texto de `locale`, que acha ou cria a sala pelo nome. O operador continua sem editar dados do
+  item (`403`).
+- A sala nasce manualmente (Setores → Salas) ou na importação do CSV e em `POST /inventory/add-single-item`, que **acham
+  ou criam** a sala do setor do inventário pelo nome da coluna "Sala". Excluir o setor remove as salas dele (o setor só
+  é excluível sem inventário nem auditoria).
+
 ## `/users` — listagem, alocação com cargo e administrador
 
 Um usuário pode estar alocado a **vários setores ao mesmo tempo** (tabela `im_sector_allocation`), com um **cargo
@@ -418,6 +452,7 @@ Para quem já tinha algo montado em cima da versão 1.x. **Mudança incompatíve
 | 1.5 | 2026-10-11 | A conta de sistema sai de `GET /users` e `GET /sectors/{id}/users`, e as rotas de perfil e alocação respondem `404` para ela (issue #202). |
 | 1.6 | 2026-10-11 | `/profiles`, `/permissions` e `PATCH /users/{id}/profile` passam a exigir `ADMIN`; `/permissions` vira somente leitura (`POST`/`PUT`/`DELETE` removidos); o perfil `ADMIN_ORGANIZATION` fica protegido (409); nome de perfil com `trim` (issue #205). |
 | 1.7 | 2026-10-18 | O `429` de `POST /auth/login` passa a vir de duas camadas (Nginx por IP e backend por usuário); `/auth/google` e `/auth/me` ficam sem limite de tentativas (issue #228). |
+| 2.1 | 2026-11-01 | Salas por setor (`/sectors/{id}/rooms`, `/rooms/{id}`), validação com `roomId` obrigatório em setor com salas e divergência no item e na auditoria. |
 | 1.8 | 2026-10-18 | `POST /users` e `DELETE /users/{id}` removidos (usuário só nasce no primeiro login Google, **sem perfil**, e nunca é excluído); `PATCH /users/{id}/activate` e `/deactivate` passam a exigir `ADMIN`; o campo `pendingGoogleLogin` sai de `UserDto` (issue #232). |
 | 1.9 | 2026-10-18 | Entra `DELETE /sectors/{id}` (só `ADMIN`, `409` se o setor tiver usuário, inventário ou auditoria) e o campo `deletable` em `SectorDto` (issue #234). |
 | 2.0 | 2026-10-18 | **Major.** Cargo por alocação no lugar do perfil global; `/profiles` vira `/roles` com CRUD só para o administrador (excluir só sem alocação e sem permissão); `PUT /users/{id}/sectors/{sectorId}` com `roleId` obrigatório; `PATCH /users/{id}/administrator`; administrador vira coluna do usuário e a permissão `ADMIN` sai; `/auth/me` traz `administrator` e `allocations` (sub-issue de #154). |

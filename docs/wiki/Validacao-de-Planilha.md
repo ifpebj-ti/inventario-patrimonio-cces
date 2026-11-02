@@ -37,7 +37,8 @@ O frontend mantém os estados `idle`, `validating`, `valid`, `invalid`, `importi
 | --- | --- |
 | Dois códigos iguais no mesmo CSV | O frontend bloqueia antes da chamada remota, informa a linha repetida e a primeira ocorrência. O servidor ainda não detecta na pré-validação; sua importação sequencial rejeita depois que o primeiro for persistido. |
 | Código já existente no inventário | `InventoryService.addItemToInventory` percorre os itens do inventário e rejeita o código com `Item already exists in inventory`. |
-| Validação antes de importar | `/validate-sheet` não recebe `inventoryId` e não consulta os itens existentes. |
+| Validação antes de importar | `/validate-sheet` aceita `inventoryId` opcional (o frontend sempre o envia) só para listar as salas; não consulta os itens existentes. |
+| Coluna Sala | A sala vira uma sala **do setor do inventário**, achada pelo nome sem diferenciar maiúsculas, acentos e espaços ("Sala 105", "sala  105"), ou criada se não existir. Com `inventoryId`, `/validate-sheet` responde também `newRooms` (serão criadas) e `existingRooms`, sem criar nada, e a tela mostra "N salas novas serão criadas" antes de Processar para o gestor conferir erros de digitação. `/add-items` informa `createdRooms`. |
 | Variações de caixa | A comparação usa `String.equals`; não há normalização explícita de caixa para a regra de duplicidade. Tokens CSV têm espaços externos removidos. |
 | Requisições concorrentes | A consulta seguida de gravação não garante exclusividade. Falta uma política de concorrência e uma garantia de unicidade por inventário no banco. |
 
@@ -47,8 +48,8 @@ A importação percorre um `for` no controller. Para cada item, o serviço busca
 
 | Endpoint | Resposta |
 | --- | --- |
-| `/validate-sheet` | 200: mensagem de validade; 400: erro geral ou `ValidationResponse` com erros por item; 500: falha não tratada no processamento. |
-| `/add-items` | 201: todos aceitos; 206: sucesso parcial; 400: todos falharam ou entrada inválida; 500: falha não tratada. |
+| `/validate-sheet` | 200: mensagem de validade (e `newRooms`/`existingRooms` quando recebe `inventoryId`); 400: erro geral ou `ValidationResponse` com erros por item; 500: falha não tratada no processamento. |
+| `/add-items` | 201: todos aceitos (a resposta traz `createdRooms`); 206: sucesso parcial; 400: todos falharam ou entrada inválida; 500: falha não tratada. |
 
 A resposta de importação inclui `totalProcessed`, `successes`, `failures`, `successfulItems` e `failedItems`, além das chaves legadas com `\n`. O frontend aceita as duas variantes dos contadores.
 

@@ -30,7 +30,8 @@ erDiagram
 | `im_profile_permission` | Associação perfil-permissão. | Chave primária composta por `id_profile` e `id_permission`. |
 | `im_user` | Pessoa autenticada pelo Google. | `email` e `google_id` são únicos; setor e perfil são opcionais na migração. |
 | `im_inventory` | Inventário patrimonial. | Pertence ao usuário criador por `id_user`. |
-| `im_item` | Bem de um inventário. | Código, QR Code e inventário são obrigatórios; inicia não validado. |
+| `im_room` | Sala de um setor. | `id_sector` obrigatório; `normalized_name` (sem caixa, acento e espaços repetidos) é único por setor. |
+| `im_item` | Bem de um inventário. | Código, QR Code e inventário são obrigatórios; inicia não validado. `id_room` é a sala cadastrada e `id_found_room` a sala em que foi encontrado na última validação; `locale` fica como texto de exibição. |
 | `im_observation` | Observação textual de um item. | Conteúdo e item são obrigatórios. |
 
 ## Perfis e Permissões
