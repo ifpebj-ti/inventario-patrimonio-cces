@@ -1,0 +1,15 @@
+# SOMENTE para testar o Alloy no seu computador (Docker Desktop no Windows/macOS). Nao e usado nas VMs.
+# Use junto do compose principal:
+#   OBS_HOST=host.docker.internal BACKEND_METRICS_ADDR=host.docker.internal:8081 VM_NAME=local \
+#     docker compose -f docker-compose.alloy.yml -f docker-compose.local.yml up -d
+# No Docker Desktop o modo de rede "host" nao enxerga o seu computador, entao o container usa a rede padrao
+# e alcanca o Windows por host.docker.internal; e a montagem "rslave" do / nao existe la.
+name: inventarium-alloy
+
+services:
+  alloy:
+    network_mode: bridge
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /:/host/root:ro

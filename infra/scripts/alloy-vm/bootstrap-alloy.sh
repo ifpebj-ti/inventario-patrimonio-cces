@@ -33,6 +33,12 @@ log "copiando o Alloy para $APP_DIR"
 mkdir -p "$APP_DIR"
 install -m 0644 "$src/docker-compose.alloy.yml" "$APP_DIR/docker-compose.alloy.yml"
 install -m 0644 "$src/config.alloy" "$APP_DIR/config.alloy"
+# As metricas do backend so existem na VM da aplicacao; na outra o arquivo fica vazio (valido no Alloy).
+if [ "$vm_name" = "app" ]; then
+  install -m 0644 "$src/backend.alloy" "$APP_DIR/backend.alloy"
+else
+  : > "$APP_DIR/backend.alloy"
+fi
 (
   umask 077
   printf 'OBS_HOST=%s\nVM_NAME=%s\n' "$obs_host" "$vm_name" > "$ENV_FILE"
