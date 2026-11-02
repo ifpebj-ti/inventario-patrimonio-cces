@@ -59,6 +59,7 @@ services:
       args:
         NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:?defina GOOGLE_OAUTH_CLIENT_ID no .env}
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+        NEXT_PUBLIC_APP_VERSION: ${NEXT_PUBLIC_APP_VERSION:-}
     restart: unless-stopped
     depends_on:
       inventarium-back:
