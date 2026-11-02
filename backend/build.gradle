@@ -36,6 +36,7 @@ dependencies {
 
     // Metricas no formato Prometheus (so na porta de gerenciamento) e traces OpenTelemetry (OTLP).
     implementation 'io.micrometer:micrometer-registry-prometheus'
+    implementation 'org.springframework.boot:spring-boot-starter-opentelemetry'
 
     implementation "org.springframework.boot:spring-boot-starter-security"
     // https://mvnrepository.com/artifact/com.auth0/java-jwt
