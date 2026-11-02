@@ -71,6 +71,12 @@ classDiagram
         +LocalDateTime validatedAt
     }
 
+    class Room {
+        +long id
+        +String name
+        +String normalizedName
+    }
+
     class Observation {
         +long id
         +String content
@@ -84,6 +90,9 @@ classDiagram
     User "1" <-- "0..*" Inventory : cria
     Inventory "1" *-- "0..*" Item : contém
     Item "1" *-- "0..*" Observation : contém
+    Sector "1" <-- "0..*" Room : possui
+    Room "0..1" <-- "0..*" Item : sala cadastrada
+    Room "0..1" <-- "0..*" Item : sala encontrada
 ```
 
 ## Classes e responsabilidades

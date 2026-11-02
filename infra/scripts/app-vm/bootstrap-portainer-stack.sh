@@ -101,7 +101,8 @@ required=(POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB SPRING_MAIL_USERNAME SPRIN
 # producao nao usa nao deve ir para o servidor.
 allowed=(POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB SPRING_MAIL_USERNAME SPRING_MAIL_PASSWORD
   SECURITY_TOKEN_SECRET GOOGLE_OAUTH_CLIENT_ID GOOGLE_ALLOWED_DOMAINS CORS_ALLOWED_ORIGINS IMAGE_TAG
-  SYSTEM_ADMIN_USERNAME SYSTEM_ADMIN_PASSWORD FORWARD_HEADERS_STRATEGY BACKEND_PORT FRONTEND_PORT
+  SYSTEM_ADMIN_USERNAME SYSTEM_ADMIN_PASSWORD TEST_VIEWER_PASSWORD TEST_OPERATOR_PASSWORD
+  TEST_MANAGER_PASSWORD FORWARD_HEADERS_STRATEGY BACKEND_PORT FRONTEND_PORT
   SPRING_JPA_HIBERNATE_DDL_AUTO AUTH_LOGIN_USER_MAX_FAILURES AUTH_LOGIN_WINDOW
   AUTH_LOGIN_BLOCK_DURATION TRACING_EXPORT_ENABLED TRACING_OTLP_ENDPOINT
   TRACING_SAMPLING_PROBABILITY)
@@ -133,10 +134,14 @@ for key in "${required[@]}"; do
   [ -n "$value" ] || die "variavel obrigatoria ausente ou vazia em $env_file: $key"
 done
 
-sys_pw="$(jq -r '.[] | select(.name == "SYSTEM_ADMIN_PASSWORD") | .value' <<<"$env_json")"
-if [ -n "$sys_pw" ] && [ "${#sys_pw}" -lt 12 ]; then
-  die "SYSTEM_ADMIN_PASSWORD precisa ter no minimo 12 caracteres (senao o backend nao cria a conta)."
-fi
+# Senha da conta de sistema e das tres contas de teste: vazia desliga a conta; preenchida precisa ter
+# 12+ caracteres, senao o backend recusa e a conta nao e criada (falha silenciosa no servidor).
+for pw_var in SYSTEM_ADMIN_PASSWORD TEST_VIEWER_PASSWORD TEST_OPERATOR_PASSWORD TEST_MANAGER_PASSWORD; do
+  pw="$(jq -r --arg k "$pw_var" '.[] | select(.name == $k) | .value' <<<"$env_json")"
+  if [ -n "$pw" ] && [ "${#pw}" -lt 12 ]; then
+    die "$pw_var precisa ter no minimo 12 caracteres (senao o backend nao cria a conta)."
+  fi
+done
 [ "$(jq -r '.[] | select(.name == "SECURITY_TOKEN_SECRET") | .value | length' <<<"$env_json")" -ge 32 ] \
   || die "SECURITY_TOKEN_SECRET deve ter no minimo 32 caracteres (use: openssl rand -hex 32)."
 

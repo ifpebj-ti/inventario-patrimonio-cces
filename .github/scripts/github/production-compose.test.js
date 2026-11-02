@@ -33,6 +33,9 @@ const stackVariables = [
   "IMAGE_TAG",
   "SYSTEM_ADMIN_USERNAME",
   "SYSTEM_ADMIN_PASSWORD",
+  "TEST_VIEWER_PASSWORD",
+  "TEST_OPERATOR_PASSWORD",
+  "TEST_MANAGER_PASSWORD",
   "FORWARD_HEADERS_STRATEGY",
   "CORS_ALLOWED_ORIGINS",
   "BACKEND_PORT",
@@ -165,6 +168,10 @@ test("passes admin, proxy and login limiter settings to the backend", { skip }, 
 
   assert.equal(environment.SYSTEM_ADMIN_USERNAME, "admin");
   assert.equal(environment.SYSTEM_ADMIN_PASSWORD, "");
+  // As contas de teste vêm desligadas: sem senha configurada, nada é criado.
+  assert.equal(environment.TEST_VIEWER_PASSWORD, "");
+  assert.equal(environment.TEST_OPERATOR_PASSWORD, "");
+  assert.equal(environment.TEST_MANAGER_PASSWORD, "");
   assert.equal(environment.FORWARD_HEADERS_STRATEGY, "native");
   assert.equal(environment.CORS_ALLOWED_ORIGINS, "https://inventariumifpe.me");
   assert.equal(environment.AUTH_LOGIN_USER_MAX_FAILURES, "5");
@@ -176,11 +183,17 @@ test("forwards overridden production settings", { skip }, () => {
   const environment = resolved({
     ...baseEnv,
     SYSTEM_ADMIN_PASSWORD: "a-long-enough-password",
+    TEST_VIEWER_PASSWORD: "viewer-long-enough-pw",
+    TEST_OPERATOR_PASSWORD: "operator-long-enough-pw",
+    TEST_MANAGER_PASSWORD: "manager-long-enough-pw",
     FORWARD_HEADERS_STRATEGY: "none",
     CORS_ALLOWED_ORIGINS: "https://example.test",
   }).services["inventarium-back"].environment;
 
   assert.equal(environment.SYSTEM_ADMIN_PASSWORD, "a-long-enough-password");
+  assert.equal(environment.TEST_VIEWER_PASSWORD, "viewer-long-enough-pw");
+  assert.equal(environment.TEST_OPERATOR_PASSWORD, "operator-long-enough-pw");
+  assert.equal(environment.TEST_MANAGER_PASSWORD, "manager-long-enough-pw");
   assert.equal(environment.FORWARD_HEADERS_STRATEGY, "none");
   assert.equal(environment.CORS_ALLOWED_ORIGINS, "https://example.test");
 });

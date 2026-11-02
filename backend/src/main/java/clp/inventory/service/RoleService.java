@@ -145,6 +145,24 @@ public class RoleService {
     if (found.size() != ids.size()) {
       throw new IllegalArgumentException("Alguma das permissões informadas não existe.");
     }
-    return new HashSet<>(found);
+    Set<Permission> permissions = new HashSet<>(found);
+    // As permissões de gestão incluem a Consulta (quem altera precisa enxergar): ela entra junto,
+    // mesmo
+    // que quem chamou a API não a tenha enviado.
+    boolean manages =
+        permissions.stream()
+            .anyMatch(
+                p ->
+                    p.name().equals(AuthorizationService.MANAGE_SECTOR)
+                        || p.name().equals(AuthorizationService.MANAGE_ITEM));
+    if (manages
+        && permissions.stream().noneMatch(p -> p.name().equals(AuthorizationService.VIEW_SECTOR))) {
+      permissions.add(
+          permissionRepository
+              .findByName(AuthorizationService.VIEW_SECTOR)
+              .orElseThrow(
+                  () -> new IllegalStateException("Permissão VIEW_SECTOR não encontrada")));
+    }
+    return permissions;
   }
 }

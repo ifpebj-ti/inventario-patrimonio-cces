@@ -16,6 +16,7 @@ const initialState: SpreadsheetState = {
   message: '',
   errors: [],
   report: null,
+  rooms: null,
 }
 
 export const useSpreadsheetImport = (
@@ -82,13 +83,18 @@ export const useSpreadsheetImport = (
           'Corrija os erros da planilha antes de importar.',
           errors,
         )
-      await validateSpreadsheetData(file, controller.signal)
+      const rooms = await validateSpreadsheetData(
+        file,
+        inventoryId,
+        controller.signal,
+      )
       if (requestVersion !== version.current) return
       update({
         ...initialState,
         file,
         status: 'valid',
         message: 'Planilha validada. Clique em Processar para importar.',
+        rooms,
       })
     } catch (error) {
       if (requestVersion !== version.current) return
@@ -118,7 +124,12 @@ export const useSpreadsheetImport = (
     try {
       const report = await addItemsBySheet(approved.file, inventoryId)
       if (requestVersion !== version.current) return
-      const message = `Importação concluída: ${report.successes} itens adicionados, ${report.failures} falharam.`
+      const createdRooms = report.createdRooms ?? 0
+      const rooms =
+        createdRooms > 0
+          ? ` ${createdRooms} ${createdRooms === 1 ? 'sala criada' : 'salas criadas'} no setor.`
+          : ''
+      const message = `Importação concluída: ${report.successes} itens adicionados, ${report.failures} falharam.${rooms}`
       update({
         ...approved,
         status: 'completed',

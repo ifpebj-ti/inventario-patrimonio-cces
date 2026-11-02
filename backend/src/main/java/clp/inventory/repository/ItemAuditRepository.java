@@ -13,4 +13,6 @@ public interface ItemAuditRepository extends JpaRepository<ItemAudit, Long> {
   List<ItemAudit> findByTargetSector_Id(long targetSectorId);
 
   boolean existsByActorSector_IdOrTargetSector_Id(long actorSectorId, long targetSectorId);
+
+  boolean existsByFoundRoom_IdOrExpectedRoom_Id(long foundRoomId, long expectedRoomId);
 }

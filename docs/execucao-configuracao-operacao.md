@@ -62,6 +62,9 @@ Preencha o `.env` antes de subir a aplicação.
 | `SPRING_MAIL_PASSWORD` | Nao | Backend | Senha de app do Gmail ou credencial SMTP equivalente. Em produção é obrigatória (o compose de produção aborta sem ela). |
 | `SYSTEM_ADMIN_USERNAME` | Nao | Backend | Usuário da conta de sistema que entra por senha (`POST /auth/login`). Padrao: `admin`. |
 | `SYSTEM_ADMIN_PASSWORD` | Nao | Backend | Senha da conta de sistema. Vazia desliga o login por senha. Precisa ter **no mínimo 12 caracteres**: com menos, a conta não é criada e o backend só registra um erro no log. Trocar o valor e reiniciar troca a senha da conta. |
+| `TEST_VIEWER_PASSWORD` | Nao | Backend | Senha da conta de teste `teste.consulta` (permissão Consultar). Vazia desliga o login dessa conta e, se ela não existe, não a cria. Mínimo de **12 caracteres**. Ver "Contas de teste" no `backend/README.md`. |
+| `TEST_OPERATOR_PASSWORD` | Nao | Backend | Senha da conta de teste `teste.operador` (permissão Gerenciar Item). Mesmas regras. |
+| `TEST_MANAGER_PASSWORD` | Nao | Backend | Senha da conta de teste `teste.gestor` (permissão Gerenciar Setor). Mesmas regras. Em produção, o gestor de teste vê nome e e-mail dos usuários ativos no modal de alocar. |
 | `FORWARD_HEADERS_STRATEGY` | Nao | Backend | `none` (padrão local) ou `native`. Use `native` somente atrás do Nginx, que deve sobrescrever o `X-Forwarded-For`; é o padrão do compose de produção. O limite de tentativas de login não depende disso: o limite por IP é do Nginx e o do backend é por usuário. |
 | `AUTH_LOGIN_USER_MAX_FAILURES`, `AUTH_LOGIN_WINDOW`, `AUTH_LOGIN_BLOCK_DURATION` | Nao | Backend | Limites do login por senha, por usuário. Padrao: 5 falhas, janela e bloqueio de `15m`. O compose de produção os repassa. O limite por IP é do Nginx (`infra/nginx`). |
 | `IMAGE_TAG` | Nao | Compose de produção | Tag das imagens do GHCR. Padrao: `latest` (última release). Para rollback, use `vX.Y.Z`. |
@@ -111,6 +114,10 @@ GOOGLE_OAUTH_CLIENT_ID=<client-id-google>
 GOOGLE_ALLOWED_DOMAINS=ifpe.edu.br
 SYSTEM_ADMIN_USERNAME=admin
 SYSTEM_ADMIN_PASSWORD=<12-ou-mais-caracteres>
+# Opcional: contas de teste (vazias = desligadas)
+TEST_VIEWER_PASSWORD=
+TEST_OPERATOR_PASSWORD=
+TEST_MANAGER_PASSWORD=
 FORWARD_HEADERS_STRATEGY=native
 CORS_ALLOWED_ORIGINS=https://inventariumifpe.me
 ```

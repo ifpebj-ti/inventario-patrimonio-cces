@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+    <!--
+        Salas por setor. Ate aqui a sala do item era so um texto livre (im_item.locale), sem lista: "Sala 105",
+        "sala 105" e "S. 105" eram valores diferentes. Agora cada setor tem as suas salas (im_room) e o item aponta
+        para a sala cadastrada (id_room); na validacao grava-se tambem a sala onde foi encontrado (id_found_room), e a
+        auditoria guarda a encontrada, a esperada e se houve divergencia.
+
+        A estrutura usa as tags do Liquibase. So a conversao dos dados usa <sql>, porque nao existe tag para
+        INSERT ... SELECT com agrupamento. No fim, a coluna im_item.locale e apagada: o nome da sala passa a vir de
+        im_room, sem uma segunda copia do texto para manter igual. Itens de inventario sem setor (legado; hoje o
+        inventario exige setor) nao tem onde virar sala e perdem o texto.
+    -->
+
+    <!-- =========================== ROOM ================================== -->
+
+    <!-- Sala de um setor: o nome e unico dentro do setor (comparando o nome normalizado). -->
+    <changeSet id="20261102-01" author="inventarium">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="im_room"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="im_room">
+            <column name="id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="id_sector" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="normalized_name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addPrimaryKey tableName="im_room" columnNames="id" constraintName="pk_room"/>
+
+        <addForeignKeyConstraint baseTableName="im_room" baseColumnNames="id_sector"
+                                 referencedTableName="im_sector" referencedColumnNames="id"
+                                 constraintName="fk_7954220587915"/>
+
+        <addUniqueConstraint tableName="im_room" columnNames="id_sector, normalized_name"
+                             constraintName="uk_8906276223012"/>
+
+        <createSequence sequenceName="im_room_id" incrementBy="1" startValue="1"/>
+
+    </changeSet>
+
+    <!-- Sala cadastrada do item e sala em que ele foi encontrado na ultima validacao. -->
+    <changeSet id="20261102-02" author="inventarium">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="im_item" columnName="id_room"/>
+            </not>
+        </preConditions>
+
+        <addColumn tableName="im_item">
+            <column name="id_room" type="BIGINT"/>
+            <column name="id_found_room" type="BIGINT"/>
+        </addColumn>
+
+        <addForeignKeyConstraint baseTableName="im_item" baseColumnNames="id_room"
+                                 referencedTableName="im_room" referencedColumnNames="id"
+                                 constraintName="fk_8916143361436"/>
+
+        <addForeignKeyConstraint baseTableName="im_item" baseColumnNames="id_found_room"
+                                 referencedTableName="im_room" referencedColumnNames="id"
+                                 constraintName="fk_4503060672036"/>
+
+        <createIndex tableName="im_item" indexName="ix_1901933501280">
+            <column name="id_room"/>
+        </createIndex>
+
+        <createIndex tableName="im_item" indexName="ix_8197836163192">
+            <column name="id_found_room"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- Auditoria da validacao: sala encontrada, sala esperada (a cadastrada) e se divergem. -->
+    <changeSet id="20261102-03" author="inventarium">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="im_item_audit" columnName="id_found_room"/>
+            </not>
+        </preConditions>
+
+        <addColumn tableName="im_item_audit">
+            <column name="id_found_room" type="BIGINT"/>
+            <column name="id_expected_room" type="BIGINT"/>
+            <column name="divergent" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <addForeignKeyConstraint baseTableName="im_item_audit" baseColumnNames="id_found_room"
+                                 referencedTableName="im_room" referencedColumnNames="id"
+                                 constraintName="fk_2900489249016"/>
+
+        <addForeignKeyConstraint baseTableName="im_item_audit" baseColumnNames="id_expected_room"
+                                 referencedTableName="im_room" referencedColumnNames="id"
+                                 constraintName="fk_3298058991519"/>
+    </changeSet>
+
+    <!--
+        Migracao dos dados: para cada setor, os locale distintos dos itens dos inventarios dele viram salas. Dois
+        locale que so diferem em maiusculas, acentos ou espacos viram a MESMA sala; o nome exibido e a grafia mais
+        frequente (a primeira em ordem alfabetica em caso de empate). locale vazio ou de inventario sem setor nao
+        vira sala.
+
+        Normalizacao (a mesma do Java, RoomNames.normalize): trim, espacos repetidos em um, minusculas e sem acento.
+    -->
+    <changeSet id="20261102-04" author="inventarium">
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="im_item" columnName="locale"/>
+        </preConditions>
+
+        <comment>Cria as salas de cada setor a partir dos textos de im_item.locale</comment>
+        <sql>
+            INSERT INTO im_room (id, id_sector, name, normalized_name)
+            SELECT nextval('im_room_id'), ranked.id_sector, ranked.display, ranked.norm
+              FROM (
+                  SELECT counted.id_sector, counted.display, counted.norm,
+                         row_number() OVER (PARTITION BY counted.id_sector, counted.norm
+                                            ORDER BY counted.total DESC, counted.display) AS position
+                    FROM (
+                        SELECT inv.id_sector,
+                               btrim(regexp_replace(it.locale, '\s+', ' ', 'g')) AS display,
+                               translate(lower(btrim(regexp_replace(it.locale, '\s+', ' ', 'g'))),
+                                         'áàâãäéèêëíìîïóòôõöúùûüç', 'aaaaaeeeeiiiiooooouuuuc') AS norm,
+                               count(*) AS total
+                          FROM im_item it
+                          JOIN im_inventory inv ON inv.id = it.id_inventory
+                         WHERE inv.id_sector IS NOT NULL
+                           AND it.locale IS NOT NULL
+                           AND btrim(it.locale) != ''
+                         GROUP BY inv.id_sector,
+                                  btrim(regexp_replace(it.locale, '\s+', ' ', 'g')),
+                                  translate(lower(btrim(regexp_replace(it.locale, '\s+', ' ', 'g'))),
+                                            'áàâãäéèêëíìîïóòôõöúùûüç', 'aaaaaeeeeiiiiooooouuuuc')
+                    ) counted
+              ) ranked
+             WHERE ranked.position = 1;
+        </sql>
+    </changeSet>
+
+    <changeSet id="20261102-05" author="inventarium">
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="im_item" columnName="locale"/>
+        </preConditions>
+
+        <comment>Liga cada item a sala do setor do inventario dele</comment>
+        <sql>
+            UPDATE im_item it
+               SET id_room = room.id
+              FROM im_inventory inv, im_room room
+             WHERE inv.id = it.id_inventory
+               AND room.id_sector = inv.id_sector
+               AND it.locale IS NOT NULL
+               AND btrim(it.locale) != ''
+               AND room.normalized_name = translate(lower(btrim(regexp_replace(it.locale, '\s+', ' ', 'g'))),
+                                                    'áàâãäéèêëíìîïóòôõöúùûüç', 'aaaaaeeeeiiiiooooouuuuc');
+        </sql>
+    </changeSet>
+
+    <!-- O texto livre ja virou sala (changesets acima); a coluna deixa de existir. -->
+    <changeSet id="20261102-06" author="inventarium">
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="im_item" columnName="locale"/>
+        </preConditions>
+
+        <dropColumn tableName="im_item" columnName="locale"/>
+    </changeSet>
+</databaseChangeLog>

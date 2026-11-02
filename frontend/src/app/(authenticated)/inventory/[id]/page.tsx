@@ -21,6 +21,8 @@ import {
 } from '@/services/item'
 import { toast } from 'sonner'
 import { Spinner } from '@/components/ui/spinner'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
 import { SendEmailSheetModal } from '@/components/organisms/sendEmailSheetModal'
 import { ConfirmationModal } from '@/components/organisms/modalConfirmation'
 import { ScannerCard } from '@/components/molecules/scannerCard'
@@ -29,6 +31,7 @@ import { ItemDetailDrawer } from '@/components/organisms/itemDetailDrawer'
 import { useSpreadsheetImport } from '@/hooks/useSpreadsheetImport'
 import { useAdministrationAccess } from '@/contexts/AdministrationAccess'
 import { useInventorySector } from '@/hooks/useInventorySector'
+import { useSectorRooms } from '@/hooks/useSectorRooms'
 import { getSpreadsheetFailure } from '@/commons/utils/spreadsheet'
 
 export default function Inventory() {
@@ -41,6 +44,10 @@ export default function Inventory() {
   const inventorySectorId = useInventorySector(Number(id))
   const canManageInventories = canManageInventoryIn(inventorySectorId)
   const canOperateItems = canOperateItemsIn(inventorySectorId)
+  // Em setor com salas, validar exige informar a sala em que o item foi encontrado.
+  const { rooms: sectorRooms } = useSectorRooms(inventorySectorId)
+  const sectorHasRooms = sectorRooms.length > 0
+  const [onlyDivergent, setOnlyDivergent] = useState(false)
   // Só libera a importação depois de saber se o inventário já tem itens.
   const [itemsLoaded, setItemsLoaded] = useState(false)
   // Inventário finalizado não aceita novos escaneamentos nem importações.
@@ -59,6 +66,8 @@ export default function Inventory() {
   const [isScannerOpen, setIsScannerOpen] = useState(false)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [scannedItem, setScannedItem] = useState<Item | null>(null)
+  // Escaneou num setor com salas: o drawer abre sem validar, para confirmar a sala.
+  const [drawerValidates, setDrawerValidates] = useState(false)
 
   const fetchItemsByInventory = useCallback(async () => {
     try {
@@ -99,6 +108,10 @@ export default function Inventory() {
   // Regras de bloqueio: finalizado não escaneia nem importa; e só existe uma
   // importação por vez (para importar outra planilha, limpe os itens antes).
   const hasItems = itemData.length > 0
+  const divergentCount = itemData.filter((item) => item.divergent).length
+  const visibleItems = onlyDivergent
+    ? itemData.filter((item) => item.divergent)
+    : itemData
   const importBlocked =
     !canManageInventories || finalized || hasItems || !itemsLoaded
   const importBlockedMessage = !canManageInventories
@@ -297,7 +310,20 @@ export default function Inventory() {
         return false
       })
 
-      if (foundItem) {
+      if (foundItem && sectorHasRooms) {
+        // Setor com salas: o item só é validado depois de confirmar a sala no drawer, que já vem
+        // com a sala cadastrada selecionada.
+        setScannedItem(foundItem)
+        setDrawerValidates(true)
+        setIsDrawerOpen(true)
+        toast.success(
+          `Patrimônio "${foundItem.code}" encontrado. Confirme a sala.`,
+          {
+            id: 'scan-success-toast',
+          },
+        )
+      } else if (foundItem) {
+        setDrawerValidates(false)
         // 2. Muda o status do item instantaneamente para verificado (código verde)
         const verifiedItem: Item = {
           ...foundItem,
@@ -340,7 +366,7 @@ export default function Inventory() {
         })
       }
     },
-    [itemData, handleItemUpdated, scanBlocked],
+    [itemData, handleItemUpdated, scanBlocked, sectorHasRooms],
   )
 
   return (
@@ -382,6 +408,18 @@ export default function Inventory() {
 
       {/* Tabela Híbrida (Cards no mobile / Tabela no desktop) */}
       <div className="w-full">
+        {sectorHasRooms && (
+          <div className="mb-3 flex items-center gap-2">
+            <Checkbox
+              id="only-divergent"
+              checked={onlyDivergent}
+              onCheckedChange={(checked) => setOnlyDivergent(checked === true)}
+            />
+            <Label htmlFor="only-divergent" className="text-sm">
+              Mostrar só divergentes ({divergentCount})
+            </Label>
+          </div>
+        )}
         <Table
           header={[
             { key: 'code', headerText: 'Código' },
@@ -390,8 +428,11 @@ export default function Inventory() {
             { key: 'responsible', headerText: 'Carga' },
             { key: 'price', headerText: 'Valor' },
             { key: 'locale', headerText: 'Sala' },
+            ...(sectorHasRooms
+              ? [{ key: 'foundRoomName', headerText: 'Encontrada' }]
+              : []),
           ]}
-          content={itemData}
+          content={visibleItems}
           selectable={true}
           selectedRows={selectedRows}
           onRowSelect={setSelectedRows}
@@ -461,6 +502,8 @@ export default function Inventory() {
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
         item={scannedItem}
+        rooms={sectorRooms}
+        validateOnOpen={drawerValidates}
         onItemUpdated={handleItemUpdated}
         isResponsibleLocked={true}
         onScanNext={() => {

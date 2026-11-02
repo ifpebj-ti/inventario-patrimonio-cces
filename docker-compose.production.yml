@@ -55,6 +55,11 @@ services:
       SYSTEM_ADMIN_USERNAME: ${SYSTEM_ADMIN_USERNAME:-admin}
       # Vazio desliga o login por senha; com menos de 12 caracteres a conta não é criada.
       SYSTEM_ADMIN_PASSWORD: ${SYSTEM_ADMIN_PASSWORD:-}
+      # Contas de teste (uma por permissão): vazio desliga o login da conta e, se ela não existe, não a cria;
+      # com menos de 12 caracteres a conta não é criada. Vazias por padrão.
+      TEST_VIEWER_PASSWORD: ${TEST_VIEWER_PASSWORD:-}
+      TEST_OPERATOR_PASSWORD: ${TEST_OPERATOR_PASSWORD:-}
+      TEST_MANAGER_PASSWORD: ${TEST_MANAGER_PASSWORD:-}
       # `native` só é seguro porque o Nginx do host SOBRESCREVE o X-Forwarded-For.
       FORWARD_HEADERS_STRATEGY: ${FORWARD_HEADERS_STRATEGY:-native}
       AUTH_LOGIN_USER_MAX_FAILURES: ${AUTH_LOGIN_USER_MAX_FAILURES:-5}

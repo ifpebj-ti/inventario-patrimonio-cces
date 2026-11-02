@@ -15,4 +15,9 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
   long countByInventory_Id(Long inventoryId);
 
   long countByInventory_IdAndIsValidTrue(Long inventoryId);
+
+  // Itens ligados a uma sala (cadastrada ou encontrada): impedem excluir a sala.
+  long countByRoom_Id(long roomId);
+
+  long countByFoundRoom_Id(long roomId);
 }

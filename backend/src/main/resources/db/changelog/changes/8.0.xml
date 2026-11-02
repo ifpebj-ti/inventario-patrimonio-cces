@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+    <!--
+        Permissao de Consulta (VIEW_SECTOR): vira a base da leitura dos inventarios de um setor. Ate aqui bastava
+        estar alocado ao setor, com qualquer cargo, para ler; agora a leitura exige VIEW_SECTOR (ou MANAGE_ITEM /
+        MANAGE_SECTOR, que a incluem).
+
+        Para ninguem perder acesso, a permissao e associada a TODOS os cargos que existem hoje: quem lia (por estar
+        alocado) continua lendo, e quem tem MANAGE_* ganha tambem a Consulta, que e a base delas. So os cargos criados
+        depois, sem nenhuma permissao, passam a nao dar acesso aos dados.
+    -->
+    <changeSet id="20261101-01" author="inventarium">
+        <sql>
+            INSERT INTO im_permission (id, name, description)
+            VALUES (nextval('im_permission_id'), 'VIEW_SECTOR',
+                    'Consulta os inventários, itens e observações do setor, sem alterar nada.');
+            INSERT INTO im_role_permission (id_role, id_permission)
+            SELECT r.id, p.id FROM im_role r, im_permission p WHERE p.name = 'VIEW_SECTOR';
+        </sql>
+    </changeSet>
+</databaseChangeLog>

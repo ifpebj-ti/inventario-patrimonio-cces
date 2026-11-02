@@ -38,6 +38,8 @@ public class SheetBuilderService {
     sheet.setColumnWidth(3, 3000);
     sheet.setColumnWidth(4, 10000);
     sheet.setColumnWidth(5, 10000);
+    sheet.setColumnWidth(6, 10000);
+    sheet.setColumnWidth(7, 4000);
 
     Row header = sheet.createRow(0);
     header.createCell(0).setCellValue("Código");
@@ -46,6 +48,9 @@ public class SheetBuilderService {
     header.createCell(3).setCellValue("Valor");
     header.createCell(4).setCellValue("Sala");
     header.createCell(5).setCellValue("Observações");
+    // Sala encontrada e divergência vêm depois das colunas já existentes, para não deslocá-las.
+    header.createCell(6).setCellValue("Sala encontrada");
+    header.createCell(7).setCellValue("Divergência");
 
     Page<Item> itemsPage;
 
@@ -69,6 +74,8 @@ public class SheetBuilderService {
         } else {
           row.createCell(5).setCellValue(item.observations().getFirst().content());
         }
+        row.createCell(6).setCellValue(item.foundRoom() != null ? item.foundRoom().name() : "");
+        row.createCell(7).setCellValue(item.divergent() ? "Sim" : "Não");
       }
 
       page++;

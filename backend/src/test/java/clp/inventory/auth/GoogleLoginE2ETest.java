@@ -197,7 +197,7 @@ class GoogleLoginE2ETest {
     assertThat(allocations).hasSize(1);
     assertThat(allocations.get(0))
         .containsEntry("roleName", clp.inventory.testsupport.TestAccess.MANAGER)
-        .containsEntry("permissions", java.util.List.of("MANAGE_SECTOR"));
+        .containsEntry("permissions", java.util.List.of("MANAGE_SECTOR", "VIEW_SECTOR"));
   }
 
   private HttpHeaders bearer(String token) {

@@ -7,7 +7,10 @@ import { Card as UiCard } from '@/components/ui/card'
 import { Button as UiButton } from '@/components/ui/button'
 import { Input as UiInput } from '@/components/ui/input'
 
-import type { SpreadsheetState } from '@/commons/models/spreadsheet'
+import type {
+  RoomsPreview,
+  SpreadsheetState,
+} from '@/commons/models/spreadsheet'
 import { ModalErrorsSheet } from '@/components/organisms/modalErrors'
 import { CsvTemplateModal } from '@/components/organisms/csvTemplateModal'
 import { useRef, useState } from 'react'
@@ -21,6 +24,38 @@ type FileUploadComponentProps = {
   onProcess: () => Promise<void>
   disabled?: boolean
   blockedMessage?: string
+}
+
+// Antes de importar, mostra as salas que a planilha vai criar no setor, para o gestor conferir
+// erros de digitação (por exemplo "Sala 1O5") enquanto ainda dá para corrigir o arquivo.
+const RoomsPreviewNotice = ({ rooms }: { rooms: RoomsPreview }) => {
+  if (rooms.newRooms.length === 0 && rooms.existingRooms.length === 0)
+    return null
+  return (
+    <div className="flex flex-col gap-1.5 text-xs" data-testid="rooms-preview">
+      {rooms.newRooms.length > 0 && (
+        <div
+          role="status"
+          className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-foreground"
+        >
+          <p className="font-semibold">
+            {rooms.newRooms.length === 1
+              ? '1 sala nova será criada no setor:'
+              : `${rooms.newRooms.length} salas novas serão criadas no setor:`}
+          </p>
+          <p data-testid="new-rooms">{rooms.newRooms.join(', ')}</p>
+          <p className="mt-1 text-muted-foreground">
+            Confira a grafia: nomes com erro de digitação viram salas separadas.
+          </p>
+        </div>
+      )}
+      {rooms.existingRooms.length > 0 && (
+        <p className="text-muted-foreground" data-testid="existing-rooms">
+          Salas que já existem: {rooms.existingRooms.join(', ')}
+        </p>
+      )}
+    </div>
+  )
 }
 
 export const FileUploadComponent = ({
@@ -120,6 +155,9 @@ export const FileUploadComponent = ({
           >
             {state.message}
           </p>
+          {state.status === 'valid' && state.rooms && (
+            <RoomsPreviewNotice rooms={state.rooms} />
+          )}
           {state.report && (
             <p
               className="text-xs text-muted-foreground"
