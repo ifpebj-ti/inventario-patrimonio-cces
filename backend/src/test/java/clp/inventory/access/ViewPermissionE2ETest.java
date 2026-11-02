@@ -112,7 +112,7 @@ class ViewPermissionE2ETest {
     Inventory inventory =
         new Inventory(
             "Consulta " + System.nanoTime(), "", LocalDate.now().plusDays(5), owner, sector);
-    inventory.addItem(new Item("PAT" + System.nanoTime(), "", "Mesa", 1000, "Sala 1", "Maria"));
+    inventory.addItem(new Item("PAT" + System.nanoTime(), "", "Mesa", 1000, null, "Maria"));
     return inventories.save(inventory);
   }
 

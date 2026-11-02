@@ -349,6 +349,37 @@ export const Table = ({
         }
       }
 
+      // Sala em que o item foi encontrado: destaca quando difere da cadastrada.
+      if (item.key === 'foundRoomName') {
+        return {
+          accessorKey: item.key,
+          header: () => (
+            <div className="max-w-[140px] text-left font-semibold">
+              {item.headerText}
+            </div>
+          ),
+          cell: ({ row }: { row: Row<Item> }) => {
+            const found = row.original.foundRoomName
+            if (!found) return <div className="text-muted-foreground">-</div>
+            return (
+              <div
+                className="flex max-w-[160px] items-center gap-1.5"
+                title={
+                  row.original.divergent
+                    ? `Divergente: cadastrada em ${row.original.roomName}, encontrada em ${found}`
+                    : found
+                }
+              >
+                <span className="truncate text-muted-foreground">{found}</span>
+                {row.original.divergent && (
+                  <StatusBadge tone="warning">Divergente</StatusBadge>
+                )}
+              </div>
+            )
+          },
+        }
+      }
+
       // Para todas as outras colunas, usa a configuração padrão.
       if (
         appearance === 'inventory' &&

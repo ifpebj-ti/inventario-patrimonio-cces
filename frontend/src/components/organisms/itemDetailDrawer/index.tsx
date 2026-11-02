@@ -14,6 +14,8 @@ import {
 import { Textarea as UiTextarea } from '@/components/ui/textarea'
 
 import { ConfirmationModal } from '@/components/organisms/modalConfirmation'
+import { SelectField } from '@/components/ui/select-field'
+import type { Room } from '@/commons/models/room'
 
 import React, { useState, useEffect } from 'react'
 import { Item, Observation } from '@/commons/models/item'
@@ -25,6 +27,7 @@ import {
   Trash2,
   Barcode,
   Save,
+  TriangleAlert,
 } from 'lucide-react'
 import { updateItemRequest, updateItemNotesRequest } from '@/services/item'
 import { toast } from 'sonner'
@@ -36,6 +39,10 @@ interface ItemDetailDrawerProps {
   onItemUpdated: (updatedItem: Item) => void
   onScanNext?: () => void
   isResponsibleLocked?: boolean
+  // Salas do setor: quando existem, validar exige escolher a sala em que o item foi encontrado.
+  rooms?: Room[]
+  // Abre já marcando o item como verificado (escaneamento): falta só confirmar a sala.
+  validateOnOpen?: boolean
 }
 
 export const ItemDetailDrawer: React.FC<ItemDetailDrawerProps> = ({
@@ -43,24 +50,52 @@ export const ItemDetailDrawer: React.FC<ItemDetailDrawerProps> = ({
   onClose,
   item,
   onItemUpdated,
+  rooms = [],
+  validateOnOpen = false,
 }) => {
   const [formData, setFormData] = useState<Item | null>(null)
   const [deleteIndex, setDeleteIndex] = React.useState<number | null>(null)
   const [observations, setObservations] = useState<Observation[]>([])
   const [newNoteText, setNewNoteText] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  // Sala em que o item foi encontrado; começa na cadastrada, que normalmente é a certa.
+  const [foundRoomId, setFoundRoomId] = useState<number | null>(null)
 
   // Sincroniza dados sempre que o item muda ou a Drawer abre
   useEffect(() => {
     if (item) {
-      setFormData({ ...item })
+      setFormData({
+        ...item,
+        isValid: item.isValid || (validateOnOpen && rooms.length > 0),
+      })
+      setFoundRoomId(item.foundRoomId ?? item.roomId ?? null)
       setObservations(item.observations ? [...item.observations] : [])
       setNewNoteText('')
       setDeleteIndex(null)
     }
+    // `rooms` e `validateOnOpen` só valem na abertura: mudar a lista não pode apagar o que foi digitado.
   }, [item, isOpen])
 
   if (!formData) return null
+
+  const hasRooms = rooms.length > 0
+  const alreadyValidated = !!item?.isValid
+  const validating = !!formData.isValid && !alreadyValidated
+  const needsRoom = hasRooms && validating && foundRoomId === null
+  const registeredRoomId = formData.roomId ?? null
+  const shownRoomId = alreadyValidated
+    ? (item?.foundRoomId ?? null)
+    : foundRoomId
+  const shownRoom = rooms.find((room) => room.id === shownRoomId)
+  const registeredRoomName =
+    formData.roomName ??
+    rooms.find((room) => room.id === registeredRoomId)?.name ??
+    null
+  const divergent = alreadyValidated
+    ? !!item?.divergent
+    : registeredRoomId !== null &&
+      foundRoomId !== null &&
+      foundRoomId !== registeredRoomId
 
   // Alterna o status de validação (Válido / Pendente)
   const toggleValidationStatus = () => {
@@ -85,7 +120,7 @@ export const ItemDetailDrawer: React.FC<ItemDetailDrawerProps> = ({
 
   // Salva no backend
   const handleSave = async () => {
-    if (!formData || isSaving) return
+    if (!formData || isSaving || needsRoom) return
 
     try {
       setIsSaving(true)
@@ -94,6 +129,8 @@ export const ItemDetailDrawer: React.FC<ItemDetailDrawerProps> = ({
       const payload: Item = {
         ...formData,
         isValid: formData.isValid,
+        // Só uma validação nova leva a sala encontrada; as demais não mexem nela.
+        foundRoomId: validating ? foundRoomId : (item?.foundRoomId ?? null),
       }
       const updatedItem = await updateItemRequest(payload)
 
@@ -206,6 +243,64 @@ export const ItemDetailDrawer: React.FC<ItemDetailDrawerProps> = ({
               </UiButton>
             </UiCard>
 
+            {hasRooms && (
+              <UiCard
+                role="region"
+                aria-label="Sala do item"
+                className="gap-3 p-4 shadow-none"
+              >
+                <UiLabel
+                  htmlFor="item-found-room"
+                  className="text-sm font-semibold text-foreground"
+                >
+                  Sala em que o item está
+                </UiLabel>
+                <SelectField
+                  id="item-found-room"
+                  aria-label="Sala em que o item está"
+                  options={rooms.map((room) => ({
+                    value: String(room.id),
+                    label: room.name,
+                  }))}
+                  value={shownRoomId === null ? '' : String(shownRoomId)}
+                  onValueChange={(value) => setFoundRoomId(Number(value))}
+                  placeholder="Selecione a sala"
+                  disabled={isSaving || alreadyValidated}
+                />
+                {divergent ? (
+                  <p
+                    role="alert"
+                    className="flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-foreground"
+                  >
+                    <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
+                    <span>
+                      Divergente: cadastrada em{' '}
+                      <strong>{registeredRoomName}</strong>, encontrada em{' '}
+                      <strong>
+                        {alreadyValidated
+                          ? (item?.foundRoomName ?? shownRoom?.name)
+                          : shownRoom?.name}
+                      </strong>
+                      .
+                    </span>
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    {alreadyValidated
+                      ? 'Sala registrada na validação.'
+                      : registeredRoomName
+                        ? `Sala cadastrada: ${registeredRoomName}. Se o item está em outra, troque aqui: a divergência fica registrada.`
+                        : 'Este item não tem sala cadastrada. Escolha a sala em que ele foi encontrado.'}
+                  </p>
+                )}
+                {needsRoom && (
+                  <p role="status" className="text-xs text-destructive">
+                    Escolha a sala para validar o item.
+                  </p>
+                )}
+              </UiCard>
+            )}
+
             <UiCard
               role="region"
               aria-label="Dados cadastrais do item"
@@ -246,8 +341,8 @@ export const ItemDetailDrawer: React.FC<ItemDetailDrawerProps> = ({
                   Nova observação
                 </UiLabel>
                 <p className="text-xs text-muted-foreground">
-                  O item está em outra sala? Informe aqui a sala em que foi
-                  encontrado e outras diferenças identificadas.
+                  Registre outras diferenças identificadas no item. A sala em
+                  que ele foi encontrado é escolhida no campo acima.
                 </p>
                 <UiTextarea
                   id="audit-new-observation"
@@ -255,7 +350,7 @@ export const ItemDetailDrawer: React.FC<ItemDetailDrawerProps> = ({
                   value={newNoteText}
                   disabled={isSaving}
                   onChange={(event) => setNewNoteText(event.target.value)}
-                  placeholder="Ex.: Encontrado na sala 203, diferente da sala cadastrada."
+                  placeholder="Ex.: Etiqueta danificada ou item sem tombamento."
                   className="bg-card"
                 />
                 <UiButton
@@ -309,11 +404,17 @@ export const ItemDetailDrawer: React.FC<ItemDetailDrawerProps> = ({
               size="lg"
               type="button"
               onClick={handleSave}
-              disabled={isSaving}
+              disabled={isSaving || needsRoom}
               className="w-full"
             >
               <Save />
-              <span>{isSaving ? 'Salvando...' : 'Salvar'}</span>
+              <span>
+                {isSaving
+                  ? 'Salvando...'
+                  : validating && hasRooms
+                    ? 'Validar item'
+                    : 'Salvar'}
+              </span>
             </UiButton>
           </SheetFooter>
         </SheetContent>

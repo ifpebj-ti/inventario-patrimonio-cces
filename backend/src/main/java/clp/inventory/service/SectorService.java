@@ -4,6 +4,7 @@ import clp.inventory.dto.SectorDto;
 import clp.inventory.model.Sector;
 import clp.inventory.repository.InventoryRepository;
 import clp.inventory.repository.ItemAuditRepository;
+import clp.inventory.repository.RoomRepository;
 import clp.inventory.repository.SectorAllocationRepository;
 import clp.inventory.repository.SectorRepository;
 import java.util.List;
@@ -20,6 +21,7 @@ public class SectorService {
   private final SectorAllocationRepository sectorAllocationRepository;
   private final InventoryRepository inventoryRepository;
   private final ItemAuditRepository itemAuditRepository;
+  private final RoomRepository roomRepository;
   private final AuthorizationService authorizationService;
 
   public SectorService(
@@ -27,11 +29,13 @@ public class SectorService {
       SectorAllocationRepository sectorAllocationRepository,
       InventoryRepository inventoryRepository,
       ItemAuditRepository itemAuditRepository,
+      RoomRepository roomRepository,
       AuthorizationService authorizationService) {
     this.sectorRepository = sectorRepository;
     this.sectorAllocationRepository = sectorAllocationRepository;
     this.inventoryRepository = inventoryRepository;
     this.itemAuditRepository = itemAuditRepository;
+    this.roomRepository = roomRepository;
     this.authorizationService = authorizationService;
   }
 
@@ -88,6 +92,8 @@ public class SectorService {
           HttpStatus.CONFLICT,
           "O setor possui usuários ou inventários associados e não pode ser excluído; desative-o.");
     }
+    // Setor excluível não tem inventário nem auditoria, então as salas dele não têm itens ligados.
+    roomRepository.deleteBySector_Id(sector.id());
     sectorRepository.delete(sector);
   }
 

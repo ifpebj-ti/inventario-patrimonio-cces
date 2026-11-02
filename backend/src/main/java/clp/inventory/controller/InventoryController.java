@@ -164,6 +164,7 @@ public class InventoryController {
             .body(Map.of("message", "A planilha CSV não contém itens ou dados para importar."));
       }
 
+      long roomsBefore = inventoryService.roomCountOf(inventoryId);
       List<ItemProcessingResult> results = new ArrayList<>();
 
       for (int i = 0; i < items.size(); i++) {
@@ -190,6 +191,7 @@ public class InventoryController {
       response.put("successfulItems\n", successes);
       response.put("failedItems", errors);
       response.put("failedItems\n", errors);
+      response.put("createdRooms", inventoryService.roomCountOf(inventoryId) - roomsBefore);
 
       if (errors.isEmpty()) {
         response.put("status", "Todos os itens foram adicionados com sucesso!");
@@ -238,7 +240,9 @@ public class InventoryController {
       value = "/validate-sheet",
       consumes = {"multipart/form-data"})
   public ResponseEntity<?> validateSheet(
-      @RequestParam("file") MultipartFile file, HttpServletRequest request) {
+      @RequestParam("file") MultipartFile file,
+      @RequestParam(value = "inventoryId", required = false) Long inventoryId,
+      HttpServletRequest request) {
     inventoryService.requireCanImport(actingUserId(request));
     if (file.isEmpty()) {
       return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -268,8 +272,17 @@ public class InventoryController {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(validationResult);
       }
 
-      return ResponseEntity.status(HttpStatus.OK)
-          .body(Map.of("message", "O arquivo é válido e está pronto para o processamento."));
+      Map<String, Object> body = new HashMap<>();
+      body.put("message", "O arquivo é válido e está pronto para o processamento.");
+      if (inventoryId != null) {
+        RoomsPreviewDto rooms =
+            inventoryService.previewRooms(inventoryId, items, actingUserId(request));
+        body.put("newRooms", rooms.newRooms());
+        body.put("existingRooms", rooms.existingRooms());
+      }
+      return ResponseEntity.status(HttpStatus.OK).body(body);
+    } catch (ResponseStatusException e) {
+      throw e;
     } catch (IllegalArgumentException e) {
       return ResponseEntity.status(HttpStatus.BAD_REQUEST)
           .body(Map.of("message", e.getMessage(), "hasErrors", true));

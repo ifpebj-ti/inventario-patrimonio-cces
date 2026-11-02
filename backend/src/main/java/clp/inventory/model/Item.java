@@ -26,7 +26,10 @@ public class Item {
   // Valor em centavos, para evitar erros de arredondamento de ponto flutuante.
   private long price;
 
-  private String locale;
+  // Só a entrada de dados: a planilha e o cadastro avulso trazem a sala como texto, que vira uma
+  // Room
+  // do setor. Não é gravada; a sala do item é `room`.
+  @Transient private String locale;
 
   @Column(nullable = false)
   private String qrCode;
@@ -41,6 +44,16 @@ public class Item {
   @ManyToOne
   @JoinColumn(name = "id_inventory")
   private Inventory inventory;
+
+  // Sala cadastrada do item (do setor do inventário).
+  @ManyToOne
+  @JoinColumn(name = "id_room")
+  private Room room;
+
+  // Sala em que o item foi encontrado na última validação; só registro, não altera a cadastrada.
+  @ManyToOne
+  @JoinColumn(name = "id_found_room")
+  private Room foundRoom;
 
   @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
   @JoinColumn(name = "id_item", nullable = false)
@@ -91,8 +104,22 @@ public class Item {
     return responsible;
   }
 
+  /** Nome da sala cadastrada; sem sala, o texto recebido na entrada (ainda não convertido). */
   public String locale() {
-    return locale;
+    return room != null ? room.name() : locale;
+  }
+
+  public Room room() {
+    return room;
+  }
+
+  public Room foundRoom() {
+    return foundRoom;
+  }
+
+  /** Validado numa sala diferente da cadastrada. */
+  public boolean divergent() {
+    return room != null && foundRoom != null && room.id() != foundRoom.id();
   }
 
   public String qrCode() {
@@ -132,6 +159,14 @@ public class Item {
 
   public void setLocale(String locale) {
     this.locale = locale;
+  }
+
+  public void setRoom(Room room) {
+    this.room = room;
+  }
+
+  public void setFoundRoom(Room foundRoom) {
+    this.foundRoom = foundRoom;
   }
 
   public void setQrCode(String qrCode) {

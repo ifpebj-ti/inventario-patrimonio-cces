@@ -3,6 +3,7 @@ package clp.inventory.service;
 import clp.inventory.model.Inventory;
 import clp.inventory.model.Item;
 import clp.inventory.model.ItemAudit;
+import clp.inventory.model.Room;
 import clp.inventory.model.Sector;
 import clp.inventory.model.User;
 import clp.inventory.repository.ItemAuditRepository;
@@ -32,9 +33,25 @@ public class ItemAuditService {
       String eventType,
       String status,
       String details) {
+    return record(
+        item, inventory, actorUser, actorSector, targetSector, eventType, status, details, null);
+  }
+
+  /** Registro de validação com a sala encontrada; a esperada é a cadastrada no item. */
+  public ItemAudit record(
+      Item item,
+      Inventory inventory,
+      User actorUser,
+      Sector actorSector,
+      Sector targetSector,
+      String eventType,
+      String status,
+      String details,
+      Room foundRoom) {
     ItemAudit audit =
         new ItemAudit(
             item, inventory, actorUser, actorSector, targetSector, eventType, status, details);
+    audit.setRooms(foundRoom, item.room());
     return itemAuditRepository.save(audit);
   }
 

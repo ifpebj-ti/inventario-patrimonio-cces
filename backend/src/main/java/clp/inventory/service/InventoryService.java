@@ -2,18 +2,26 @@ package clp.inventory.service;
 
 import clp.inventory.dto.InventoryDto;
 import clp.inventory.dto.ItemProcessingResult;
+import clp.inventory.dto.RoomsPreviewDto;
 import clp.inventory.model.Inventory;
 import clp.inventory.model.Item;
+import clp.inventory.model.Room;
 import clp.inventory.model.Sector;
 import clp.inventory.model.User;
 import clp.inventory.repository.InventoryRepository;
 import clp.inventory.repository.ItemRepository;
 import clp.inventory.repository.SectorRepository;
+import clp.inventory.utils.RoomNames;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,18 +35,21 @@ public class InventoryService {
   private final SectorRepository sectorRepository;
   private final UserService userService;
   private final AuthorizationService authorizationService;
+  private final RoomService roomService;
 
   public InventoryService(
       InventoryRepository inventoryRepository,
       ItemRepository itemRepository,
       SectorRepository sectorRepository,
       UserService userService,
-      AuthorizationService authorizationService) {
+      AuthorizationService authorizationService,
+      RoomService roomService) {
     this.inventoryRepository = inventoryRepository;
     this.itemRepository = itemRepository;
     this.sectorRepository = sectorRepository;
     this.userService = userService;
     this.authorizationService = authorizationService;
+    this.roomService = roomService;
   }
 
   @Transactional
@@ -211,6 +222,7 @@ public class InventoryService {
             item.code(), line, false, "Item already exists in inventory");
       }
 
+      attachRoom(inventory, item);
       inventory.addItem(item);
       inventoryRepository.save(inventory);
 
@@ -327,10 +339,62 @@ public class InventoryService {
   public void addSingleItemToInventory(long inventoryId, Item item, long userId) {
     Inventory inventory = requireItemStructureChange(inventoryId, userId);
     try {
+      attachRoom(inventory, item);
       inventory.addItem(item);
       inventoryRepository.save(inventory);
     } catch (Exception e) {
       throw new RuntimeException("Error adding item: " + e.getMessage());
     }
+  }
+
+  /**
+   * A sala do item vem como texto (coluna "Sala" da planilha ou campo locale do cadastro avulso):
+   * acha a sala do setor do inventário pelo nome, sem diferenciar caixa, acento e espaços, ou cria.
+   */
+  private void attachRoom(Inventory inventory, Item item) {
+    if (inventory.sector() == null) {
+      return;
+    }
+    Room room = roomService.findOrCreate(inventory.sector(), item.locale());
+    if (room != null) {
+      item.setRoom(room);
+    }
+  }
+
+  /** Quantas salas o setor do inventário tem hoje (para informar quantas a importação criou). */
+  @Transactional(readOnly = true)
+  public long roomCountOf(long inventoryId) {
+    Inventory inventory = findInventoryOrNotFound(inventoryId);
+    return inventory.sector() == null ? 0 : roomService.countRooms(inventory.sector().id());
+  }
+
+  /**
+   * Pré-validação da planilha: separa as salas citadas em "novas" (serão criadas) e "existentes" no
+   * setor do inventário, sem criar nada. Nomes que só diferem em caixa, acento ou espaços contam
+   * como uma sala só. Exige poder alterar os itens do inventário.
+   */
+  @Transactional(readOnly = true)
+  public RoomsPreviewDto previewRooms(long inventoryId, List<Item> items, long userId) {
+    Inventory inventory = requireItemStructureChange(inventoryId, userId);
+    if (inventory.sector() == null) {
+      return new RoomsPreviewDto(List.of(), List.of());
+    }
+    Set<String> known = new HashSet<>();
+    for (Room room : roomService.roomsOf(inventory.sector().id())) {
+      known.add(room.normalizedName());
+    }
+    Map<String, String> cited = new LinkedHashMap<>();
+    for (Item item : items) {
+      String display = RoomNames.display(item.locale());
+      if (display != null) {
+        cited.putIfAbsent(RoomNames.normalize(display), display);
+      }
+    }
+    List<String> newRooms = new ArrayList<>();
+    List<String> existingRooms = new ArrayList<>();
+    cited.forEach(
+        (normalized, display) ->
+            (known.contains(normalized) ? existingRooms : newRooms).add(display));
+    return new RoomsPreviewDto(newRooms, existingRooms);
   }
 }

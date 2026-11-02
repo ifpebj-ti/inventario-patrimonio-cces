@@ -3,6 +3,7 @@ package clp.inventory.controller;
 import clp.inventory.dto.EmailRequestDto;
 import clp.inventory.dto.ItemDto;
 import clp.inventory.dto.ObservationDto;
+import clp.inventory.dto.ValidateItemRequest;
 import clp.inventory.model.Item;
 import clp.inventory.service.EmailService;
 import clp.inventory.service.ItemService;
@@ -72,8 +73,12 @@ public class ItemController {
   }
 
   @PatchMapping("/{id}/validate")
-  public ResponseEntity<ItemDto> validateItem(@PathVariable Long id, HttpServletRequest request) {
-    Item validated = itemService.validateItem(id, actingUserId(request));
+  public ResponseEntity<ItemDto> validateItem(
+      @PathVariable Long id,
+      @RequestBody(required = false) ValidateItemRequest body,
+      HttpServletRequest request) {
+    Item validated =
+        itemService.validateItem(id, actingUserId(request), body != null ? body.roomId() : null);
     return ResponseEntity.ok(ItemDto.from(validated));
   }
 

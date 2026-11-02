@@ -66,9 +66,9 @@ export const CsvTemplateModal: React.FC<CsvTemplateModalProps> = ({
     {
       name: 'Sala',
       required: false,
-      type: 'Texto livre',
+      type: 'Nome da sala do setor',
       description:
-        'Localização física, laboratório ou sala onde o item se encontra.',
+        'Sala em que o item está cadastrado. Se não existir no setor, será criada na importação (a validação lista as novas antes). Maiúsculas, acentos e espaços extras não diferenciam salas.',
       example: 'Laboratório 02',
     },
     {

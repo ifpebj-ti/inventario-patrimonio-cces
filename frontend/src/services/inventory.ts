@@ -166,12 +166,15 @@ export const deleteItemFromInventory = async (
 }
 
 // HTTP de erro continua sendo rejeitado pelo Axios; o corpo nunca substitui o status.
+// Com o inventário, a resposta traz as salas novas (serão criadas) e as já existentes.
 export const validateSpreadsheetData = async (
   data: File,
+  inventoryId: number,
   signal?: AbortSignal,
 ) => {
   const formData = new FormData()
   formData.append('file', data)
+  formData.append('inventoryId', String(inventoryId))
 
   const response = await api.post('/inventory/validate-sheet', formData, {
     headers: {
@@ -180,7 +183,7 @@ export const validateSpreadsheetData = async (
     signal,
   })
 
-  readValidationResponse(response.status, response.data)
+  return readValidationResponse(response.status, response.data)
 }
 
 // Limpa todos os itens do inventário de uma vez só

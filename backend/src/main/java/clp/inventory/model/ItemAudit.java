@@ -37,6 +37,18 @@ public class ItemAudit {
   @JoinColumn(name = "id_target_sector")
   private Sector targetSector;
 
+  // Sala em que o item foi encontrado, a cadastrada na hora e se houve divergência.
+  @ManyToOne
+  @JoinColumn(name = "id_found_room")
+  private Room foundRoom;
+
+  @ManyToOne
+  @JoinColumn(name = "id_expected_room")
+  private Room expectedRoom;
+
+  @Column(nullable = false)
+  private boolean divergent = false;
+
   @Column(name = "event_type", nullable = false, length = 50)
   private String eventType;
 
@@ -69,6 +81,25 @@ public class ItemAudit {
     this.eventType = eventType;
     this.status = status;
     this.details = details;
+  }
+
+  public void setRooms(Room foundRoom, Room expectedRoom) {
+    this.foundRoom = foundRoom;
+    this.expectedRoom = expectedRoom;
+    this.divergent =
+        foundRoom != null && expectedRoom != null && foundRoom.id() != expectedRoom.id();
+  }
+
+  public Room foundRoom() {
+    return foundRoom;
+  }
+
+  public Room expectedRoom() {
+    return expectedRoom;
+  }
+
+  public boolean divergent() {
+    return divergent;
   }
 
   public long id() {

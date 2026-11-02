@@ -1,6 +1,10 @@
 import axios from 'axios'
 import { z } from 'zod'
-import type { ImportReport, SpreadsheetError } from '../models/spreadsheet'
+import type {
+  ImportReport,
+  RoomsPreview,
+  SpreadsheetError,
+} from '../models/spreadsheet'
 
 const errorSchema = z.object({
   code: z.string(),
@@ -19,12 +23,17 @@ export class SpreadsheetRequestError extends Error {
   }
 }
 
-export const readValidationResponse = (status: number, data: unknown) => {
+export const readValidationResponse = (
+  status: number,
+  data: unknown,
+): RoomsPreview => {
   const result = z
     .object({
       message: z.string().trim().min(1).optional(),
       hasErrors: z.boolean().optional(),
       errors: z.array(errorSchema).optional(),
+      newRooms: z.array(z.string()).optional(),
+      existingRooms: z.array(z.string()).optional(),
     })
     .strict()
     .safeParse(data)
@@ -34,7 +43,13 @@ export const readValidationResponse = (status: number, data: unknown) => {
       'Resposta de validação inválida. Tente novamente.',
     )
   }
-  const { message, hasErrors, errors = [] } = result.data
+  const {
+    message,
+    hasErrors,
+    errors = [],
+    newRooms = [],
+    existingRooms = [],
+  } = result.data
   if (status !== 200 || hasErrors === true || errors.length > 0) {
     throw new SpreadsheetRequestError(
       errors.length > 0
@@ -48,6 +63,7 @@ export const readValidationResponse = (status: number, data: unknown) => {
       'O servidor não confirmou a validação da planilha.',
     )
   }
+  return { newRooms, existingRooms }
 }
 
 export const readImportResponse = (data: unknown): ImportReport => {
@@ -70,12 +86,14 @@ export const readImportResponse = (data: unknown): ImportReport => {
           success: z.literal(false),
         }),
       ),
+      createdRooms: z.number().int().nonnegative().optional(),
     })
     .safeParse({
       totalProcessed: body.totalProcessed ?? body['totalProcessed\n'],
       successes: body.successes ?? body['successes\n'],
       failures: body.failures ?? body['failures\n'],
       failedItems: body.failedItems ?? body['failedItems\n'],
+      createdRooms: body.createdRooms,
     })
   if (
     !result.success ||
@@ -92,6 +110,7 @@ export const readImportResponse = (data: unknown): ImportReport => {
     totalProcessed: result.data.totalProcessed,
     successes: result.data.successes,
     failures: result.data.failures,
+    createdRooms: result.data.createdRooms,
     errors: result.data.failedItems.map((item) => ({
       code: item.code,
       line: item.line,

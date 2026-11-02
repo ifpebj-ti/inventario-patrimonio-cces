@@ -14,5 +14,6 @@
     <include file="/db/changelog/changes/6.0.xml" relativeToChangelogFile="false"/>
     <include file="/db/changelog/changes/7.0.xml" relativeToChangelogFile="false"/>
     <include file="/db/changelog/changes/8.0.xml" relativeToChangelogFile="false"/>
+    <include file="/db/changelog/changes/9.0.xml" relativeToChangelogFile="false"/>
 
 </databaseChangeLog>

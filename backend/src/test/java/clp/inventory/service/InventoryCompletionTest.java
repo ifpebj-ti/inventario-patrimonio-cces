@@ -23,7 +23,12 @@ class InventoryCompletionTest {
   private final AuthorizationService authorization = new AuthorizationService(users, allocations);
   private final InventoryService service =
       new InventoryService(
-          inventories, items, mock(SectorRepository.class), mock(UserService.class), authorization);
+          inventories,
+          items,
+          mock(SectorRepository.class),
+          mock(UserService.class),
+          authorization,
+          mock(RoomService.class));
   private User actor;
   private Inventory inventory;
 
