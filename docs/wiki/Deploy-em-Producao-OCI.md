@@ -388,7 +388,7 @@ O backend passa a expor **métricas Prometheus** e a enviar **traces OpenTelemet
 
 **Porta de gerenciamento (8081).** O Actuator inteiro (health e `/actuator/prometheus`) existe **somente** na porta 8081 do backend, publicada em `127.0.0.1` da VM. Na porta pública da API (8080) ele não existe (responde 403). O Alloy lê as métricas em `127.0.0.1:8081`, e o Nginx encaminha à 8081 **apenas** o health (`/actuator/health`, `/liveness`, `/readiness`); `/actuator/prometheus` nunca é encaminhado e o resto de `/actuator/` devolve 404. O healthcheck do container também usa a 8081.
 
-**Ordem de atualização.** O `upstream` do Nginx prefere a 8081 e usa a 8080 como reserva enquanto o backend antigo ainda estiver no ar. Por isso o Nginx e o backend podem ser atualizados em qualquer ordem sem derrubar o health público (o Nginx leva até 10 segundos para passar da reserva para a 8081 depois que o backend novo sobe). Atualize na ordem que preferir:
+**Ordem de atualização.** O `upstream` do Nginx prefere a 8081 e usa a 8080 como reserva enquanto o backend antigo ainda estiver no ar. Por isso **atualize o Nginx primeiro**: Nginx novo com backend antigo funciona (usa a reserva), mas Nginx antigo com backend novo perde o health público, porque o Nginx antigo ainda consulta a 8080, onde o Actuator não existe mais. Com o Nginx novo, ele leva até 10 segundos para passar da reserva para a 8081 depois que o backend novo sobe. Rode, na ordem:
 
 ```bash
 bash infra/scripts/deploy-nginx.sh 137.131.249.225            # Nginx (health para a 8081)
