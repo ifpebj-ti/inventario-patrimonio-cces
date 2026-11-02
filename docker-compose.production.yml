@@ -38,6 +38,9 @@ services:
         condition: service_healthy
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8080}:8080"
+      # Porta de gerenciamento (health e métricas Prometheus): só em loopback. O Nginx do host encaminha
+      # apenas o health público para ela; as métricas são lidas pelo Alloy, nunca expostas na internet.
+      - "127.0.0.1:${BACKEND_MANAGEMENT_PORT:-8081}:8081"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
