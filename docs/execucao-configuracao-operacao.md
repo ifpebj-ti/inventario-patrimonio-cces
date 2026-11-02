@@ -181,7 +181,7 @@ inventarium-front      running
 Teste o backend:
 
 ```bash
-curl http://localhost:8080/actuator/health/liveness
+curl http://localhost:8081/actuator/health/liveness
 ```
 
 Resposta esperada:
@@ -364,7 +364,7 @@ POSTGRES_PORT=5433
 
 ### Backend fica unhealthy por SMTP
 
-O healthcheck do container usa `/actuator/health/liveness`, que não depende do Gmail. Se os logs mostrarem erro `535-5.7.8 Username and Password not accepted`, o problema está nas credenciais SMTP, não necessariamente na saude da API.
+O healthcheck do container usa `/actuator/health/liveness` na porta de gerenciamento (8081), que não depende do Gmail. Se os logs mostrarem erro `535-5.7.8 Username and Password not accepted`, o problema está nas credenciais SMTP, não necessariamente na saude da API.
 
 Gere uma nova senha de app no Google e atualize:
 

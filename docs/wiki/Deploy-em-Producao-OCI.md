@@ -316,7 +316,7 @@ O comando imprime uma senha nova para o usuário `admin`. Troque-a logo depois d
 
 A VM privada roda a stack de `infra/observability/` (ADR 0007). **Conceitos:** *métricas* são números ao longo do tempo (CPU, memória, requisições) guardados pelo **Prometheus**; *logs* são as mensagens dos containers, guardadas pelo **Loki**; *traces* mostram o caminho de uma requisição pelo sistema, guardados pelo **Tempo**; o **Grafana** é a tela que lê os três; o **SonarQube** analisa a qualidade do código.
 
-**Estado atual:** esta seção instala a stack na VM de observabilidade e abre a rede. Sem coletor o Grafana abre com os três *datasources* funcionando, mas sem dados; o coletor Alloy (seção 4.11) envia o consumo e os logs das VMs. Métricas da aplicação e traces dependem de mudanças no backend, em outro PR.
+**Estado atual:** esta seção instala a stack na VM de observabilidade e abre a rede. Sem coletor o Grafana abre com os três *datasources* funcionando, mas sem dados; o coletor Alloy (seção 4.11) envia o consumo e os logs das VMs. As métricas da aplicação e os traces estão na seção 4.12.
 
 **1. Aplicar o Terraform** (aumenta a VM para 2 OCPUs / 8 GB e abre as portas no NSG para a subnet da aplicação):
 
@@ -365,7 +365,7 @@ Na VM de observabilidade: `sudo docker ps` (todos `Up`) e `sudo docker stats --n
 
 O **Alloy** é o "carteiro": roda em cada VM (container `alloy`, ver `infra/alloy/`), lê o consumo do servidor (CPU, memória, disco, rede), o consumo de cada container e os logs dos containers, e **envia** tudo para a VM de observabilidade (métricas para o Prometheus, logs para o Loki). Ele não abre porta para fora (a interface dele escuta só em `127.0.0.1:12345`). O dashboard **Inventarium - Infraestrutura** (pasta *Inventarium* no Grafana) mostra esses dados e tem um seletor de VM (`app` ou `observability`).
 
-Ainda **não** há métricas da aplicação (requisições, JVM) nem traces: isso depende de mudanças no backend, em outro PR.
+As métricas da aplicação (requisições, JVM) e os traces vêm do backend e estão na seção 4.12.
 
 **Instalar** (na raiz do repositório, no Git Bash; o Alloy só funciona depois da stack da seção 4.10):
 
@@ -385,6 +385,44 @@ bash infra/scripts/deploy-alloy.sh observability 137.131.249.225
 - Em *Explore → Prometheus*, a consulta `node_memory_MemTotal_bytes` deve devolver uma série por VM (rótulo `vm`). Em *Explore → Loki*, `{vm="app"}` mostra os logs dos containers (backend, front, Postgres, Portainer).
 
 **Se faltar algo:** os painéis *CPU/Memória por container* dependem do cAdvisor embutido, que lê os cgroups do Docker; se ficarem vazios, confira `sudo docker logs alloy` e abra uma issue (a VM usa Docker com `overlay2` e cgroup v1, o caso suportado). O Alloy precisa do socket do Docker (somente leitura) e de leitura do host: esse acesso equivale ao que o Portainer já tem e está registrado no modelo de ameaças (I-15). O consumo de memória do Alloy é limitado a 512 MB.
+
+
+### 4.12 Métricas e traces do backend
+
+O backend passa a expor **métricas Prometheus** e a enviar **traces OpenTelemetry**. As métricas dão números da aplicação (requisições por segundo, erros 5xx, latência, memória da JVM, conexões com o banco); os traces mostram o caminho de uma requisição e quanto tempo cada etapa levou. Eles aparecem no dashboard **Inventarium - Backend** (métricas) e em *Explore → Tempo* (traces); o log de uma requisição leva o `traceId` entre colchetes e o Grafana oferece o link para o trace.
+
+**Porta de gerenciamento (8081).** O Actuator inteiro (health e `/actuator/prometheus`) existe **somente** na porta 8081 do backend, publicada em `127.0.0.1` da VM. Na porta pública da API (8080) ele não existe (responde 403). O Alloy lê as métricas em `127.0.0.1:8081`, e o Nginx encaminha à 8081 **apenas** o health (`/actuator/health`, `/liveness`, `/readiness`); `/actuator/prometheus` nunca é encaminhado e o resto de `/actuator/` devolve 404. O healthcheck do container também usa a 8081.
+
+**Ordem de atualização.** O `upstream` do Nginx prefere a 8081 e usa a 8080 como reserva enquanto o backend antigo ainda estiver no ar. Por isso **atualize o Nginx primeiro**: Nginx novo com backend antigo funciona (usa a reserva), mas Nginx antigo com backend novo perde o health público, porque o Nginx antigo ainda consulta a 8080, onde o Actuator não existe mais. Com o Nginx novo, ele leva até 10 segundos para passar da reserva para a 8081 depois que o backend novo sobe. Rode, na ordem:
+
+```bash
+bash infra/scripts/deploy-nginx.sh 137.131.249.225            # Nginx (health para a 8081)
+bash infra/scripts/deploy-alloy.sh app 137.131.249.225        # Alloy passa a ler o backend em 127.0.0.1:8081
+```
+
+O backend novo chega pelo webhook da release. A **porta 8081 só é publicada** pelo compose novo (o webhook baixa o compose da `main`, então a stack a recebe no redeploy).
+
+**Ligar os traces** (vêm desligados). No Portainer, em *Stacks → inventarium → Environment variables*, acrescente e faça o redeploy:
+
+| Variável | Valor |
+| --- | --- |
+| `TRACING_EXPORT_ENABLED` | `true` |
+| `TRACING_OTLP_ENDPOINT` | `http://10.42.0.74:4318/v1/traces` |
+| `TRACING_SAMPLING_PROBABILITY` | `1.0` (todas as requisições; reduza se o disco do Tempo apertar) |
+
+**Como testar**
+
+```bash
+# Na VM da aplicação: as métricas existem na porta de gerenciamento (loopback)...
+curl -s http://127.0.0.1:8081/actuator/prometheus | head -5
+# ...e NÃO existem na porta pública nem pela internet (esperado: 403 e 404)
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8080/actuator/prometheus
+curl -s -o /dev/null -w "%{http_code}\n" https://api.inventariumifpe.me/actuator/prometheus
+```
+
+No Grafana, abra *Dashboards → Inventarium → Inventarium - Backend* (escolha a VM `app`): os medidores e gráficos enchem em 1 a 2 minutos. Para ver traces, faça algumas ações no sistema e abra *Explore → Tempo → Search* (serviço `inventory`); há um trace por requisição, com nome como `http get /sectors`. Em *Explore → Loki*, `{container="inventarium-back"}` mostra os logs; clique no `traceId` para abrir o trace.
+
+**Limitações:** `/actuator/prometheus` não tem autenticação (a proteção é estar só em loopback; outros containers da rede `inventarium-net` alcançam `inventarium-back:8081`); o `/actuator/health` agregado também testa o envio de e-mail (SMTP) e pode demorar segundos se o Gmail estiver lento (o healthcheck do container usa só o `liveness`, que não depende do Gmail); logs e traces não podem conter dados sensíveis, pois o Loki e o Tempo não têm autenticação; as leituras do Alloy e os spans do filtro do Spring Security são descartados antes do Tempo para não poluí-lo.
 
 
 ## 5. Solução de problemas

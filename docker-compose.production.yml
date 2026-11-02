@@ -38,6 +38,9 @@ services:
         condition: service_healthy
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8080}:8080"
+      # Porta de gerenciamento (health e métricas Prometheus): só em loopback. O Nginx do host encaminha
+      # apenas o health público para ela; as métricas são lidas pelo Alloy, nunca expostas na internet.
+      - "127.0.0.1:${BACKEND_MANAGEMENT_PORT:-8081}:8081"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
@@ -62,6 +65,11 @@ services:
       AUTH_LOGIN_USER_MAX_FAILURES: ${AUTH_LOGIN_USER_MAX_FAILURES:-5}
       AUTH_LOGIN_WINDOW: ${AUTH_LOGIN_WINDOW:-15m}
       AUTH_LOGIN_BLOCK_DURATION: ${AUTH_LOGIN_BLOCK_DURATION:-15m}
+      # Traces OpenTelemetry para o Tempo da VM de observabilidade (desligado por padrão). Para ligar:
+      # TRACING_EXPORT_ENABLED=true e TRACING_OTLP_ENDPOINT=http://<ip privado>:4318/v1/traces.
+      TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-false}
+      TRACING_OTLP_ENDPOINT: ${TRACING_OTLP_ENDPOINT:-http://localhost:4318/v1/traces}
+      TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-1.0}
     networks:
       - inventarium-net
 

@@ -1,5 +1,6 @@
 package clp.inventory.security;
 
+import org.springframework.boot.security.autoconfigure.actuate.web.servlet.EndpointRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -44,7 +45,11 @@ public class SecurityConfig {
                   // tratada é barrado e o cliente recebe 403 vazio no lugar do 500.
                   .requestMatchers("/error")
                   .permitAll()
-                  .requestMatchers("/actuator/health/**")
+                  // Endpoints do Actuator (health e prometheus) existem só na porta de
+                  // gerenciamento,
+                  // que a VM publica em loopback. O EndpointRequest casa apenas nessa porta: na
+                  // porta pública da API continua valendo anyRequest().authenticated().
+                  .requestMatchers(EndpointRequest.toAnyEndpoint())
                   .permitAll()
                   // Sem HttpMethod: o preflight OPTIONS precisa casar também.
                   .requestMatchers("/auth/google", "/auth/login")

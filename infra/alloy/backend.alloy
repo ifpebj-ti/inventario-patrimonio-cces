@@ -1,0 +1,15 @@
+// Metricas da aplicacao (Spring Boot / Micrometer). Instalado SO na VM da aplicacao: o backend publica a
+// porta de gerenciamento (8081) apenas em 127.0.0.1 e o Alloy, em modo de rede "host", a alcanca ali.
+// BACKEND_METRICS_ADDR vem do compose (padrao 127.0.0.1:8081).
+prometheus.scrape "backend" {
+  job_name     = "inventarium-backend"
+  metrics_path = "/actuator/prometheus"
+  scrape_interval = "30s"
+
+  targets = [{
+    "__address__" = sys.env("BACKEND_METRICS_ADDR"),
+    "service"     = "inventarium-back",
+  }]
+
+  forward_to = [prometheus.remote_write.obs.receiver]
+}

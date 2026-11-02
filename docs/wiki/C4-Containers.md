@@ -46,7 +46,7 @@ flowchart LR
 
 ## Operação local e saúde
 
-O Compose publica frontend na porta `3000` e backend na `8080`; o PostgreSQL fica disponível na porta configurável `5433` do host. O backend só inicia depois da verificação de saúde do banco e possui healthcheck em `/actuator/health/liveness`. A aplicação depende de variáveis de ambiente para a conexão do banco, senha SMTP, segredo de assinatura do JWT e client ID do Google. Em especial, `SECURITY_TOKEN_SECRET` não tem valor padrão no Compose: a inicialização falha se ele não for informado.
+O Compose publica frontend na porta `3000` e backend na `8080`; o PostgreSQL fica disponível na porta configurável `5433` do host. O backend só inicia depois da verificação de saúde do banco e possui healthcheck em `/actuator/health/liveness`, servido na porta de gerenciamento `8081` (health e métricas Prometheus, só em loopback na produção). A aplicação depende de variáveis de ambiente para a conexão do banco, senha SMTP, segredo de assinatura do JWT e client ID do Google. Em especial, `SECURITY_TOKEN_SECRET` não tem valor padrão no Compose: a inicialização falha se ele não for informado.
 
 ## Limites conhecidos
 

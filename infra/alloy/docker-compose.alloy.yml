@@ -19,15 +19,18 @@ services:
     mem_limit: 512m
     command:
       - run
-      - /etc/alloy/config.alloy
+      # Diretorio: carrega config.alloy e backend.alloy (vazio na VM de observabilidade).
+      - /etc/alloy
       - --storage.path=/var/lib/alloy/data
       - --server.http.listen-addr=127.0.0.1:12345
       - --disable-reporting
     environment:
       OBS_HOST: ${OBS_HOST:?defina OBS_HOST (IP da VM de observabilidade)}
       VM_NAME: ${VM_NAME:?defina VM_NAME (app ou observability)}
+      BACKEND_METRICS_ADDR: ${BACKEND_METRICS_ADDR:-127.0.0.1:8081}
     volumes:
       - ./config.alloy:/etc/alloy/config.alloy:ro
+      - ./backend.alloy:/etc/alloy/backend.alloy:ro
       - alloy-data:/var/lib/alloy/data
       - /:/host/root:ro,rslave
       - /proc:/host/proc:ro

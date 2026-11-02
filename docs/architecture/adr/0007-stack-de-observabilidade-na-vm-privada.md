@@ -22,12 +22,15 @@ Restrições: projeto acadêmico com custo baixo, uma VM de 2 OCPUs / 8 GB, sem 
 8. **Tempo 2.10 e não 3.x**, porque a série 3 mudou a arquitetura de ingestão e a configuração monolítica validada é a da 2.x.
 9. **Coletor Grafana Alloy em cada VM** (`infra/alloy/`, container em modo de rede `host`): um único agente lê o servidor (exporter *unix* embutido), os containers (cAdvisor embutido) e os logs (descoberta pelo socket do Docker) e envia por push ao Prometheus e ao Loki, com o rótulo `vm`. A instalação é por `deploy-alloy.sh` (aplicação ou observabilidade), igual ao deploy da stack. O dashboard **Inventarium - Infraestrutura** é provisionado por arquivo no Grafana. O recebimento de traces e as métricas do backend ficam para o PR do backend.
 
+10. **Métricas e traces do backend.** O Actuator inteiro (health e `/actuator/prometheus`) vive numa **porta de gerenciamento separada (8081)**, publicada só em `127.0.0.1`; na porta pública da API ele não existe. O Alloy lê as métricas em `127.0.0.1:8081` (modo de rede `host`), e o Nginx encaminha à 8081 só o health, com um `upstream` que mantém a 8080 como reserva durante a transição. Os traces vão por OTLP/HTTP direto do backend ao Tempo (sem receptor no Alloy), desligados por padrão (`TRACING_EXPORT_ENABLED`). Um `SpanExportingPredicate` descarta os spans do Actuator e do filtro do Spring Security. Dois dashboards são provisionados: Infraestrutura e Backend.
+
 ## Consequencias
 
 - É possível ver consumo, logs e traces num só lugar (Grafana) e analisar qualidade de código no SonarQube.
 - Loki, Tempo e Prometheus **não têm autenticação**: a proteção é só o NSG (acesso restrito à subnet da aplicação). Qualquer processo comprometido na VM da aplicação pode escrever (e ler) telemetria.
 - A VM passa a ser um ponto único de falha da observabilidade; os dados vivem em volumes Docker na própria VM e **não têm backup** (aceito: telemetria é descartável; o SonarQube pode ser reanalisado).
 - Memória apertada: SonarQube + LGTM em 8 GB deixam pouca folga.
+- O `/actuator/prometheus` não tem autenticação; a proteção é estar só em loopback (e a porta pública não servir o Actuator, coberto por teste de integração).
 - O Alloy precisa do socket do Docker e de leitura do host (mesmo risco do Portainer); as métricas por container dependem do cAdvisor funcionar com o driver de armazenamento do Docker da VM (`overlay2`).
 
 ## Alternativas Consideradas
