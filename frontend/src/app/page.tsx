@@ -96,9 +96,10 @@ export default function Home() {
             aria-hidden
             className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.14)_1px,transparent_0)] bg-[length:22px_22px] opacity-60"
           />
+          {/* Anéis desenhados como fundo (e não como caixas deslocadas para fora), para nada passar da largura da tela. */}
           <div
             aria-hidden
-            className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full border border-white/20"
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_100%_0%,transparent_5rem,rgba(255,255,255,0.2)_5rem,rgba(255,255,255,0.2)_5.06rem,transparent_5.06rem,transparent_8rem,rgba(255,255,255,0.14)_8rem,rgba(255,255,255,0.14)_8.06rem,transparent_8.06rem)]"
           />
           <Image
             src={logoImg}
