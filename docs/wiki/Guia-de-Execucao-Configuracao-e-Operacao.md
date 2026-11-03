@@ -87,6 +87,7 @@ O passo a passo do go-live (domínio, DNS, Terraform, Nginx com TLS, Portainer, 
 A pipeline pública imagens no GitHub Container Registry, mas não injeta secrets de runtime dentro das imagens. Esse comportamento e intencional:
 
 - frontend: `NEXT_PUBLIC_GOOGLE_CLIENT_ID` e `NEXT_PUBLIC_API_URL` são argumentos de build, porque o Next.js inclui variáveis `NEXT_PUBLIC_*` no bundle do navegador. No GitHub Actions, esses valores podem vir de repository variables; o Google Client ID também pode vir de GitHub Secrets, embora não seja um segredo real depois que chega ao browser. A pipeline falha se esses valores não estiverem configurados;
+- versão exibida no sistema: a imagem do frontend recebe `NEXT_PUBLIC_APP_VERSION` (a tag da release, por exemplo `v7.3.0`, vinda de `version_tag` no workflow de build) e a mostra no rodapé do menu lateral, visível depois do login. Em build local ou sem tag o rótulo é `dev`. Como é variável `NEXT_PUBLIC_*`, o valor é público e só muda com uma nova imagem; a fonte é sempre a tag Git, então não há número de versão para manter à mão.
 - backend: `SECURITY_TOKEN_SECRET`, credenciais do banco, credenciais de e-mail e configuracoes Spring são variáveis de runtime e devem ficar na stack, no Compose, no Portainer ou no mecanismo de secrets da VM;
 - uma troca de imagem não deve exigir redigitar secrets quando a stack reutiliza as mesmas variáveis salvas.
 
