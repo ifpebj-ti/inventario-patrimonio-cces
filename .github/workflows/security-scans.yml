@@ -85,7 +85,7 @@ jobs:
 
       - name: Upload Semgrep SARIF to Code Scanning
         if: always() && hashFiles('semgrep-report.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: semgrep-report.sarif
           category: semgrep
