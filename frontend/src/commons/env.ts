@@ -4,3 +4,5 @@
 export const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? ''
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080'
+// Tag da release (ex.: v7.3.0), injetada no build da imagem; vazia fora do CI.
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? ''

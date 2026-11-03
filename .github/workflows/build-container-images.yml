@@ -266,6 +266,7 @@ jobs:
           build-args: |
             NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ inputs.frontend_google_client_id || vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID || vars.GOOGLE_OAUTH_CLIENT_ID || secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID || secrets.GOOGLE_OAUTH_CLIENT_ID }}
             NEXT_PUBLIC_API_URL=${{ inputs.frontend_api_url || vars.NEXT_PUBLIC_API_URL }}
+            NEXT_PUBLIC_APP_VERSION=${{ inputs.version_tag }}
           labels: |
             org.opencontainers.image.source=${{ steps.meta.outputs.source_url }}
             org.opencontainers.image.revision=${{ steps.meta.outputs.revision }}
@@ -524,6 +525,7 @@ jobs:
           build-args: |
             NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ inputs.frontend_google_client_id || vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID || vars.GOOGLE_OAUTH_CLIENT_ID || secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID || secrets.GOOGLE_OAUTH_CLIENT_ID }}
             NEXT_PUBLIC_API_URL=${{ inputs.frontend_api_url || vars.NEXT_PUBLIC_API_URL }}
+            NEXT_PUBLIC_APP_VERSION=${{ inputs.version_tag }}
           labels: |
             org.opencontainers.image.source=${{ steps.meta.outputs.source_url }}
             org.opencontainers.image.revision=${{ steps.meta.outputs.revision }}

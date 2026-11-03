@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google'
 import { toast } from 'sonner'
+import { ArrowLeft, KeyRound } from 'lucide-react'
 
 import { useAuth } from '@/hooks/useAuth'
 import { AuthError } from '@/commons/exceptions/AuthError'
@@ -106,34 +107,58 @@ export const LoginForm = () => {
   }
 
   return (
-    <UiCard className="w-full h-full xl:w-2/3 justify-center items-center gap-6 xl:h-3/4 shadow-2xl">
-      <h2 className="text-3xl text-primary">Boas-vindas</h2>
-
-      <p className="text-center text-muted-foreground max-w-xs px-4">
-        Entre com sua conta institucional para acessar o Inventarium.
-      </p>
+    <UiCard className="w-full flex-1 items-center justify-center gap-6 border-0 bg-transparent p-0 shadow-none lg:max-w-md lg:flex-none lg:gap-7 lg:rounded-3xl lg:border lg:border-border/60 lg:bg-card lg:px-12 lg:py-14 lg:shadow-sm motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-4 motion-safe:duration-500">
+      <div className="flex flex-col items-center gap-3 text-center">
+        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+          Acesso ao sistema
+        </span>
+        <h2 className="text-3xl font-bold tracking-tight text-foreground">
+          Boas-vindas
+        </h2>
+        <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
+          {showPasswordForm
+            ? 'Informe seu usuário e senha para acessar o Inventarium.'
+            : 'Entre com sua conta institucional para acessar o Inventarium.'}
+        </p>
+      </div>
 
       {showPasswordForm ? <PasswordLoginForm /> : googleLogin}
 
       {error && (
         <p
           role="alert"
-          className="text-destructive text-[14px] text-center max-w-xs px-4"
+          className="max-w-xs rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-2.5 text-center text-[14px] text-destructive"
         >
           {error}
         </p>
       )}
 
       {/* Fora do ternário do Google de propósito: sem client id o aviso aparece
-          e este link continua sendo a única forma de entrar. */}
+          e este botão continua sendo a única forma de entrar. */}
+      <div className="flex w-full max-w-xs items-center gap-3 text-xs text-muted-foreground">
+        <span className="h-px flex-1 bg-border" />
+        ou
+        <span className="h-px flex-1 bg-border" />
+      </div>
+
       <UiButton
-        variant="link"
+        variant="ghost"
         type="button"
         onClick={togglePasswordForm}
         aria-expanded={showPasswordForm}
-        className="min-h-11 text-muted-foreground underline hover:text-foreground"
+        className="min-h-11 w-full max-w-xs gap-2 rounded-full text-muted-foreground hover:bg-accent hover:text-primary"
       >
-        {showPasswordForm ? 'Voltar' : 'Entrar com usuário e senha'}
+        {showPasswordForm ? (
+          <>
+            <ArrowLeft className="size-4" aria-hidden />
+            Voltar
+          </>
+        ) : (
+          <>
+            <KeyRound className="size-4" aria-hidden />
+            Entrar com usuário e senha
+          </>
+        )}
       </UiButton>
     </UiCard>
   )
