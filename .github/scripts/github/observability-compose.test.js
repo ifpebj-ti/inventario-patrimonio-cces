@@ -75,6 +75,18 @@ test("fails without the generated secrets", { skip }, () => {
   assert.match(result.stderr, /GRAFANA_ADMIN_PASSWORD|SONAR_DB_PASSWORD/);
 });
 
+test("grafana is hardened for public exposure: login required, no anonymous or public access", { skip }, () => {
+  const env = resolved().services.grafana.environment;
+
+  assert.equal(env.GF_AUTH_ANONYMOUS_ENABLED, "false");
+  assert.equal(env.GF_USERS_ALLOW_SIGN_UP, "false");
+  assert.equal(env.GF_PUBLIC_DASHBOARDS_ENABLED, "false");
+  assert.equal(env.GF_SNAPSHOTS_EXTERNAL_ENABLED, "false");
+  assert.equal(env.GF_METRICS_ENABLED, "false");
+  assert.equal(env.GF_SECURITY_COOKIE_SECURE, "true");
+  assert.match(env.GF_SECURITY_ADMIN_PASSWORD, /\S/, "a senha do admin e obrigatoria");
+});
+
 test("prometheus receives remote write and limits retention", { skip }, () => {
   const command = resolved().services.prometheus.command;
   assert.ok(command.includes("--web.enable-remote-write-receiver"));

@@ -74,6 +74,16 @@ services:
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       GF_SERVER_ROOT_URL: https://grafana.inventariumifpe.me/
+      # O Grafana e publico (Nginx sem allowlist): so entra quem autentica. Nada de acesso anonimo, dashboards
+      # publicos, snapshots externos nem /metrics aberto; cookie so por HTTPS.
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_PUBLIC_DASHBOARDS_ENABLED: "false"
+      GF_SNAPSHOTS_EXTERNAL_ENABLED: "false"
+      GF_METRICS_ENABLED: "false"
+      GF_SECURITY_COOKIE_SECURE: "true"
+      GF_SECURITY_COOKIE_SAMESITE: lax
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_USERS_ALLOW_ORG_CREATE: "false"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana
