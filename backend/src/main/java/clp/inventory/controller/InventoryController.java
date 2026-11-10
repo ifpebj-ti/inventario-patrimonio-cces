@@ -181,15 +181,10 @@ public class InventoryController {
           results.stream().filter(r -> !r.success()).collect(Collectors.toList());
 
       Map<String, Object> response = new HashMap<>();
-      response.put("totalProcessed", items.size());
       response.put("totalProcessed\n", items.size());
-      response.put("successes", successes.size());
       response.put("successes\n", successes.size());
-      response.put("failures", errors.size());
       response.put("failures\n", errors.size());
-      response.put("successfulItems", successes);
       response.put("successfulItems\n", successes);
-      response.put("failedItems", errors);
       response.put("failedItems\n", errors);
       response.put("createdRooms", inventoryService.roomCountOf(inventoryId) - roomsBefore);
 
