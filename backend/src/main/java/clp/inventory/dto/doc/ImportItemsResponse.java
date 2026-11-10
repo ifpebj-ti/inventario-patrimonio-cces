@@ -1,0 +1,27 @@
+package clp.inventory.dto.doc;
+
+import clp.inventory.dto.ItemProcessingResult;
+import io.swagger.v3.oas.annotations.media.Schema;
+import java.util.List;
+
+/**
+ * Só documentação: forma do corpo de {@code POST /inventory/add-items}. Não é usada pelo código.
+ */
+@Schema(
+    description =
+        "Resultado da importação da planilha CSV, linha a linha. Atenção: os nomes de totalProcessed, successes, failures, successfulItems e failedItems terminam com uma quebra de linha (\\n), e é assim que a API os devolve.")
+public record ImportItemsResponse(
+    @Schema(name = "totalProcessed\n", description = "Linhas de dados processadas.", example = "50")
+        int totalProcessed,
+    @Schema(name = "successes\n", description = "Itens adicionados.", example = "48") int successes,
+    @Schema(name = "failures\n", description = "Itens que falharam.", example = "2") int failures,
+    @Schema(name = "successfulItems\n", description = "Itens adicionados.")
+        List<ItemProcessingResult> successfulItems,
+    @Schema(name = "failedItems\n", description = "Itens que falharam, com o motivo.")
+        List<ItemProcessingResult> failedItems,
+    @Schema(description = "Quantas salas novas a importação criou no setor.", example = "1")
+        long createdRooms,
+    @Schema(
+            description = "Resumo: todos adicionados, nenhum adicionado ou parcial.",
+            example = "Todos os itens foram adicionados com sucesso!")
+        String status) {}
