@@ -36,7 +36,7 @@ Este runbook descreve como o Inventarium é publicado na Oracle Cloud Infrastruc
 | `api.inventariumifpe.me` | Backend (Spring Boot); só `/actuator/health` do Actuator | Público (CORS só para `https://inventariumifpe.me`) |
 | `portainer.inventariumifpe.me` | Portainer CE | Só IPs de `allowed_admin_cidrs`; apenas o webhook de stack é público |
 | `sonar.inventariumifpe.me` | SonarQube (VM privada) | Público, com login obrigatório (o scanner do GitHub precisa chegar) |
-| `grafana.inventariumifpe.me` | Grafana (VM privada) | Só IPs de `allowed_admin_cidrs` |
+| `grafana.inventariumifpe.me` | Grafana (VM privada) | Público, com login obrigatório e limite de tentativas por IP (seção 4.13) |
 
 ## 2. O que está no repositório e como chega à VM
 
@@ -77,7 +77,7 @@ No PowerShell:
 curl.exe -s https://ifconfig.me
 ```
 
-O resultado (por exemplo `198.51.100.7`) vira `198.51.100.7/32` em `allowed_ssh_cidrs` e `allowed_admin_cidrs`. Internet residencial costuma ter IP dinâmico; se o seu mudar, você perde o SSH, o Portainer e o Grafana até atualizar a lista (veja 4.6). Dá para listar mais de um CIDR, por exemplo casa e IFPE.
+O resultado (por exemplo `198.51.100.7`) vira `198.51.100.7/32` em `allowed_ssh_cidrs` e `allowed_admin_cidrs`. Internet residencial costuma ter IP dinâmico; se o seu mudar, você perde o SSH e o Portainer até atualizar a lista (veja 4.6); o Grafana é público com login (seção 4.13). Dá para listar mais de um CIDR, por exemplo casa e IFPE.
 
 ### ⭐ 3.3 Terraform: aplicar (15 minutos)
 
@@ -423,6 +423,43 @@ curl -s -o /dev/null -w "%{http_code}\n" https://api.inventariumifpe.me/actuator
 No Grafana, abra *Dashboards → Inventarium → Inventarium - Backend* (escolha a VM `app`): os medidores e gráficos enchem em 1 a 2 minutos. Para ver traces, faça algumas ações no sistema e abra *Explore → Tempo → Search* (serviço `inventory`); há um trace por requisição, com nome como `http get /sectors`. Em *Explore → Loki*, `{container="inventarium-back"}` mostra os logs; clique no `traceId` para abrir o trace.
 
 **Limitações:** `/actuator/prometheus` não tem autenticação (a proteção é estar só em loopback; outros containers da rede `inventarium-net` alcançam `inventarium-back:8081`); o `/actuator/health` agregado também testa o envio de e-mail (SMTP) e pode demorar segundos se o Gmail estiver lento (o healthcheck do container usa só o `liveness`, que não depende do Gmail); logs e traces não podem conter dados sensíveis, pois o Loki e o Tempo não têm autenticação; as leituras do Alloy e os spans do filtro do Spring Security são descartados antes do Tempo para não poluí-lo.
+
+### 4.13 Grafana público com login (ADR 0008)
+
+O Grafana abre pela internet em `https://grafana.inventariumifpe.me`, **sem lista de IPs**, porque o ambiente é de homologação e o professor aceitou o acesso público desde que exija usuário e senha. O Portainer continua restrito a `allowed_admin_cidrs`, e o Sonar já era público com login. Quem não autentica não vê dashboard, datasource nem dado.
+
+**O que protege o Grafana**
+
+| Camada | O quê |
+| --- | --- |
+| Login obrigatório | Acesso anônimo, cadastro, dashboards públicos, snapshots externos e `/metrics` desligados (`GF_*` em `docker-compose.observability.yml`); cookie só por HTTPS |
+| Bloqueio por usuário | O Grafana bloqueia o usuário por alguns minutos depois de falhas seguidas de senha |
+| Nginx, por IP | `POST /login` limitado a 10 tentativas por minuto (zona `grafana_login`, burst 5) e uso geral a 30 requisições por segundo (zona `grafana`, burst 100); acima disso o Nginx devolve `429` |
+| Senha forte | A senha do `admin` é gerada na VM com `openssl rand -hex 16` e nunca vai ao Git |
+
+**Colocar no ar** (depois do merge, a partir da raiz do repositório, no Git Bash):
+
+```bash
+# 1) Nginx: remove a allowlist do Grafana e cria as zonas de limite (idempotente, valida com nginx -t e volta atrás se falhar)
+infra/scripts/deploy-nginx.sh <IP_RESERVADO>
+
+# 2) Grafana: aplica as variáveis de endurecimento (recria o container; os dashboards e o banco do Grafana ficam no volume)
+infra/scripts/deploy-observability.sh <IP_RESERVADO>
+```
+
+Faça o passo 1 e depois o 2. Valide **sem estar logado**, de qualquer rede:
+
+```bash
+curl -sI https://grafana.inventariumifpe.me/ | head -3                          # 302 para /login
+curl -s -o /dev/null -w '%{http_code}\n' https://grafana.inventariumifpe.me/api/dashboards/home   # 401
+curl -s -o /dev/null -w '%{http_code}\n' https://grafana.inventariumifpe.me/metrics               # nao pode ser 200 com dados
+```
+
+**Criar um usuário só de leitura (por exemplo, para o professor).** Não compartilhe o `admin`. Entre como `admin`, abra *Administration → Users and access → Users → New user*, preencha nome, e-mail, usuário e uma senha de pelo menos 12 caracteres, e depois, em *Organization role*, escolha **Viewer** (só consulta; não edita dashboards nem datasources). Mande a senha por um canal privado, nunca por issue, PR ou chat público. Para a senha do `admin`, veja a seção 4.10.
+
+**Rollback (voltar a restringir por IP):** em `infra/nginx/app-vm/sites-tls/32-grafana.conf`, acrescente de novo `include /etc/nginx/inventarium/generated/admin-allowlist.conf;` logo depois dos `include` de cabeçalhos e rode `deploy-nginx.sh`. As variáveis de endurecimento do Grafana podem ficar.
+
+**Limitações conhecidas:** o endereço `grafana.inventariumifpe.me` fica exposto a varreduras e a vulnerabilidades do próprio Grafana, então mantenha a versão da imagem atualizada; o nome de usuário `admin` é conhecido (a defesa é a senha forte, o bloqueio por usuário e o limite do Nginx); o acesso passa a depender só da senha, sem segundo fator. Se o ambiente deixar de ser de homologação, volte à allowlist ou ponha o Grafana atrás de uma VPN ou de um login corporativo.
 
 
 ## 5. Solução de problemas
