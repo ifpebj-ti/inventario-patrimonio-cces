@@ -182,13 +182,24 @@ test("proxy sets X-Forwarded-For from the peer address instead of appending the 
   assert.match(text, /proxy_set_header X-Forwarded-Proto \$scheme;/);
 });
 
-test("Portainer and Grafana are restricted to admin IPs; only the stack webhook is public (POST only)", () => {
+test("public Grafana rate limits the login per IP and the rest of the UI with a looser zone", () => {
+  const grafana = tlsServers.find(({ block }) => /grafana\.inventariumifpe\.me/.test(block));
+  const hardening = stripComments(read("conf.d", "00-hardening.conf"));
+
+  assert.match(hardening, /limit_req_zone \$binary_remote_addr zone=grafana_login:\w+ rate=\d+r\/m;/);
+  assert.match(hardening, /limit_req_zone \$binary_remote_addr zone=grafana:\w+ rate=\d+r\/s;/);
+  assert.match(grafana.block, /location\s+=\s+\/login\s*\{[^}]*limit_req\s+zone=grafana_login/);
+  assert.match(grafana.block, /location\s+\/\s*\{[^}]*limit_req\s+zone=grafana\b/);
+  assert.equal((grafana.block.match(/zone=grafana_login\b/g) ?? []).length, 1, "a zona do login so vale no /login");
+});
+
+test("Portainer is restricted to admin IPs; Grafana and Sonar are public and protected by their own login", () => {
   const portainer = tlsServers.find(({ block }) => /portainer\.inventariumifpe\.me/.test(block));
   const grafana = tlsServers.find(({ block }) => /grafana\.inventariumifpe\.me/.test(block));
   const sonar = tlsServers.find(({ block }) => /sonar\.inventariumifpe\.me/.test(block));
 
   assert.match(portainer.block, /generated\/admin-allowlist\.conf/);
-  assert.match(grafana.block, /generated\/admin-allowlist\.conf/);
+  assert.doesNotMatch(grafana.block, /admin-allowlist/, "Grafana e publico (login do Grafana protege)");
   assert.doesNotMatch(sonar.block, /admin-allowlist/, "Sonar e publico (login do Sonar protege)");
 
   const webhook = portainer.block.match(/location\s+~\s+"\^\/api\/stacks\/webhooks\/[^"]+"\s*\{([\s\S]*?)\n    \}/);
