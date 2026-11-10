@@ -1,11 +1,20 @@
 package clp.inventory.controller;
 
+import clp.inventory.dto.AuthResponseDTO;
+import clp.inventory.dto.AuthenticatedUserDto;
 import clp.inventory.dto.GoogleAuthDto;
 import clp.inventory.dto.LoginDto;
 import clp.inventory.service.AuthenticatedUserService;
 import clp.inventory.service.UserService;
 import clp.inventory.service.auth.AuthenticationService;
 import clp.inventory.service.auth.LoginAttemptLimiter;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.Duration;
 import javax.security.sasl.AuthenticationException;
 import org.springframework.http.HttpHeaders;
@@ -13,6 +22,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+@Tag(name = "Autenticação", description = "Login e dados da sessão atual.")
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
@@ -33,6 +43,25 @@ public class AuthController {
     this.loginAttemptLimiter = loginAttemptLimiter;
   }
 
+  @Operation(
+      summary = "Login com Google",
+      description =
+          "Troca o ID token do Google Identity Services pelo JWT da aplicação (HS256, 24h). Valida assinatura (JWKS do Google), iss, aud, exp e email_verified. É a única forma de um usuário ser criado: quem entra pela primeira vez nasce sem alocação e sem ser administrador, ou seja, sem acesso até ser alocado a um setor. O domínio do e-mail precisa estar em GOOGLE_ALLOWED_DOMAINS (vazio libera todos). Não exige Authorization.",
+      security = {})
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "Login realizado.",
+        content = @Content(schema = @Schema(implementation = AuthResponseDTO.class))),
+    @ApiResponse(
+        responseCode = "400",
+        description = "Credencial ausente ou em branco.",
+        content = @Content),
+    @ApiResponse(
+        responseCode = "401",
+        description = "Token do Google inválido (mensagem única para qualquer falha de validação).",
+        content = @Content)
+  })
   @PostMapping("/google")
   public ResponseEntity<Object> loginWithGoogle(@RequestBody GoogleAuthDto googleAuthDto) {
     if (googleAuthDto == null
@@ -51,6 +80,30 @@ public class AuthController {
     }
   }
 
+  @Operation(
+      summary = "Login por usuário e senha (conta de sistema)",
+      description =
+          "Login sem Google, só para a conta de sistema (admin) e as contas de teste. Há bloqueio temporário por usuário depois de falhas seguidas (padrão: 5 falhas em 15 min bloqueiam por 15 min), e o Nginx limita por IP. Não exige Authorization.",
+      security = {})
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "Login realizado.",
+        content = @Content(schema = @Schema(implementation = AuthResponseDTO.class))),
+    @ApiResponse(
+        responseCode = "400",
+        description = "Usuário ou senha ausentes ou em branco.",
+        content = @Content),
+    @ApiResponse(
+        responseCode = "401",
+        description = "Credenciais inválidas (mensagem única: não revela se o usuário existe).",
+        content = @Content),
+    @ApiResponse(
+        responseCode = "429",
+        description =
+            "Muitas tentativas. O cabeçalho Retry-After traz os segundos até poder tentar de novo.",
+        content = @Content)
+  })
   @PostMapping("/login")
   public ResponseEntity<Object> loginWithPassword(@RequestBody LoginDto loginDto) {
     if (loginDto == null
@@ -81,9 +134,23 @@ public class AuthController {
     }
   }
 
+  @Operation(
+      summary = "Usuário autenticado",
+      description =
+          "Devolve os dados da sessão: o usuário, se é administrador e as alocações (cargo e permissões em cada setor). O frontend usa para montar a interface conforme o acesso.")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "Dados do usuário autenticado.",
+        content = @Content(schema = @Schema(implementation = AuthenticatedUserDto.class))),
+    @ApiResponse(
+        responseCode = "400",
+        description = "Cabeçalho Authorization ausente ou fora do formato Bearer.",
+        content = @Content)
+  })
   @GetMapping("/me")
   public ResponseEntity<Object> getAuthenticatedUser(
-      @RequestHeader("Authorization") String authHeader) {
+      @Parameter(hidden = true) @RequestHeader("Authorization") String authHeader) {
     if (authHeader == null || !authHeader.startsWith("Bearer ")) {
       return ResponseEntity.badRequest().body("Invalid authorization header");
     }

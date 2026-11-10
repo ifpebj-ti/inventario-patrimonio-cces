@@ -6,6 +6,14 @@ import clp.inventory.dto.UserDto;
 import clp.inventory.model.User;
 import clp.inventory.service.SectorAllocationService;
 import clp.inventory.service.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -23,6 +31,10 @@ import org.springframework.web.server.ResponseStatusException;
  * <p>Não há criar nem excluir usuário pela API: o usuário nasce no primeiro login pelo Google (sem
  * alocação e sem ser administrador) e nunca é apagado, só desativado.
  */
+@Tag(
+    name = "Usuários",
+    description =
+        "Usuários, alocações em setores e status. Não há criar nem excluir: o usuário nasce no primeiro login com Google e nunca é apagado, só desativado.")
 @RestController
 public class UserController {
 
@@ -34,15 +46,46 @@ public class UserController {
     this.sectorAllocationService = sectorAllocationService;
   }
 
+  @Operation(
+      summary = "Listar usuários",
+      description =
+          "Exige administrador ou gestor (MANAGE_SECTOR) de algum setor. Filtre por cargo com roleId.")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "Usuários.",
+        content = @Content(array = @ArraySchema(schema = @Schema(implementation = UserDto.class))))
+  })
   @GetMapping("/users")
   public ResponseEntity<List<UserDto>> list(
-      @RequestParam(required = false) Long roleId, HttpServletRequest request) {
+      @Parameter(description = "Só usuários que têm este cargo em alguma alocação.")
+          @RequestParam(required = false)
+          Long roleId,
+      HttpServletRequest request) {
     long actingUserId = actingUserId(request);
     List<UserDto> dtos =
         userService.listUsers(roleId, actingUserId).stream().map(this::toDto).toList();
     return ResponseEntity.ok(dtos);
   }
 
+  @Operation(
+      summary = "Alocar usuário a um setor (ou trocar o cargo)",
+      description =
+          "Cria a alocação do usuário no setor ou troca o cargo dele ali. Exige administrador ou gestor (MANAGE_SECTOR) do setor.")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "Usuário com as alocações atualizadas.",
+        content = @Content(schema = @Schema(implementation = UserDto.class))),
+    @ApiResponse(
+        responseCode = "400",
+        description = "Cargo inválido ou não permitido para quem aloca.",
+        content = @Content),
+    @ApiResponse(
+        responseCode = "404",
+        description = "Usuário, setor ou cargo não encontrado.",
+        content = @Content)
+  })
   @PutMapping("/users/{id}/sectors/{sectorId}")
   public ResponseEntity<UserDto> allocateSector(
       @PathVariable long id,
@@ -60,6 +103,19 @@ public class UserController {
     }
   }
 
+  @Operation(
+      summary = "Remover usuário de um setor",
+      description = "Exige administrador ou gestor (MANAGE_SECTOR) do setor.")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "Usuário com as alocações atualizadas.",
+        content = @Content(schema = @Schema(implementation = UserDto.class))),
+    @ApiResponse(
+        responseCode = "404",
+        description = "Usuário ou setor não encontrado.",
+        content = @Content)
+  })
   @DeleteMapping("/users/{id}/sectors/{sectorId}")
   public ResponseEntity<UserDto> deallocateSector(
       @PathVariable long id, @PathVariable long sectorId, HttpServletRequest request) {
@@ -72,6 +128,21 @@ public class UserController {
     }
   }
 
+  @Operation(
+      summary = "Definir se o usuário é administrador",
+      description =
+          "Exige administrador. O campo administrator é obrigatório, e ninguém altera o próprio papel (409).")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "Usuário atualizado.",
+        content = @Content(schema = @Schema(implementation = UserDto.class))),
+    @ApiResponse(
+        responseCode = "400",
+        description = "Campo administrator ausente.",
+        content = @Content),
+    @ApiResponse(responseCode = "404", description = "Usuário não encontrado.", content = @Content)
+  })
   @PatchMapping("/users/{id}/administrator")
   public ResponseEntity<UserDto> setAdministrator(
       @PathVariable long id, @RequestBody SetAdministratorDto dto, HttpServletRequest request) {
@@ -86,11 +157,30 @@ public class UserController {
     }
   }
 
+  @Operation(
+      summary = "Desativar usuário",
+      description =
+          "Exige administrador. A conta desativada não consegue entrar e perde as sessões já abertas (401). Ninguém desativa a própria conta (409).")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "Usuário desativado.",
+        content = @Content(schema = @Schema(implementation = UserDto.class))),
+    @ApiResponse(responseCode = "404", description = "Usuário não encontrado.", content = @Content)
+  })
   @PatchMapping("/users/{id}/deactivate")
   public ResponseEntity<UserDto> deactivate(@PathVariable long id, HttpServletRequest request) {
     return setActive(id, false, request);
   }
 
+  @Operation(summary = "Ativar usuário", description = "Exige administrador.")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "Usuário ativado.",
+        content = @Content(schema = @Schema(implementation = UserDto.class))),
+    @ApiResponse(responseCode = "404", description = "Usuário não encontrado.", content = @Content)
+  })
   @PatchMapping("/users/{id}/activate")
   public ResponseEntity<UserDto> activate(@PathVariable long id, HttpServletRequest request) {
     return setActive(id, true, request);

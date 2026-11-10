@@ -1,12 +1,24 @@
 package clp.inventory.controller;
 
 import clp.inventory.dto.*;
+import clp.inventory.dto.doc.ImportItemsResponse;
+import clp.inventory.dto.doc.InventoryDetailsResponse;
+import clp.inventory.dto.doc.MessageResponse;
+import clp.inventory.dto.doc.ValidateSheetResponse;
 import clp.inventory.model.Inventory;
 import clp.inventory.model.Item;
 import clp.inventory.model.Observation;
 import clp.inventory.service.InventoryService;
 import clp.inventory.service.ItemService;
 import clp.inventory.utils.AuthenticationUtils;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.io.BufferedReader;
@@ -33,6 +45,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+@Tag(
+    name = "Inventários",
+    description = "Inventários, importação de planilha CSV e listagem de itens.")
 @RestController
 @RequestMapping("/inventory")
 public class InventoryController {
@@ -50,6 +65,20 @@ public class InventoryController {
     this.authenticationUtils = authenticationUtils;
   }
 
+  @Operation(
+      summary = "Criar inventário",
+      description =
+          "Exige administrador ou gestor (MANAGE_SECTOR) do setor informado. O nome é obrigatório e único por usuário; plannedEndDate usa yyyy-MM-dd e não pode ser anterior a hoje; sectorId é obrigatório.")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "201",
+        description = "Inventário criado.",
+        content = @Content(schema = @Schema(implementation = InventoryDto.class))),
+    @ApiResponse(
+        responseCode = "400",
+        description = "Dados inválidos (mensagem no corpo).",
+        content = @Content)
+  })
   @PostMapping("/new-inventory")
   public ResponseEntity<?> createInventory(
       @Valid @RequestBody InventoryDto inventoryDto, HttpServletRequest request) {
@@ -68,9 +97,24 @@ public class InventoryController {
     }
   }
 
+  @Operation(
+      summary = "Buscar inventário por id",
+      description =
+          "Vale para administrador e para quem enxerga o setor. Inclui canFinalize, que indica se o usuário pode finalizar/editar.")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "Inventário.",
+        content = @Content(schema = @Schema(implementation = InventoryDetailsResponse.class))),
+    @ApiResponse(
+        responseCode = "404",
+        description = "Inventário não encontrado.",
+        content = @Content)
+  })
   @GetMapping("/{inventoryId}")
   public ResponseEntity<?> getInventory(
-      @PathVariable long inventoryId, @RequestHeader("Authorization") String authHeader) {
+      @PathVariable long inventoryId,
+      @Parameter(hidden = true) @RequestHeader("Authorization") String authHeader) {
     long userId = Long.parseLong(authenticationUtils.getUserIdFromToken(authHeader));
     Inventory inventory = inventoryService.getAccessibleInventory(inventoryId, userId);
     return ResponseEntity.ok(
@@ -79,17 +123,47 @@ public class InventoryController {
             "canFinalize", inventoryService.canFinalize(inventory, userId)));
   }
 
+  @Operation(
+      summary = "Finalizar inventário",
+      description =
+          "Exige administrador ou gestor (MANAGE_SECTOR) do setor. Depois de finalizado, não é possível alterar itens nem validar.")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "Inventário finalizado.",
+        content = @Content(schema = @Schema(implementation = InventoryDto.class))),
+    @ApiResponse(
+        responseCode = "404",
+        description = "Inventário não encontrado.",
+        content = @Content),
+    @ApiResponse(
+        responseCode = "409",
+        description = "O inventário já foi finalizado.",
+        content = @Content)
+  })
   @PostMapping("/{inventoryId}/finalize")
   public ResponseEntity<InventoryDto> finishInventory(
-      @PathVariable long inventoryId, @RequestHeader("Authorization") String authHeader) {
+      @PathVariable long inventoryId,
+      @Parameter(hidden = true) @RequestHeader("Authorization") String authHeader) {
     long userId = Long.parseLong(authenticationUtils.getUserIdFromToken(authHeader));
     return ResponseEntity.ok(
         inventoryService.toDto(inventoryService.finishInventory(inventoryId, userId)));
   }
 
+  @Operation(
+      summary = "Excluir inventário",
+      description = "Exige administrador ou gestor (MANAGE_SECTOR) do setor.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "204", description = "Inventário excluído.", content = @Content),
+    @ApiResponse(
+        responseCode = "404",
+        description = "Inventário não encontrado.",
+        content = @Content)
+  })
   @DeleteMapping("/{inventoryId}")
   public ResponseEntity<?> deleteInventory(
-      @PathVariable Long inventoryId, @RequestHeader("Authorization") String authHeader) {
+      @PathVariable Long inventoryId,
+      @Parameter(hidden = true) @RequestHeader("Authorization") String authHeader) {
     String userId = authenticationUtils.getUserIdFromToken(authHeader);
     try {
       inventoryService.deleteInventory(inventoryId, Long.parseLong(userId));
@@ -101,11 +175,23 @@ public class InventoryController {
     }
   }
 
+  @Operation(
+      summary = "Editar inventário",
+      description =
+          "Altera nome, descrição, prazo e, opcionalmente, o setor (para outro setor ativo em que o usuário também gerencia). Exige administrador ou gestor do setor.")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "Inventário atualizado.",
+        content = @Content(schema = @Schema(implementation = InventoryDto.class))),
+    @ApiResponse(responseCode = "400", description = "Dados inválidos.", content = @Content),
+    @ApiResponse(responseCode = "403", description = "Sem permissão para editar este inventário.")
+  })
   @PutMapping("/{inventoryId}")
   public ResponseEntity<?> updateInventory(
       @PathVariable("inventoryId") long inventoryId,
       @RequestBody InventoryDto inventoryDto,
-      @RequestHeader("Authorization") String authHeader) {
+      @Parameter(hidden = true) @RequestHeader("Authorization") String authHeader) {
     String userId = authenticationUtils.getUserIdFromToken(authHeader);
     try {
       Inventory updatedInventory =
@@ -118,10 +204,35 @@ public class InventoryController {
     }
   }
 
+  @Operation(
+      summary = "Adicionar item avulso",
+      description =
+          "Inclui um item no inventário. Exige administrador ou gestor do setor, e o inventário não pode estar finalizado. A sala (locale) é encontrada ou criada no setor.")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "201",
+        description = "Item adicionado (devolve o corpo enviado).",
+        content = @Content),
+    @ApiResponse(
+        responseCode = "400",
+        description = "Dados inválidos (mensagem no corpo).",
+        content = @Content),
+    @ApiResponse(
+        responseCode = "404",
+        description = "Inventário não encontrado.",
+        content = @Content),
+    @ApiResponse(responseCode = "409", description = "Inventário finalizado.", content = @Content)
+  })
   @PostMapping("/add-single-item")
   public ResponseEntity<?> addOneItem(
-      @RequestParam("inventoryId") long inventoryId,
-      @RequestBody Item item,
+      @Parameter(description = "Id do inventário.") @RequestParam("inventoryId") long inventoryId,
+      @io.swagger.v3.oas.annotations.parameters.RequestBody(
+              content =
+                  @Content(
+                      schema =
+                          @Schema(implementation = clp.inventory.dto.doc.NewItemRequest.class)))
+          @RequestBody
+          Item item,
       HttpServletRequest request) {
     try {
       inventoryService.addSingleItemToInventory(inventoryId, item, actingUserId(request));
@@ -133,12 +244,42 @@ public class InventoryController {
     }
   }
 
+  @Operation(
+      summary = "Importar planilha CSV de itens",
+      description =
+          "Importa os itens de uma planilha CSV para o inventário. Planilha CSV (UTF-8) com cabeçalho. Delimitador ponto e vírgula (também aceita vírgula ou tab). Colunas reconhecidas pelo nome do cabeçalho: código (obrigatória; também 'patrimônio', 'etiqueta', 'tombamento'), descrição, responsável, valor/preço (em reais, convertido para centavos), sala/local e observação. Exige administrador ou gestor do setor; o inventário não pode estar finalizado nem já ter itens (para reimportar, limpe com DELETE /inventory/clear-items). Salas citadas que não existem no setor são criadas. Use antes POST /inventory/validate-sheet para conferir. Respostas: 201 se todos entraram, 206 se parte falhou, 400 se nenhum entrou. Atenção: os campos totalProcessed, successes, failures, successfulItems e failedItems têm uma quebra de linha no fim do nome (ex.: \"totalProcessed\\n\"), e é assim mesmo que a API os devolve.")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "201",
+        description = "Todos os itens foram adicionados.",
+        content = @Content(schema = @Schema(implementation = ImportItemsResponse.class))),
+    @ApiResponse(
+        responseCode = "206",
+        description = "Importação parcial: alguns itens foram adicionados, outros falharam.",
+        content = @Content(schema = @Schema(implementation = ImportItemsResponse.class))),
+    @ApiResponse(
+        responseCode = "400",
+        description = "Arquivo vazio, não CSV, sem itens ou nenhum item adicionado.",
+        content = @Content(schema = @Schema(implementation = MessageResponse.class))),
+    @ApiResponse(
+        responseCode = "404",
+        description = "Inventário não encontrado.",
+        content = @Content),
+    @ApiResponse(
+        responseCode = "409",
+        description = "Inventário finalizado ou já com itens importados.",
+        content = @Content),
+    @ApiResponse(
+        responseCode = "500",
+        description = "Erro ao processar o arquivo.",
+        content = @Content(schema = @Schema(implementation = MessageResponse.class)))
+  })
   @PostMapping(
       value = "/add-items",
       consumes = {"multipart/form-data"})
   public ResponseEntity<?> addItemsToInventory(
-      @RequestParam("inventoryId") long inventoryId,
-      @RequestParam("file") MultipartFile file,
+      @Parameter(description = "Id do inventário.") @RequestParam("inventoryId") long inventoryId,
+      @Parameter(description = "Planilha .csv.") @RequestParam("file") MultipartFile file,
       HttpServletRequest request) {
     // Só gestor/admin do setor importa, o inventário não pode estar finalizado nem ter itens.
     inventoryService.requireImportAllowed(inventoryId, actingUserId(request));
@@ -206,9 +347,22 @@ public class InventoryController {
     }
   }
 
+  @Operation(
+      summary = "Remover item do inventário",
+      description = "Exige administrador ou gestor do setor, com o inventário em andamento.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "204", description = "Item removido.", content = @Content),
+    @ApiResponse(
+        responseCode = "404",
+        description = "Item não encontrado no inventário.",
+        content = @Content),
+    @ApiResponse(responseCode = "409", description = "Inventário finalizado.", content = @Content)
+  })
   @DeleteMapping("/delete-item")
   public ResponseEntity<?> deleteItemToInventory(
-      @RequestParam long inventoryId, @RequestParam long itemId, HttpServletRequest request) {
+      @Parameter(description = "Id do inventário.") @RequestParam long inventoryId,
+      @Parameter(description = "Id do item.") @RequestParam long itemId,
+      HttpServletRequest request) {
     boolean removed =
         inventoryService.removeItemFromInventory(inventoryId, itemId, actingUserId(request));
 
@@ -219,9 +373,22 @@ public class InventoryController {
     }
   }
 
+  @Operation(
+      summary = "Remover todos os itens do inventário",
+      description =
+          "Exige administrador ou gestor do setor, com o inventário em andamento. Permite importar outra planilha depois.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "204", description = "Itens removidos.", content = @Content),
+    @ApiResponse(
+        responseCode = "404",
+        description = "Inventário não encontrado.",
+        content = @Content),
+    @ApiResponse(responseCode = "409", description = "Inventário finalizado.", content = @Content)
+  })
   @DeleteMapping("/clear-items")
   public ResponseEntity<?> clearInventoryItems(
-      @RequestParam long inventoryId, HttpServletRequest request) {
+      @Parameter(description = "Id do inventário.") @RequestParam long inventoryId,
+      HttpServletRequest request) {
     boolean cleared = inventoryService.clearInventoryItems(inventoryId, actingUserId(request));
 
     if (cleared) {
@@ -231,12 +398,37 @@ public class InventoryController {
     }
   }
 
+  @Operation(
+      summary = "Validar planilha CSV antes de importar",
+      description =
+          "Confere a planilha sem gravar nada: código obrigatório (até 30 caracteres) e preço não negativo, linha a linha. Planilha CSV (UTF-8) com cabeçalho. Delimitador ponto e vírgula (também aceita vírgula ou tab). Colunas reconhecidas pelo nome do cabeçalho: código (obrigatória; também 'patrimônio', 'etiqueta', 'tombamento'), descrição, responsável, valor/preço (em reais, convertido para centavos), sala/local e observação. Exige administrador ou gestor de algum setor. Informando inventoryId, devolve também quais salas seriam criadas.")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "Planilha válida.",
+        content = @Content(schema = @Schema(implementation = ValidateSheetResponse.class))),
+    @ApiResponse(
+        responseCode = "400",
+        description =
+            "Arquivo vazio, não CSV, ou com linhas inválidas (ValidationResponse, com erros por linha).",
+        content = @Content(schema = @Schema(implementation = ValidationResponse.class))),
+    @ApiResponse(
+        responseCode = "404",
+        description = "Inventário não encontrado.",
+        content = @Content),
+    @ApiResponse(
+        responseCode = "500",
+        description = "Erro ao processar o arquivo.",
+        content = @Content(schema = @Schema(implementation = MessageResponse.class)))
+  })
   @PostMapping(
       value = "/validate-sheet",
       consumes = {"multipart/form-data"})
   public ResponseEntity<?> validateSheet(
-      @RequestParam("file") MultipartFile file,
-      @RequestParam(value = "inventoryId", required = false) Long inventoryId,
+      @Parameter(description = "Planilha .csv.") @RequestParam("file") MultipartFile file,
+      @Parameter(description = "Inventário de destino; se informado, devolve a prévia das salas.")
+          @RequestParam(value = "inventoryId", required = false)
+          Long inventoryId,
       HttpServletRequest request) {
     inventoryService.requireCanImport(actingUserId(request));
     if (file.isEmpty()) {
@@ -287,6 +479,16 @@ public class InventoryController {
     }
   }
 
+  @Operation(
+      summary = "Listar inventários do usuário",
+      description = "O administrador vê todos; os demais, os dos setores que enxergam.")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "Inventários.",
+        content =
+            @Content(array = @ArraySchema(schema = @Schema(implementation = InventoryDto.class))))
+  })
   @GetMapping("/user-inventories")
   public ResponseEntity<?> getInventories(HttpServletRequest request) {
     try {
@@ -305,9 +507,20 @@ public class InventoryController {
     }
   }
 
+  @Operation(
+      summary = "Listar inventários de um setor",
+      description = "Exige poder consultar o setor.")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "Inventários do setor.",
+        content =
+            @Content(array = @ArraySchema(schema = @Schema(implementation = InventoryDto.class))))
+  })
   @GetMapping("/sector-inventories")
   public ResponseEntity<?> getSectorInventories(
-      @RequestParam("sectorId") long sectorId, HttpServletRequest request) {
+      @Parameter(description = "Id do setor.") @RequestParam("sectorId") long sectorId,
+      HttpServletRequest request) {
     List<Inventory> inventories =
         inventoryService.getSectorInventories(sectorId, actingUserId(request));
 
@@ -317,11 +530,26 @@ public class InventoryController {
     return ResponseEntity.status(HttpStatus.OK).body(inventoryDtos);
   }
 
+  @Operation(
+      summary = "Listar itens do inventário (paginado)",
+      description = "Itens ordenados por código. page começa em 0.")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "Itens da página.",
+        content = @Content(array = @ArraySchema(schema = @Schema(implementation = ItemDto.class)))),
+    @ApiResponse(
+        responseCode = "404",
+        description = "Inventário não encontrado.",
+        content = @Content)
+  })
   @GetMapping("/inventory-items")
   public ResponseEntity<?> getItemsByInventory(
-      @RequestParam("inventoryId") long inventoryId,
-      @RequestParam("page") int page,
-      @RequestParam("pageSize") int pageSize,
+      @Parameter(description = "Id do inventário.") @RequestParam("inventoryId") long inventoryId,
+      @Parameter(description = "Página, a partir de 0.", example = "0") @RequestParam("page")
+          int page,
+      @Parameter(description = "Itens por página.", example = "20") @RequestParam("pageSize")
+          int pageSize,
       HttpServletRequest request) {
     inventoryService.requireInventoryView(inventoryId, actingUserId(request));
     try {
