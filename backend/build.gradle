@@ -34,6 +34,10 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
+    // Documentação OpenAPI (Swagger UI em /swagger-ui.html, contrato em /v3/api-docs). A linha 3.x
+    // do springdoc é a que suporta o Spring Boot 4.
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.2.0'
+
     // Metricas no formato Prometheus (so na porta de gerenciamento) e traces OpenTelemetry (OTLP).
     implementation 'io.micrometer:micrometer-registry-prometheus'
     implementation 'org.springframework.boot:spring-boot-starter-opentelemetry'

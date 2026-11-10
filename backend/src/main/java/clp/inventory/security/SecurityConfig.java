@@ -53,6 +53,11 @@ public class SecurityConfig {
                   .permitAll()
                   // Sem HttpMethod: o preflight OPTIONS precisa casar também.
                   .requestMatchers("/auth/google", "/auth/login")
+                  .permitAll()
+                  // Documentação OpenAPI (contrato e Swagger UI): pública, para quem integra a API
+                  // poder lê-la antes de ter um token. Os endpoints em si seguem protegidos.
+                  .requestMatchers(
+                      "/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**")
                   .permitAll();
               auth.anyRequest().authenticated();
             })
