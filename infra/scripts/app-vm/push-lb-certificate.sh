@@ -70,7 +70,12 @@ cert_name="inventarium-$(date -u +%Y%m%d)-${new_sum:0:8}"
 log "enviando $cert_name ao listener $listener"
 
 # /etc/letsencrypt inteiro (somente leitura): live/ so tem links simbolicos para archive/.
+# --user 0:0: a imagem da CLI roda com um usuario comum, e o certbot grava /etc/letsencrypt/live como root
+# com modo 0700, entao esse usuario nao consegue ler o certificado. Root dentro do container e aceitavel
+# aqui: o volume e somente leitura, a imagem so fala com a API da OCI e no-new-privileges impede escalada.
 docker run --rm \
+  --user 0:0 \
+  --security-opt no-new-privileges \
   -e OCI_CLI_AUTH=instance_principal \
   -e LB_ID="$LB_ID" \
   -e LB_LISTENER_NAME="$listener" \

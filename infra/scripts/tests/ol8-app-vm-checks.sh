@@ -209,7 +209,7 @@ printf 'LB_ID="%s"\n' "$lb_ocid" > "$lbt/edge.env"
 run_push >/dev/null || fail "push com LB_ID falhou"
 [ "$(docker_calls)" = 1 ] || fail "esperava 1 chamada a CLI, houve $(docker_calls)"
 for arg in 'OCI_CLI_AUTH=instance_principal' "LB_ID=$lb_ocid" 'LB_LISTENER_NAME=https' 'LB_CERT_NAME=inventarium-' \
-  '/etc/letsencrypt:/etc/letsencrypt:ro' '--entrypoint python3'; do
+  '/etc/letsencrypt:/etc/letsencrypt:ro' '--entrypoint python3' '--user 0:0' 'no-new-privileges'; do
   grep -q -- "$arg" "$lbt/docker.log" || fail "a chamada da CLI nao tem: $arg"
 done
 if grep -q 'chave-de-teste' "$lbt/docker.log"; then fail "a chave privada nao pode aparecer nos argumentos"; fi
