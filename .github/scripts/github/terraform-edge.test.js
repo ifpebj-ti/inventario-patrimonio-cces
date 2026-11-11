@@ -49,7 +49,12 @@ test("the Load Balancer is a public flexible layer-7 LB in its own subnet with a
   assert.match(main, /subnet_ids\s*=\s*\[oci_core_subnet\.lb_public\.id\]/);
   assert.match(main, /network_security_group_ids\s*=\s*\[oci_core_network_security_group\.lb\.id\]/);
   assert.match(main, /reserved_ips\s*\{\s*id\s*=\s*oci_core_public_ip\.lb\.id/);
-  assert.match(block(lb, 'resource "oci_core_public_ip" "lb"'), /lifetime\s*=\s*"RESERVED"/);
+  const publicIp = block(lb, 'resource "oci_core_public_ip" "lb"');
+  assert.match(publicIp, /lifetime\s*=\s*"RESERVED"/);
+  // O LB e quem associa o IP (reserved_ips). Sem isto o plano seguinte ao apply propoe private_ip_id -> null
+  // e a OCI recusa desassociar um IP gerenciado pelo LB.
+  assert.match(publicIp, /ignore_changes\s*=\s*\[private_ip_id\]/);
+  assert.doesNotMatch(publicIp, /\n\s*private_ip_id\s*=/, "o IP nao deve ser associado por aqui: o LB faz isso");
 
   const subnet = block(code("network.tf"), 'resource "oci_core_subnet" "lb_public"');
   assert.match(subnet, /route_table_id\s*=\s*oci_core_route_table\.public\.id/);

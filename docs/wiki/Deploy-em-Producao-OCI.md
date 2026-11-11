@@ -614,6 +614,7 @@ Cria no Terraform o **Load Balancer** (LB) e o **WAF**, e liga o HTTPS dele. **N
 | `issue-certificates.sh` diz que o DNS não bate | Registros A ainda não propagaram ou apontam para outro IP | Aguarde e confira com `Resolve-DnsName`; compare com `terraform output app_public_ip` |
 | Let's Encrypt falha no desafio | Porta 80 fechada para a internet ou CAA bloqueando | Confira `allowed_web_cidrs = ["0.0.0.0/0"]` e o registro CAA |
 | `https://…` responde 502 | Stack ainda não subiu ou o container está reiniciando | `sudo docker ps`, `sudo docker logs inventarium-back --tail 50` |
+| `terraform apply` falha com `404-NotAuthorizedOrNotFound, PublicIp cannot be assigned to or unassigned from PrivateIp ... managed by ...loadbalancer` | O plano propunha `private_ip_id -> null` no IP reservado do LB, que o próprio LB gerencia (versão sem `ignore_changes`) | Atualize para a `main` (o recurso `oci_core_public_ip.lb` ignora `private_ip_id`). Depois de um apply completo, `terraform plan` deve dizer `No changes` |
 | `portainer.…` responde 403 | Seu IP não está em `allowed_admin_cidrs` | Veja 4.6 |
 | Login Google falha com erro de origem | Origem não cadastrada no Google | Passo 3.5 |
 | Front chama a URL errada da API | A release foi gerada antes de trocar `NEXT_PUBLIC_API_URL` | Troque a variável (3.6) e gere nova release |
