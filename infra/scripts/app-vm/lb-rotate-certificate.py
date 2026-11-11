@@ -133,14 +133,14 @@ def main():
     signer = oci.auth.signers.InstancePrincipalsSecurityTokenSigner()
     client = oci.load_balancer.LoadBalancerClient({"region": signer.region}, signer=signer)
 
-    lb = client.get_load_balancer(lb_id).data
-    listener = (lb.listeners or {}).get(listener_name)
-    if listener is None and not allow_missing_listener:
-        fail("o listener '" + listener_name + "' nao existe no load balancer (primeira vez? use --bootstrap)")
-    if listener is not None and listener.ssl_configuration is None:
-        fail("o listener '" + listener_name + "' nao e HTTPS (sem ssl_configuration)")
-
     try:
+        lb = client.get_load_balancer(lb_id).data
+        listener = (lb.listeners or {}).get(listener_name)
+        if listener is None and not allow_missing_listener:
+            fail("o listener '" + listener_name + "' nao existe no load balancer (primeira vez? use --bootstrap)")
+        if listener is not None and listener.ssl_configuration is None:
+            fail("o listener '" + listener_name + "' nao e HTTPS (sem ssl_configuration)")
+
         if certificate_name in (lb.certificates or {}):
             log("o certificado " + certificate_name + " ja existe no LB; so falta trocar o listener")
         else:
@@ -171,7 +171,11 @@ def main():
         delete_old_certificates(client, lb_id, keep)
     except oci.exceptions.ServiceError as error:
         # So status e codigo: a mensagem da API pode ecoar partes do pedido.
-        fail("a API da OCI recusou a operacao (HTTP " + str(error.status) + ", " + str(error.code) + ")")
+        hint = ""
+        if error.status == 404:
+            # A OCI devolve 404 tanto para "nao existe" quanto para "sem permissao" (para nao vazar a existencia).
+            hint = " - confira o LB_ID e a policy IAM da VM (manage_edge_iam no Terraform, ADR 0009)"
+        fail("a API da OCI recusou a operacao (HTTP " + str(error.status) + ", " + str(error.code) + ")" + hint)
     log("concluido")
 
 

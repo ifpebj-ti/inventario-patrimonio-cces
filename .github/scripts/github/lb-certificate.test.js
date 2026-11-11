@@ -106,6 +106,8 @@ class LoadBalancerClient:
             handle.write(json.dumps(entry) + "\\n")
 
     def get_load_balancer(self, lb_id):
+        if os.environ.get("FAKE_FAIL_GET"):
+            raise exceptions.ServiceError(int(os.environ["FAKE_FAIL_GET"]), "NotAuthorizedOrNotFound")
         state = self._state()
         lb = _Obj({})
         lb.listeners = {name: _Obj(value) for name, value in state["listeners"].items()}
@@ -341,6 +343,24 @@ test("a rejected listener update fails with only the status and code, and delete
   assert.equal(result.status, 1);
   assert.match(result.stderr, /HTTP 400, InvalidParameter/);
   assert.equal(calls.filter((c) => c.op === "delete_certificate").length, 0, "nao apague nada se a troca falhou");
+});
+
+test("a 404 when reading the LB (missing IAM policy) fails with a short message and the policy hint, not a traceback", { skip }, () => {
+  const { result, calls } = run(lbWithHttpsListener(), { FAKE_FAIL_GET: "404" });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /HTTP 404, NotAuthorizedOrNotFound/);
+  assert.match(result.stderr, /policy IAM/);
+  assert.doesNotMatch(result.stderr, /Traceback/);
+  assert.deepEqual(calls, [], "sem permissao nada e criado nem trocado");
+});
+
+test("other API errors on the first read fail cleanly too, without the IAM hint", { skip }, () => {
+  const { result } = run(lbWithHttpsListener(), { FAKE_FAIL_GET: "500" });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /HTTP 500/);
+  assert.doesNotMatch(result.stderr, /Traceback|policy IAM/);
 });
 
 test("requires every input", { skip }, () => {
