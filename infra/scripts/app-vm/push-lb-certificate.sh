@@ -10,6 +10,10 @@
 # Autenticacao: instance principal (dynamic group da VM, politica em edge_iam.tf), sem chaves de API. A
 # CLI da OCI roda em container, como o certbot; a chave privada nunca passa pelo Terraform nem pelo state.
 #
+# Primeira vez (o listener HTTPS so pode ser criado depois do primeiro certificado):
+#   push-lb-certificate.sh --bootstrap
+# cria so o certificado no LB e imprime o nome para lb_bootstrap_certificate_name no Terraform.
+#
 # edge.env: LB_ID (OCID do LB), LB_LISTENER_NAME (padrao "https").
 # Ambiente opcional: OCI_CLI_IMAGE (fixe a versao ou o digest), LB_KEEP_CERTS (padrao 2).
 set -euo pipefail
@@ -23,6 +27,17 @@ STATE_FILE="$STATE_DIR/lb-cert.sha256"
 OCI_CLI_IMAGE="${OCI_CLI_IMAGE:-ghcr.io/oracle/oci-cli:latest}"
 HELPER="${LB_HELPER:-/opt/inventarium-app/src/scripts/lb-rotate-certificate.py}"
 KEEP_CERTS="${LB_KEEP_CERTS:-2}"
+
+bootstrap=0
+for arg in "$@"; do
+  case "$arg" in
+    --bootstrap) bootstrap=1 ;;
+    *)
+      printf '[push-lb-certificate] ERRO: argumento desconhecido: %s\n' "$arg" >&2
+      exit 1
+      ;;
+  esac
+done
 
 log() { printf '[push-lb-certificate] %s\n' "$*"; }
 die() { printf '[push-lb-certificate] ERRO: %s\n' "$*" >&2; exit 1; }
@@ -61,6 +76,7 @@ docker run --rm \
   -e LB_LISTENER_NAME="$listener" \
   -e LB_CERT_NAME="$cert_name" \
   -e LB_KEEP_CERTS="$KEEP_CERTS" \
+  -e LB_ALLOW_MISSING_LISTENER="$bootstrap" \
   -e CERT_DIR="$CERT_DIR" \
   -v /etc/letsencrypt:/etc/letsencrypt:ro \
   -v "$HELPER:/lb-rotate-certificate.py:ro" \

@@ -301,6 +301,32 @@ test("fails without touching anything when the listener does not exist", { skip 
   assert.deepEqual(calls, []);
 });
 
+test("bootstrap: with no HTTPS listener yet it only creates the certificate and prints the Terraform input", { skip }, () => {
+  const { result, calls, state } = run(lbWithHttpsListener(), {
+    LB_LISTENER_NAME: "inexistente",
+    LB_ALLOW_MISSING_LISTENER: "1",
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(
+    calls.map((c) => c.op),
+    ["create_certificate"],
+    "so cria o certificado: nao troca listener nem apaga nada",
+  );
+  assert.ok(state.certificates.includes("inventarium-20260901-dddddddd"));
+  assert.match(result.stdout, /lb_bootstrap_certificate_name = "inventarium-20260901-dddddddd"/);
+  assert.match(result.stdout, /lb_https_enabled = true/);
+  assert.doesNotMatch(`${result.stdout}${result.stderr}`, /SEGREDO-DE-TESTE|PRIVATE KEY/);
+});
+
+test("without bootstrap a missing listener still fails and points to --bootstrap", { skip }, () => {
+  const { result, calls } = run(lbWithHttpsListener(), { LB_LISTENER_NAME: "inexistente" });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /--bootstrap/);
+  assert.deepEqual(calls, []);
+});
+
 test("fails when the listener is not HTTPS", { skip }, () => {
   const { result, calls } = run(lbWithHttpsListener(), { LB_LISTENER_NAME: "http" });
 
