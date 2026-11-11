@@ -57,3 +57,23 @@ output "observability_private_ip" {
   description = "IP privado da VM de observabilidade."
   value       = oci_core_instance.observability.private_ip
 }
+
+output "lb_public_ip" {
+  description = "IP publico RESERVADO do Load Balancer. Depois do cutover, os registros A do DNS apontam para ele."
+  value       = oci_core_public_ip.lb.ip_address
+}
+
+output "lb_id" {
+  description = "OCID do Load Balancer (LB_ID no edge.env da VM, usado pelo push-lb-certificate.sh)."
+  value       = oci_load_balancer_load_balancer.main.id
+}
+
+output "lb_subnet_cidr" {
+  description = "CIDR da subnet do Load Balancer (LB_CIDR no edge.env da VM)."
+  value       = oci_core_subnet.lb_public.cidr_block
+}
+
+output "lb_nsg_id" {
+  description = "OCID do NSG do Load Balancer."
+  value       = oci_core_network_security_group.lb.id
+}
