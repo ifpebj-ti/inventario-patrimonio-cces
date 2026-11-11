@@ -178,4 +178,66 @@ for mustnot in GOOGLE_OAUTH_CLIENT_SECRET BACKEND_IMAGE POSTGRES_PORT; do
 done
 ok "dev copy (aspas + CRLF): aceito, segredos nao usados descartados e os necessarios mantidos"
 
+# 7) push-lb-certificate.sh: envia o certificado ao LB so quando ele mudou, valida a entrada e nao
+# grava o estado se a CLI falhar. O docker e um stub que registra os argumentos.
+push=/src/scripts/app-vm/push-lb-certificate.sh
+lbt="$(mktemp -d)"
+mkdir -p "$lbt/certs" "$lbt/state" "$lbt/bin"
+printf 'fullchain-v1\n' > "$lbt/certs/fullchain.pem"
+printf 'chave-de-teste\n' > "$lbt/certs/privkey.pem"
+printf '# helper\n' > "$lbt/helper.py"
+cat > "$lbt/bin/docker" <<'STUB'
+#!/bin/sh
+echo "$*" >> "$DOCKER_LOG"
+[ -z "${DOCKER_FAIL:-}" ] || exit 1
+STUB
+chmod +x "$lbt/bin/docker"
+: > "$lbt/docker.log"
+lb_ocid='ocid1.loadbalancer.oc1.sa-saopaulo-1.exemplo'
+run_push() {
+  EDGE_ENV="$lbt/edge.env" CERT_DIR="$lbt/certs" STATE_DIR="$lbt/state" LB_HELPER="$lbt/helper.py" \
+    DOCKER_LOG="$lbt/docker.log" PATH="$lbt/bin:$PATH" "$push"
+}
+docker_calls() { wc -l < "$lbt/docker.log" | tr -d ' '; }
+
+printf 'ACME_EMAIL=a@b.co\n' > "$lbt/edge.env"
+run_push >/dev/null || fail "sem LB_ID o push deveria sair com sucesso (modo direto)"
+[ "$(docker_calls)" = 0 ] || fail "sem LB_ID nao deve chamar a CLI da OCI"
+ok "push do certificado: sem LB_ID e no-op"
+
+printf 'LB_ID="%s"\n' "$lb_ocid" > "$lbt/edge.env"
+run_push >/dev/null || fail "push com LB_ID falhou"
+[ "$(docker_calls)" = 1 ] || fail "esperava 1 chamada a CLI, houve $(docker_calls)"
+for arg in 'OCI_CLI_AUTH=instance_principal' "LB_ID=$lb_ocid" 'LB_LISTENER_NAME=https' 'LB_CERT_NAME=inventarium-' \
+  '/etc/letsencrypt:/etc/letsencrypt:ro' '--entrypoint python3'; do
+  grep -q -- "$arg" "$lbt/docker.log" || fail "a chamada da CLI nao tem: $arg"
+done
+if grep -q 'chave-de-teste' "$lbt/docker.log"; then fail "a chave privada nao pode aparecer nos argumentos"; fi
+[ "$(cat "$lbt/state/lb-cert.sha256")" = "$(sha256sum "$lbt/certs/fullchain.pem" | awk '{print $1}')" ] \
+  || fail "o hash do certificado enviado deveria ser gravado"
+ok "push do certificado: envia por instance principal e grava o hash"
+
+run_push >/dev/null || fail "segundo push falhou"
+[ "$(docker_calls)" = 1 ] || fail "certificado igual nao deve ser reenviado"
+ok "push do certificado: idempotente (mesmo certificado nao e reenviado)"
+
+printf 'fullchain-v2\n' > "$lbt/certs/fullchain.pem"
+run_push >/dev/null || fail "push do certificado renovado falhou"
+[ "$(docker_calls)" = 2 ] || fail "certificado renovado deve ser enviado"
+ok "push do certificado: certificado renovado e enviado"
+
+printf 'fullchain-v3\n' > "$lbt/certs/fullchain.pem"
+before="$(cat "$lbt/state/lb-cert.sha256")"
+if DOCKER_FAIL=1 run_push >/dev/null 2>&1; then fail "falha da CLI deve falhar o script"; fi
+[ "$(cat "$lbt/state/lb-cert.sha256")" = "$before" ] || fail "falha da CLI nao pode gravar o hash (a proxima execucao precisa tentar de novo)"
+ok "push do certificado: falha da CLI mantem o hash antigo para tentar de novo"
+
+calls_before="$(docker_calls)"
+printf 'LB_ID="%s; evil"\n' "$lb_ocid" > "$lbt/edge.env"
+if run_push >/dev/null 2>&1; then fail "LB_ID malicioso foi aceito"; fi
+printf 'LB_ID="%s"\nLB_LISTENER_NAME="https; evil"\n' "$lb_ocid" > "$lbt/edge.env"
+if run_push >/dev/null 2>&1; then fail "LB_LISTENER_NAME malicioso foi aceito"; fi
+[ "$(docker_calls)" = "$calls_before" ] || fail "entrada invalida nao deve chegar a CLI"
+ok "push do certificado: LB_ID e nome do listener invalidos sao rejeitados"
+
 echo "todos os checks passaram"
