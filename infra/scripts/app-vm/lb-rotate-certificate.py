@@ -8,7 +8,9 @@ UpdateListener substitui o objeto inteiro) e remove os certificados antigos que 
 
 A chave privada so passa por aqui e pela API da OCI: nunca vai para o Terraform, para o state nem para o
 log. Variaveis de ambiente (todas obrigatorias): LB_ID, LB_LISTENER_NAME, LB_CERT_NAME, CERT_DIR.
-Opcional: LB_KEEP_CERTS (padrao 2: o novo e o ultimo antigo, para voltar atras).
+Opcional: LB_KEEP_CERTS (padrao 2: o novo e o ultimo antigo, para voltar atras) e
+LB_ALLOW_MISSING_LISTENER=1 (primeira vez: o listener HTTPS so pode ser criado depois do primeiro certificado,
+entao este modo so cria o certificado e diz o nome a usar no Terraform).
 """
 import os
 import re
@@ -121,6 +123,7 @@ def main():
     certificate_name = required_env("LB_CERT_NAME")
     cert_dir = required_env("CERT_DIR")
     keep = int(os.environ.get("LB_KEEP_CERTS", "2"))
+    allow_missing_listener = os.environ.get("LB_ALLOW_MISSING_LISTENER") == "1"
 
     with open(os.path.join(cert_dir, "fullchain.pem")) as handle:
         site_certificate, chain = split_fullchain(handle.read())
@@ -132,9 +135,9 @@ def main():
 
     lb = client.get_load_balancer(lb_id).data
     listener = (lb.listeners or {}).get(listener_name)
-    if listener is None:
-        fail("o listener '" + listener_name + "' nao existe no load balancer")
-    if listener.ssl_configuration is None:
+    if listener is None and not allow_missing_listener:
+        fail("o listener '" + listener_name + "' nao existe no load balancer (primeira vez? use --bootstrap)")
+    if listener is not None and listener.ssl_configuration is None:
         fail("o listener '" + listener_name + "' nao e HTTPS (sem ssl_configuration)")
 
     try:
@@ -154,6 +157,10 @@ def main():
                     lb_id,
                 ),
             )
+        if listener is None:
+            log("o listener " + listener_name + " ainda nao existe: certificado criado, nada a trocar")
+            log('no Terraform use lb_bootstrap_certificate_name = "' + certificate_name + '" e lb_https_enabled = true')
+            return
         log("trocando o certificado do listener " + listener_name)
         wait_for(
             client,

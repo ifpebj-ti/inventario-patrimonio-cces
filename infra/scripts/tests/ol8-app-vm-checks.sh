@@ -196,7 +196,7 @@ chmod +x "$lbt/bin/docker"
 lb_ocid='ocid1.loadbalancer.oc1.sa-saopaulo-1.exemplo'
 run_push() {
   EDGE_ENV="$lbt/edge.env" CERT_DIR="$lbt/certs" STATE_DIR="$lbt/state" LB_HELPER="$lbt/helper.py" \
-    DOCKER_LOG="$lbt/docker.log" PATH="$lbt/bin:$PATH" "$push"
+    DOCKER_LOG="$lbt/docker.log" PATH="$lbt/bin:$PATH" "$push" "$@"
 }
 docker_calls() { wc -l < "$lbt/docker.log" | tr -d ' '; }
 
@@ -239,5 +239,18 @@ printf 'LB_ID="%s"\nLB_LISTENER_NAME="https; evil"\n' "$lb_ocid" > "$lbt/edge.en
 if run_push >/dev/null 2>&1; then fail "LB_LISTENER_NAME malicioso foi aceito"; fi
 [ "$(docker_calls)" = "$calls_before" ] || fail "entrada invalida nao deve chegar a CLI"
 ok "push do certificado: LB_ID e nome do listener invalidos sao rejeitados"
+
+# --bootstrap: primeira vez, sem listener HTTPS ainda. So muda o que o container recebe.
+printf 'LB_ID="%s"\n' "$lb_ocid" > "$lbt/edge.env"
+printf 'fullchain-v4\n' > "$lbt/certs/fullchain.pem"
+: > "$lbt/docker.log"
+run_push >/dev/null || fail "push normal falhou"
+grep -q -- 'LB_ALLOW_MISSING_LISTENER=0' "$lbt/docker.log" || fail "sem --bootstrap o listener ausente deve falhar (flag 0)"
+printf 'fullchain-v5\n' > "$lbt/certs/fullchain.pem"
+: > "$lbt/docker.log"
+run_push --bootstrap >/dev/null || fail "push --bootstrap falhou"
+grep -q -- 'LB_ALLOW_MISSING_LISTENER=1' "$lbt/docker.log" || fail "--bootstrap deve liberar a criacao so do certificado (flag 1)"
+if run_push --bootstrap --qualquer-coisa >/dev/null 2>&1; then fail "argumento desconhecido foi aceito"; fi
+ok "push do certificado: --bootstrap so libera listener ausente; argumento desconhecido e rejeitado"
 
 echo "todos os checks passaram"
