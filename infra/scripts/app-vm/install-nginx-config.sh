@@ -145,8 +145,8 @@ ensure_internal_ports() {
 # Depois do reload, confere que o Nginx realmente escuta nas portas internas: o `nginx -t` nao pega
 # um bind recusado pelo SELinux, e o reload falho deixa o Nginx antigo no ar sem avisar.
 internal_ports_listening() {
-  local attempt sockets port all
-  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  local sockets port all
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
     sockets="$(ss -ltn 2>/dev/null || true)"
     all=1
     for port in $internal_ports; do
