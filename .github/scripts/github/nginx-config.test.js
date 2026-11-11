@@ -179,7 +179,72 @@ test("proxy sets X-Forwarded-For from the peer address instead of appending the 
 
   assert.match(text, /proxy_set_header X-Forwarded-For \$remote_addr;/);
   assert.doesNotMatch(text, /proxy_add_x_forwarded_for/);
-  assert.match(text, /proxy_set_header X-Forwarded-Proto \$scheme;/);
+  assert.match(text, /proxy_set_header X-Forwarded-Proto \$forwarded_proto;/);
+});
+
+test("the forwarded scheme comes from the listening port, never from a client header", () => {
+  const hardening = stripComments(read("conf.d", "00-hardening.conf"));
+  const proxy = stripComments(read("snippets", "proxy.conf"));
+  const map = hardening.match(/map\s+\$server_port\s+\$forwarded_proto\s*\{([^}]*)\}/);
+
+  assert.ok(map, "map $server_port -> $forwarded_proto ausente");
+  assert.match(map[1], /9080\s+https;/);
+  assert.match(map[1], /default\s+\$scheme;/);
+  assert.doesNotMatch(proxy, /\$http_x_forwarded/i, "nao confie em X-Forwarded-* vindo do cliente");
+});
+
+test("the client IP behind the LB comes from generated real_ip config, trusted only from the LB subnet", () => {
+  const hardening = stripComments(read("conf.d", "00-hardening.conf"));
+  const example = stripComments(read("generated.example", "real-ip.conf"));
+  const allSites = listConf("sites-tls").map(({ text }) => stripComments(text)).join("\n");
+
+  assert.match(hardening, /include \/etc\/nginx\/inventarium\/generated\/real-ip\.conf;/);
+  assert.match(example, /set_real_ip_from \d+\.\d+\.\d+\.\d+\/\d+;/);
+  assert.match(example, /real_ip_header X-Forwarded-For;/);
+  assert.match(example, /real_ip_recursive on;/);
+  for (const [name, text] of [["00-hardening.conf", hardening], ["sites-tls", allSites]]) {
+    assert.doesNotMatch(text, /set_real_ip_from/, `${name}: o CIDR do LB e gerado, nao versionado`);
+    assert.doesNotMatch(text, /real_ip_header/, `${name}: real_ip so no arquivo gerado`);
+  }
+});
+
+test("every named vhost also listens on 9080 for the LB; unknown hosts there are dropped", () => {
+  const named = tlsServers.filter(({ block }) => /listen\s+443/.test(block) && !catchAll(block));
+  const internal = tlsServers.find(({ name }) => name === "15-lb-interno.conf");
+
+  assert.ok(named.length >= 6, "esperado ao menos 6 vhosts nomeados");
+  for (const { name, block } of named) {
+    assert.match(block, /listen\s+9080\s*;/, `${name}: sem listen 9080`);
+    assert.doesNotMatch(block, /listen\s+9080[^;]*\bssl\b/, `${name}: a 9080 e HTTP simples`);
+  }
+  assert.ok(internal, "15-lb-interno.conf ausente");
+  const blocks = serverBlocks(stripComments(read("sites-tls", "15-lb-interno.conf")));
+  const dropAll = blocks.find((b) => /listen\s+9080\s+default_server\s*;/.test(b));
+  assert.ok(dropAll && /return\s+444\s*;/.test(dropAll), "default_server da 9080 deve devolver 444");
+});
+
+test("the LB health port answers only /healthz, only to the LB subnet, without logging", () => {
+  const blocks = serverBlocks(stripComments(read("sites-tls", "15-lb-interno.conf")));
+  const health = blocks.find((b) => /listen\s+9081\s*;/.test(b));
+
+  assert.ok(health, "server da 9081 ausente");
+  assert.match(health, /include \/etc\/nginx\/inventarium\/generated\/lb-allowlist\.conf;/);
+  assert.match(health, /location\s+=\s+\/healthz\s*\{[^}]*return\s+200/);
+  assert.match(health, /location\s+\/\s*\{\s*return\s+404;/);
+  assert.match(health, /access_log off;/);
+  assert.doesNotMatch(health, /proxy_pass/, "o health do LB nao depende de upstream");
+  assert.doesNotMatch(health, /limit_req/, "o LB consulta a cada poucos segundos: sem rate limit");
+
+  const example = stripComments(read("generated.example", "lb-allowlist.conf"));
+  assert.match(example, /allow \d+\.\d+\.\d+\.\d+\/\d+;/);
+  assert.match(example, /deny all;/);
+});
+
+test("nginx keeps connections longer than the LB idle timeout", () => {
+  const text = stripComments(read("nginx.conf"));
+  const seconds = Number(text.match(/keepalive_timeout\s+(\d+)s;/)?.[1]);
+
+  assert.ok(seconds >= 330, `keepalive_timeout de ${seconds}s deve superar o idle timeout do LB (330s)`);
 });
 
 test("public Grafana rate limits the login per IP and the rest of the UI with a looser zone", () => {
@@ -250,6 +315,11 @@ test("hardening: no server tokens and access logs without credentials or query s
 test("generated files are examples only: real allowlist and upstreams are never versioned", () => {
   const examples = fs.readdirSync(path.join(root, "generated.example"));
 
-  assert.deepEqual(examples.sort(), ["admin-allowlist.conf", "upstreams.conf"]);
+  assert.deepEqual(examples.sort(), [
+    "admin-allowlist.conf",
+    "lb-allowlist.conf",
+    "real-ip.conf",
+    "upstreams.conf",
+  ]);
   assert.ok(!fs.existsSync(path.join(root, "generated")), "nao versione infra/nginx/app-vm/generated");
 });

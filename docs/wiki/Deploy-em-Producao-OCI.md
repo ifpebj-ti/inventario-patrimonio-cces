@@ -53,7 +53,7 @@ Este runbook descreve como o Inventarium é publicado na Oracle Cloud Infrastruc
 1. **Primeiro boot:** o Terraform embute os arquivos de `infra/nginx/app-vm/` e `infra/scripts/app-vm/` no `user_data` (cloud-init, comprimido). O cloud-init grava tudo em `/opt/inventarium-app/src/` e executa `bootstrap-vm.sh`, que instala Nginx, Docker e Portainer e instala a configuração. Sem certificado ainda, só a porta 80 fica ativa.
 2. **Depois:** o Terraform **não** recria a VM quando esses arquivos mudam (`ignore_changes` em `user_data`, porque a VM guarda o banco). Para atualizar o Nginx: merge do PR e `infra/scripts/deploy-nginx.sh <ip>`. O script valida com `nginx -t` e restaura o backup se a configuração for inválida.
 
-Dois arquivos são **gerados na VM** e nunca vão para o Git: `/etc/nginx/inventarium/generated/admin-allowlist.conf` (de `allowed_admin_cidrs`) e `upstreams.conf` (IP privado da observabilidade). Veja os exemplos em `infra/nginx/app-vm/generated.example/`.
+Quatro arquivos são **gerados na VM** e nunca vão para o Git: `/etc/nginx/inventarium/generated/admin-allowlist.conf` (de `allowed_admin_cidrs`), `upstreams.conf` (IP privado da observabilidade) e, para o Load Balancer (seção 4.14), `real-ip.conf` e `lb-allowlist.conf` (de `LB_CIDR`). Veja os exemplos em `infra/nginx/app-vm/generated.example/`.
 
 ## 3. Go-live: primeiro deploy
 
@@ -460,6 +460,66 @@ curl -s -o /dev/null -w '%{http_code}\n' https://grafana.inventariumifpe.me/metr
 **Rollback (voltar a restringir por IP):** em `infra/nginx/app-vm/sites-tls/32-grafana.conf`, acrescente de novo `include /etc/nginx/inventarium/generated/admin-allowlist.conf;` logo depois dos `include` de cabeçalhos e rode `deploy-nginx.sh`. As variáveis de endurecimento do Grafana podem ficar.
 
 **Limitações conhecidas:** o endereço `grafana.inventariumifpe.me` fica exposto a varreduras e a vulnerabilidades do próprio Grafana, então mantenha a versão da imagem atualizada; o nome de usuário `admin` é conhecido (a defesa é a senha forte, o bloqueio por usuário e o limite do Nginx); o acesso passa a depender só da senha, sem segundo fator. Se o ambiente deixar de ser de homologação, volte à allowlist ou ponha o Grafana atrás de uma VPN ou de um login corporativo.
+
+
+### 4.14 Preparar a VM para o Load Balancer e o WAF (ADR 0009)
+
+Esta seção cobre a **primeira etapa** da entrada do Load Balancer (LB) da OCI com WAF na frente da aplicação: preparar o Nginx e o certificado, **sem mudar o tráfego atual**. O Terraform do LB e do WAF (etapa 2) e o cutover do DNS (etapa 3) vêm depois. Enquanto `LB_CIDR` e `LB_ID` não existem no `edge.env`, tudo continua como antes.
+
+**O que muda na VM**
+
+| Item | O que faz |
+| --- | --- |
+| `LB_CIDR` (`edge.env`) | Subnet do LB. O Nginx só confia no `X-Forwarded-For` quando a conexão vem dela e passa a ver o **IP real do cliente** (rate limit por IP, allowlist do Portainer e log). Um cabeçalho forjado por quem chega direto na 443 é ignorado |
+| Porta **9080** | HTTP simples vindo do LB, que já terminou o TLS. Todos os vhosts escutam nela, ao lado da 443. O backend continua vendo `X-Forwarded-Proto: https` |
+| Porta **9081** | Health check do LB (`/healthz`), aceito só de `LB_CIDR`. Não depende de Host nem de upstream |
+| SELinux e firewalld | O `install-nginx-config.sh` rotula 9080 e 9081 como `http_port_t` e as libera no firewalld só para `LB_CIDR` (sem `--reload`, para não derrubar as regras do Docker) |
+| `push-lb-certificate.sh` | Depois de cada renovação do certificado, envia o novo ao LB e troca o do listener HTTPS. Sem `LB_ID` não faz nada |
+
+**Chaves novas do `/etc/inventarium/edge.env`** (todas opcionais; o Terraform não as aplica à VM existente, por causa do `ignore_changes`, então são editadas na mão, como `ADMIN_CIDRS` na seção 4.6):
+
+| Chave | Valor | Quando |
+| --- | --- | --- |
+| `LB_CIDR` | subnet do LB, por exemplo `10.42.0.128/27` | Antes do cutover (etapa 2 cria a subnet) |
+| `LB_ID` | OCID do load balancer | Depois que o LB existir |
+| `LB_LISTENER_NAME` | nome do listener HTTPS (padrão `https`) | Só se o nome for outro |
+| `LB_PUBLIC_IP` | IP público do LB | Para o `issue-certificates.sh` aceitar o DNS apontando para o LB |
+
+**Aplicar a etapa 1** (depois do merge, no Git Bash, na raiz do repositório):
+
+```bash
+infra/scripts/deploy-nginx.sh <IP_RESERVADO>
+```
+
+O script instala o Nginx novo, rotula as portas e **confere que o Nginx passou a escutar na 9080 e na 9081**; se não escutar, restaura a configuração anterior e falha. Sem `LB_CIDR` o resultado é o mesmo comportamento de antes, mais as duas portas abertas só dentro da VM.
+
+**Validar na VM** (`ssh opc@<IP_RESERVADO>`):
+
+```bash
+# O Nginx escuta nas duas portas
+sudo ss -ltn | grep -E ':(9080|9081)\b'
+
+# Vhost pela 9080 com Host correto: deve responder 200 (health da API)
+curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: api.inventariumifpe.me' http://127.0.0.1:9080/actuator/health
+
+# Host desconhecido na 9080: conexão encerrada sem resposta (curl sai com erro 52)
+curl -s -o /dev/null -H 'Host: qualquer.exemplo' http://127.0.0.1:9080/; echo "curl=$?"
+
+# Health do LB: de 127.0.0.1 deve dar 403, porque só LB_CIDR é aceito
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:9081/healthz
+```
+
+**Certificado no LB.** Com `LB_ID` definido, o `renew-certificates.sh` (timer das 04:00 e 16:00) e o `issue-certificates.sh` chamam o `push-lb-certificate.sh`. Para o primeiro envio, depois de o LB e o listener HTTPS existirem:
+
+```bash
+sudo /opt/inventarium-app/bin/push-lb-certificate.sh
+```
+
+Ele usa a CLI da OCI em container com **instance principal** (política em `edge_iam.tf`, etapa 2). O estado fica em `/var/lib/inventarium/lb-cert.sha256`; se o envio falhar, o hash não é gravado e a próxima execução tenta de novo. A imagem é `ghcr.io/oracle/oci-cli:latest` (a Oracle só documenta essa tag): fixe uma versão ou digest em `OCI_CLI_IMAGE` quando puder.
+
+**Rollback:** remova `LB_CIDR` (e `LB_ID`) do `edge.env` e rode `deploy-nginx.sh` de novo. O Nginx volta a ignorar o `X-Forwarded-For` e a 9081 volta a negar todos. As regras do firewalld criadas para o LB ficam (são só para a subnet do LB) e podem ser removidas com `firewall-cmd --permanent --remove-rich-rule=...`.
+
+**Limitações conhecidas:** o `keepalive_timeout` do Nginx subiu para 350 s (acima do idle timeout planejado do LB), o que mantém conexões abertas por mais tempo mesmo no modo direto; as regras do firewalld não são removidas sozinhas se `LB_CIDR` mudar; o hook depende de `python3` e do SDK da OCI estarem na imagem da CLI (confirmar na primeira execução).
 
 
 ## 5. Solução de problemas

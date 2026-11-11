@@ -43,6 +43,7 @@ Um ADR não deve ser reescrito para esconder uma decisao antiga. Caso a decisao 
 | [0006](./0006-publicar-na-oci-com-nginx-tls-e-portainer.md) | Publicar o Inventarium na OCI com Nginx, TLS Let's Encrypt e Portainer | Accepted |
 | [0007](./0007-stack-de-observabilidade-na-vm-privada.md) | Stack de observabilidade e SonarQube na VM privada | Accepted |
 | [0008](./0008-grafana-publico-com-login.md) | Grafana público na internet com login obrigatório | Accepted |
+| [0009](./0009-load-balancer-e-waf-da-oci.md) | Load Balancer e WAF da OCI na frente da aplicação | Accepted |
 
 ## Template
 

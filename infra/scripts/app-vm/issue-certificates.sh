@@ -41,8 +41,13 @@ if [ "$dns_check" -eq 1 ]; then
   bad=0
   for name in "${NAMES[@]}"; do
     resolved="$(getent ahostsv4 "$name" | awk 'NR==1{print $1}')"
-    if [ "$resolved" != "$my_ip" ]; then
-      log "DNS: $name resolve para '${resolved:-nada}', esperado $my_ip"
+    # Depois do cutover os nomes apontam para o IP publico do Load Balancer (LB_PUBLIC_IP no edge.env),
+    # e o desafio HTTP-01 chega a esta VM pela porta 80 do LB.
+    expected_ok=0
+    if [ -n "$resolved" ] && [ "$resolved" = "$my_ip" ]; then expected_ok=1; fi
+    if [ -n "$resolved" ] && [ "$resolved" = "${LB_PUBLIC_IP:-}" ]; then expected_ok=1; fi
+    if [ "$expected_ok" -eq 0 ]; then
+      log "DNS: $name resolve para '${resolved:-nada}', esperado $my_ip${LB_PUBLIC_IP:+ ou $LB_PUBLIC_IP}"
       bad=1
     fi
   done
@@ -76,6 +81,9 @@ fi
 
 log "ligando os vhosts HTTPS no Nginx"
 /opt/inventarium-app/bin/install-nginx-config.sh /opt/inventarium-app/src/nginx
+
+# Com LB_ID no edge.env, o certificado novo tambem vai para o Load Balancer (no-op sem LB_ID).
+/opt/inventarium-app/bin/push-lb-certificate.sh
 
 if [ "$staging" -eq 1 ]; then
   log "CERTIFICADO DE TESTE instalado (nao confiavel). Para o definitivo, rode sem --staging."
