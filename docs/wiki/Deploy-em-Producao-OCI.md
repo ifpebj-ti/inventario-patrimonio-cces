@@ -557,8 +557,10 @@ Cria no Terraform o **Load Balancer** (LB) e o **WAF**, e liga o HTTPS dele. **N
 
    ```powershell
    terraform apply
-   terraform output lb_public_ip lb_id lb_subnet_cidr
+   terraform output
    ```
+
+   O `terraform output` sem argumento lista todas as saídas; anote `lb_public_ip`, `lb_id` e `lb_subnet_cidr`. (O comando aceita um único nome por vez: `terraform output lb_public_ip`.)
 
 4. **Na VM** (`ssh opc@<IP_RESERVADO>`), edite `/etc/inventarium/edge.env` e acrescente (sem aspas dentro das aspas):
 
