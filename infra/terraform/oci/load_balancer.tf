@@ -20,6 +20,14 @@ resource "oci_core_public_ip" "lb" {
   compartment_id = var.compartment_ocid
   display_name   = "${var.project_name}-lb-public-ip"
   lifetime       = "RESERVED"
+
+  lifecycle {
+    # Quem associa este IP ao IP privado do LB e o proprio LB (bloco reserved_ips, abaixo), nao este
+    # recurso. Depois do primeiro apply o provider le o private_ip_id, que nao esta na configuracao, e o
+    # plano passaria a propor "private_ip_id -> null"; a OCI recusa desassociar um IP gerenciado pelo LB
+    # (404 NotAuthorizedOrNotFound) e o apply falha.
+    ignore_changes = [private_ip_id]
+  }
 }
 
 resource "oci_load_balancer_load_balancer" "main" {
