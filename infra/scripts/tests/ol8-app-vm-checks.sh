@@ -17,6 +17,8 @@ nginx -v 2>&1
 mkdir -p /etc/inventarium /var/www/certbot
 write_env() {
   printf 'ACME_EMAIL=a@b.co\nADMIN_CIDRS="%s"\nOBSERVABILITY_IP=%s\n' "$1" "$2" > /etc/inventarium/edge.env
+  # Terceiro argumento opcional: LB_CIDR (subnet do Load Balancer).
+  if [ -n "${3:-}" ]; then printf 'LB_CIDR="%s"\n' "$3" >> /etc/inventarium/edge.env; fi
 }
 write_env "203.0.113.10/32 198.51.100.0/24" "10.42.0.74"
 
@@ -58,6 +60,32 @@ for line in 'server 10.42.0.74:9000;' 'server 10.42.0.74:3000;'; do
 done
 ok "allowlist e upstreams gerados a partir do edge.env"
 
+# 2b) Load Balancer: IP real do cliente e health check. Sem LB_CIDR o modo direto segue valido (nada
+# confiavel e a 9081 fechada); com LB_CIDR, so a subnet do LB e confiavel.
+real_ip=/etc/nginx/inventarium/generated/real-ip.conf
+lb_allow=/etc/nginx/inventarium/generated/lb-allowlist.conf
+if grep -q 'set_real_ip_from\|real_ip_header' "$real_ip"; then fail "sem LB_CIDR nao deve haver real_ip"; fi
+grep -qx 'deny all;' "$lb_allow" || fail "sem LB_CIDR a 9081 deve negar tudo"
+if grep -q '^allow' "$lb_allow"; then fail "sem LB_CIDR a 9081 nao deve permitir ninguem"; fi
+[ -f /etc/nginx/conf.d/15-lb-interno.conf ] || fail "vhost interno do LB (9080/9081) ausente com certificado"
+ok "sem LB_CIDR: nenhum IP confiavel e a 9081 fechada"
+
+write_env "203.0.113.10/32" "10.42.0.74" "10.42.0.128/27"
+"$install_script" /tmp/nginx-src >/dev/null 2>&1 || fail "install com LB_CIDR falhou"
+for line in 'set_real_ip_from 10.42.0.128/27;' 'real_ip_header X-Forwarded-For;' 'real_ip_recursive on;'; do
+  grep -qx "$line" "$real_ip" || fail "real-ip.conf sem a linha: $line"
+done
+for line in 'allow 10.42.0.128/27;' 'deny all;'; do
+  grep -qx "$line" "$lb_allow" || fail "lb-allowlist.conf sem a linha: $line"
+done
+nginx -t >/dev/null 2>&1 || fail "nginx -t falha com LB_CIDR"
+ok "com LB_CIDR: so a subnet do LB e confiavel e pode consultar o health"
+
+write_env "203.0.113.10/32 198.51.100.0/24" "10.42.0.74"
+"$install_script" /tmp/nginx-src >/dev/null 2>&1 || fail "install sem LB_CIDR falhou"
+if grep -q 'set_real_ip_from' "$real_ip"; then fail "remover LB_CIDR deve remover a confianca no X-Forwarded-For"; fi
+ok "remover LB_CIDR volta ao modo direto"
+
 # 3) Configuracao invalida: o script deve falhar e restaurar a configuracao anterior.
 before="$(md5sum < /etc/nginx/conf.d/21-api.conf)"
 echo "diretiva_inexistente on;" >> /tmp/nginx-src/sites-tls/21-api.conf
@@ -72,7 +100,9 @@ write_env "1.2.3.4; return 200" "10.42.0.74"
 if "$install_script" /tmp/nginx-src2 >/dev/null 2>&1; then fail "CIDR malicioso foi aceito"; fi
 write_env "203.0.113.10/32" "10.42.0.74; evil"
 if "$install_script" /tmp/nginx-src2 >/dev/null 2>&1; then fail "OBSERVABILITY_IP malicioso foi aceito"; fi
-ok "CIDR e IP invalidos sao rejeitados"
+write_env "203.0.113.10/32" "10.42.0.74" "10.42.0.128/27; return 200"
+if "$install_script" /tmp/nginx-src2 >/dev/null 2>&1; then fail "LB_CIDR malicioso foi aceito"; fi
+ok "CIDR, IP e LB_CIDR invalidos sao rejeitados"
 
 # 5) bootstrap-portainer-stack.sh --dry-run
 portainer=/src/scripts/app-vm/bootstrap-portainer-stack.sh

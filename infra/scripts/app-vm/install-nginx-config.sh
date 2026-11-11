@@ -40,6 +40,11 @@ ip_re='^[0-9]{1,3}(\.[0-9]{1,3}){3}$'
 for cidr in $ADMIN_CIDRS; do
   [[ "$cidr" =~ $cidr_re ]] || die "CIDR de admin invalido: $cidr"
 done
+# LB_CIDR e opcional: subnet do Load Balancer (lb_public_subnet_cidr do Terraform). Vazio mantem o modo
+# direto (internet -> Nginx), que continua valido como rollback.
+for cidr in ${LB_CIDR:-}; do
+  [[ "$cidr" =~ $cidr_re ]] || die "CIDR do LB invalido: $cidr"
+done
 
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
@@ -48,8 +53,10 @@ mkdir -p "$stage/conf.d" "$stage/snippets" "$stage/generated"
 cp "$src"/conf.d/*.conf "$stage/conf.d/"
 cp "$src"/snippets/*.conf "$stage/snippets/"
 
+tls_installed=0
 if [ -r "$CERT_DIR/fullchain.pem" ] && [ -r "$CERT_DIR/privkey.pem" ]; then
   cp "$src"/sites-tls/*.conf "$stage/conf.d/"
+  tls_installed=1
   log "certificado encontrado em $CERT_DIR: vhosts HTTPS incluidos."
 else
   log "AVISO: sem certificado em $CERT_DIR; instalando apenas a porta 80. Rode issue-certificates.sh."
@@ -62,6 +69,29 @@ fi
   done
   echo "deny all;"
 } > "$stage/generated/admin-allowlist.conf"
+
+# Com o LB na frente, $remote_addr seria sempre o IP dele: o rate limit por IP, a allowlist do Portainer
+# e o log perderiam o cliente. O Nginx so confia no X-Forwarded-For quando a conexao vem de LB_CIDR; um
+# cabecalho forjado por quem chega direto na 443 e ignorado.
+{
+  echo "# Gerado por install-nginx-config.sh. Nao edite."
+  if [ -n "${LB_CIDR:-}" ]; then
+    for cidr in $LB_CIDR; do
+      echo "set_real_ip_from ${cidr};"
+    done
+    echo "real_ip_header X-Forwarded-For;"
+    echo "real_ip_recursive on;"
+  fi
+} > "$stage/generated/real-ip.conf"
+
+# Health check do LB (porta 9081): so a subnet do LB. Sem LB_CIDR, ninguem.
+{
+  echo "# Gerado por install-nginx-config.sh. Nao edite."
+  for cidr in ${LB_CIDR:-}; do
+    echo "allow ${cidr};"
+  done
+  echo "deny all;"
+} > "$stage/generated/lb-allowlist.conf"
 
 cat > "$stage/generated/upstreams.conf" <<EOF
 # Gerado por install-nginx-config.sh. Nao edite.
@@ -80,6 +110,57 @@ chmod 700 "$BACKUP_DIR"
 backup="$BACKUP_DIR/nginx-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
 tar -C "$NGINX_ETC" -czf "$backup" nginx.conf conf.d inventarium 2>/dev/null || tar -C "$NGINX_ETC" -czf "$backup" nginx.conf conf.d
 log "backup em $backup"
+
+# Portas internas do LB (vhosts na 9080, health na 9081). O SELinux so deixa o Nginx escutar em portas
+# rotuladas http_port_t, e o firewalld do host so abre as dos servicos http/https; sem isso o Nginx
+# nao sobe nelas. Idempotente. As regras do firewalld ficam so para a subnet do LB e sao aplicadas em
+# runtime e no permanente, sem --reload (o reload derrubaria as regras que o Docker cria).
+internal_ports="9080 9081"
+
+ensure_internal_ports() {
+  if command -v getenforce >/dev/null 2>&1 && [ "$(getenforce)" != "Disabled" ]; then
+    command -v semanage >/dev/null 2>&1 || dnf -y install policycoreutils-python-utils >/dev/null
+    labeled="$(semanage port -l | awk '$1 == "http_port_t"')"
+    for port in $internal_ports; do
+      if ! grep -qw "$port" <<<"$labeled"; then
+        log "SELinux: rotulando a porta $port como http_port_t."
+        semanage port -a -t http_port_t -p tcp "$port"
+      fi
+    done
+  fi
+  if [ -n "${LB_CIDR:-}" ] && command -v firewall-cmd >/dev/null 2>&1 && systemctl is-active --quiet firewalld; then
+    for cidr in $LB_CIDR; do
+      for port in $internal_ports; do
+        rule="rule family=ipv4 source address=${cidr} port port=${port} protocol=tcp accept"
+        if ! firewall-cmd --permanent --query-rich-rule="$rule" >/dev/null 2>&1; then
+          log "firewalld: liberando a porta $port para $cidr."
+          firewall-cmd --permanent --add-rich-rule="$rule" >/dev/null
+          firewall-cmd --add-rich-rule="$rule" >/dev/null
+        fi
+      done
+    done
+  fi
+}
+
+# Depois do reload, confere que o Nginx realmente escuta nas portas internas: o `nginx -t` nao pega
+# um bind recusado pelo SELinux, e o reload falho deixa o Nginx antigo no ar sem avisar.
+internal_ports_listening() {
+  local attempt sockets port all
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    sockets="$(ss -ltn 2>/dev/null || true)"
+    all=1
+    for port in $internal_ports; do
+      grep -Eq ":${port}[[:space:]]" <<<"$sockets" || all=0
+    done
+    [ "$all" -eq 1 ] && return 0
+    sleep 1
+  done
+  return 1
+}
+
+if [ "$tls_installed" -eq 1 ]; then
+  ensure_internal_ports
+fi
 
 apply() {
   install -D -m 0644 "$src/nginx.conf" "$NGINX_ETC/nginx.conf"
@@ -112,6 +193,11 @@ fi
 if systemctl is-active --quiet nginx; then
   systemctl reload nginx
   log "nginx recarregado."
+  if [ "$tls_installed" -eq 1 ] && command -v ss >/dev/null 2>&1 && ! internal_ports_listening; then
+    rollback
+    systemctl reload nginx
+    die "o Nginx nao passou a escutar em $internal_ports (SELinux ou firewall?); configuracao anterior restaurada."
+  fi
 else
   systemctl enable --now nginx
   log "nginx iniciado."
