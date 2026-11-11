@@ -509,10 +509,10 @@ curl -s -o /dev/null -H 'Host: qualquer.exemplo' http://127.0.0.1:9080/; echo "c
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:9081/healthz
 ```
 
-**Certificado no LB.** Com `LB_ID` definido, o `renew-certificates.sh` (timer das 04:00 e 16:00) e o `issue-certificates.sh` chamam o `push-lb-certificate.sh`. Para o primeiro envio, depois de o LB e o listener HTTPS existirem:
+**Certificado no LB.** Com `LB_ID` definido, o `renew-certificates.sh` (timer das 04:00 e 16:00) e o `issue-certificates.sh` chamam o `push-lb-certificate.sh`. Para o primeiro envio (o listener HTTPS só pode ser criado depois do primeiro certificado, então o modo `--bootstrap` cria só o certificado e imprime o nome para o Terraform; veja a seção 4.15):
 
 ```bash
-sudo /opt/inventarium-app/bin/push-lb-certificate.sh
+sudo /opt/inventarium-app/bin/push-lb-certificate.sh --bootstrap
 ```
 
 Ele usa a CLI da OCI em container com **instance principal** (política em `edge_iam.tf`, etapa 2). O estado fica em `/var/lib/inventarium/lb-cert.sha256`; se o envio falhar, o hash não é gravado e a próxima execução tenta de novo. A imagem é `ghcr.io/oracle/oci-cli:latest` (a Oracle só documenta essa tag): fixe uma versão ou digest em `OCI_CLI_IMAGE` quando puder.
@@ -520,6 +520,89 @@ Ele usa a CLI da OCI em container com **instance principal** (política em `edge
 **Rollback:** remova `LB_CIDR` (e `LB_ID`) do `edge.env` e rode `deploy-nginx.sh` de novo. O Nginx volta a ignorar o `X-Forwarded-For` e a 9081 volta a negar todos. As regras do firewalld criadas para o LB ficam (são só para a subnet do LB) e podem ser removidas com `firewall-cmd --permanent --remove-rich-rule=...`.
 
 **Limitações conhecidas:** o `keepalive_timeout` do Nginx subiu para 350 s (acima do idle timeout planejado do LB), o que mantém conexões abertas por mais tempo mesmo no modo direto; as regras do firewalld não são removidas sozinhas se `LB_CIDR` mudar; o hook depende de `python3` e do SDK da OCI estarem na imagem da CLI (confirmar na primeira execução).
+
+
+### 4.15 Criar o Load Balancer e o WAF em detecção (ADR 0009, etapa 2)
+
+Cria no Terraform o **Load Balancer** (LB) e o **WAF**, e liga o HTTPS dele. **Nada muda para o usuário até o DNS apontar para o LB** (etapa 3): o site continua entrando direto pela VM. Pré-requisito: a etapa 1 (seção 4.14) aplicada.
+
+**O que o Terraform cria** (`terraform plan` mostra `21 to add, 0 to change, 0 to destroy`; nada existente é alterado):
+
+| Recurso | Para quê |
+| --- | --- |
+| Subnet pública `lb_public` (`10.42.0.128/27`) e NSG `lb` | O LB fica fora da subnet da VM. O NSG aceita 80 e 443 da internet e só fala com a VM nas portas 80, 9080 e 9081 |
+| Regras no NSG da VM (`app_from_lb`) | A VM aceita 80, 9080 e 9081 **somente do NSG do LB**. A regra atual de `allowed_web_cidrs` continua até a etapa 3 |
+| LB flexível (IP público reservado), backend sets `http` e `app`, listener 80 | Porta 80 vai ao Nginx (ACME e redirecionamento); saúde por HTTP na 9081 |
+| Listener 443 (só com `lb_https_enabled = true`) | Termina o TLS 1.2/1.3 e fala HTTP com o Nginx na 9080 |
+| WAF (`oci_waf_web_app_firewall`) e política | Grupos colaborativos OWASP de SQL injection, XSS, path traversal/LFI e RCE, mais um conjunto curado de regras individuais; tudo com a ação **CHECK** (só registra) |
+| Log group e log do WAF | Onde se revisam os falsos positivos antes do bloqueio |
+| Policy IAM (`manage_edge_iam = true`, opcional) | A VM pode atualizar certificado e listener **deste** LB (`use`, não `manage`) |
+
+**Custo:** o WAF fica na franquia gratuita (1 instância e 10 milhões de requisições por mês, segundo a Oracle); o **LB flexível é cobrado por hora** e por banda acima do mínimo de 10 Mbps. Some o item *Load Balancer* no Cost Estimator da OCI antes do apply e confirme o valor.
+
+**Passo a passo** (PowerShell, em `infra\terraform\oci`):
+
+1. **Conferir o plano** (só leitura):
+
+   ```powershell
+   terraform plan
+   ```
+
+   Esperado: `21 to add, 0 to change, 0 to destroy`. Se aparecer qualquer `change` ou `destroy`, pare e investigue. O catálogo de proteção é lido da OCI no plano; se o plano falhar com "catálogo de proteção... SQL injection e XSS", a OCI mudou as chaves e `waf_collaborative_prefixes` em `waf.tf` precisa de revisão.
+
+2. **IAM do certificado.** Se o seu usuário puder criar policies, defina `manage_edge_iam = true` no `terraform.tfvars`. Senão, peça a quem administra a tenancy a policy equivalente:
+   `Allow dynamic-group inventarium-app-instances to use load-balancers in compartment id <compartment> where target.loadbalancer.id = '<lb_id>'`. Se a OCI recusar a condição `target.loadbalancer.id`, remova só a parte `where` (há um único LB).
+
+3. **Aplicar** (primeira vez, sem HTTPS):
+
+   ```powershell
+   terraform apply
+   terraform output lb_public_ip lb_id lb_subnet_cidr
+   ```
+
+4. **Na VM** (`ssh opc@<IP_RESERVADO>`), edite `/etc/inventarium/edge.env` e acrescente (sem aspas dentro das aspas):
+
+   ```bash
+   LB_CIDR="10.42.0.128/27"
+   LB_ID="<saída lb_id>"
+   LB_PUBLIC_IP="<saída lb_public_ip>"
+   ```
+
+   Depois, do seu computador (Git Bash): `infra/scripts/deploy-nginx.sh <IP_RESERVADO>`. Isso gera o `real-ip.conf`, abre as portas 9080 e 9081 no firewalld só para o LB e confere que o Nginx escuta nelas.
+
+5. **Conferir a saúde do LB:** no console da OCI, *Networking → Load balancers → inventarium-lb → Backend sets*: `http` e `app` devem ficar **OK**. Se ficarem críticos, veja `sudo ss -ltn | grep -E ':(9080|9081)'` na VM e o NSG `app`.
+
+6. **Primeiro certificado no LB** (o listener HTTPS só pode ser criado depois do certificado), na VM:
+
+   ```bash
+   sudo /opt/inventarium-app/bin/push-lb-certificate.sh --bootstrap
+   ```
+
+   O comando cria o certificado no LB e imprime `lb_bootstrap_certificate_name = "inventarium-AAAAMMDD-xxxxxxxx"`. Se falhar, confira o `OCI_CLI_IMAGE` (a imagem precisa ter `python3` e o SDK `oci`) e a policy do passo 2.
+
+7. **Ligar o HTTPS:** no `terraform.tfvars` ponha `lb_https_enabled = true` e `lb_bootstrap_certificate_name = "<nome impresso>"`, e rode `terraform apply`. A partir daqui as renovações trocam o certificado do listener sozinhas (o Terraform ignora essa mudança).
+
+8. **Testar o LB sem mexer no DNS** (do seu computador):
+
+   ```bash
+   curl --resolve inventariumifpe.me:443:<lb_public_ip> -sI https://inventariumifpe.me/ | head -3
+   curl --resolve api.inventariumifpe.me:443:<lb_public_ip> -s https://api.inventariumifpe.me/actuator/health
+   ```
+
+   Os dois devem responder normalmente. Repita com `grafana.`, `portainer.` (403 se o seu IP não estiver na allowlist, o esperado) e `sonar.`.
+
+9. **Ver o WAF registrando** (em detecção a resposta continua normal):
+
+   ```bash
+   curl --resolve api.inventariumifpe.me:443:<lb_public_ip> -s -o /dev/null -w '%{http_code}\n' "https://api.inventariumifpe.me/x?q=%27%20OR%201%3D1--"
+   curl --resolve inventariumifpe.me:443:<lb_public_ip> -s -o /dev/null -w '%{http_code}\n' "https://inventariumifpe.me/?q=%3Cscript%3Ealert(1)%3C/script%3E"
+   ```
+
+   Depois olhe no console: *Observability & Management → Logging → Log Groups → inventarium-waf-logs → inventarium-waf → Explore Log*. Os eventos mostram a regra que disparou e a ação `CHECK`. Use o sistema normalmente por alguns dias (login Google, importar CSV, salvar observação, deploy) e anote o que o WAF registrou de legítimo: são os falsos positivos a tratar antes do bloqueio.
+
+**Desfazer a etapa 2:** como o tráfego ainda não passa pelo LB, basta não apontar o DNS. Para remover tudo, `terraform destroy -target=oci_waf_web_app_firewall.main` e depois os demais recursos novos, ou reverta o commit e rode `terraform apply`. O certificado criado no LB some junto com ele.
+
+**Limitações conhecidas:** a semântica exata de `CHECK` e o catálogo foram lidos da documentação e do plano, mas só o primeiro apply mostra se a OCI aceita tudo (limite de regras por política, por exemplo); o WAF inspeciona só os primeiros 8 KB do corpo; as exceções do bloqueio (webhook do Portainer, `actuator/health`, token Google, campo de senha) ainda não existem, porque dependem dos falsos positivos reais, e são a etapa 3; a imagem da CLI da OCI usa a tag `latest`.
 
 
 ## 5. Solução de problemas
