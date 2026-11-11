@@ -47,6 +47,7 @@ Restrições: projeto acadêmico com custo baixo; uma VM só; segredos fora do G
 - **`X-Forwarded-For` forjado:** tratado por `set_real_ip_from` restrito ao `LB_CIDR` e por `real_ip_recursive`. Se `LB_CIDR` estiver errado ou largo demais, a confiança vaza.
 - **Contornar o WAF pelo IP da VM:** tratado pelo NSG; conferir depois do cutover que a VM não responde fora do LB.
 - **A imagem da CLI da OCI** só tem a tag `latest` documentada: fixar um digest em `OCI_CLI_IMAGE` assim que possível.
+- **Policy IAM sem condição de LB:** a VM pode atualizar qualquer load balancer do compartment (`use`, sem criar nem apagar). A condição `where target.loadbalancer.id` foi testada na VM real e a OCI respondeu 404 a todas as chamadas, então não é usada. Aceito porque hoje há um único LB; se surgirem outros, mover o LB para um compartment próprio.
 - **Mudança de IP e DNS:** reduzir o TTL dos registros antes do cutover e manter o rollback para o IP da VM.
 
 ## Referencias

@@ -536,7 +536,7 @@ Cria no Terraform o **Load Balancer** (LB) e o **WAF**, e liga o HTTPS dele. **N
 | Listener 443 (só com `lb_https_enabled = true`) | Termina o TLS 1.2/1.3 e fala HTTP com o Nginx na 9080 |
 | WAF (`oci_waf_web_app_firewall`) e política | Grupos colaborativos OWASP de SQL injection, XSS, path traversal/LFI e RCE, mais um conjunto curado de regras individuais; tudo com a ação **CHECK** (só registra) |
 | Log group e log do WAF | Onde se revisam os falsos positivos antes do bloqueio |
-| Policy IAM (`manage_edge_iam = true`, opcional) | A VM pode atualizar certificado e listener **deste** LB (`use`, não `manage`) |
+| Policy IAM (`manage_edge_iam = true`, opcional) | A VM pode atualizar certificados e listeners dos LBs do compartment (`use`, não `manage`: não cria nem apaga LBs) |
 
 **Custo:** o WAF fica na franquia gratuita (1 instância e 10 milhões de requisições por mês, segundo a Oracle); o **LB flexível é cobrado por hora** e por banda acima do mínimo de 10 Mbps. Some o item *Load Balancer* no Cost Estimator da OCI antes do apply e confirme o valor.
 
@@ -551,7 +551,7 @@ Cria no Terraform o **Load Balancer** (LB) e o **WAF**, e liga o HTTPS dele. **N
    Esperado: `21 to add, 0 to change, 0 to destroy`. Se aparecer qualquer `change` ou `destroy`, pare e investigue. O catálogo de proteção é lido da OCI no plano; se o plano falhar com "catálogo de proteção... SQL injection e XSS", a OCI mudou as chaves e `waf_collaborative_prefixes` em `waf.tf` precisa de revisão.
 
 2. **IAM do certificado.** Se o seu usuário puder criar policies, defina `manage_edge_iam = true` no `terraform.tfvars`. Senão, peça a quem administra a tenancy a policy equivalente:
-   `Allow dynamic-group inventarium-app-instances to use load-balancers in compartment id <compartment> where target.loadbalancer.id = '<lb_id>'`. Se a OCI recusar a condição `target.loadbalancer.id`, remova só a parte `where` (há um único LB).
+   `Allow dynamic-group inventarium-app-instances to use load-balancers in compartment id <compartment>`. **Não** acrescente `where target.loadbalancer.id = ...`: testado na VM real, com essa condição a OCI responde `404 NotAuthorizedOrNotFound` a todas as chamadas do hook. Sem ela funciona, ao custo de a VM poder atualizar qualquer LB do compartment (hoje há um só).
 
 3. **Aplicar** (primeira vez, sem HTTPS):
 

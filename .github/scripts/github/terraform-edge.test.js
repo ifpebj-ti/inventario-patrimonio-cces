@@ -210,14 +210,17 @@ test("WAF logs go to OCI Logging so false positives can be reviewed before block
   assert.match(log, /retention_duration\s*=\s*var\.waf_log_retention_days/);
 });
 
-test("certificate rotation IAM is least privilege: 'use' on this LB only, opt-in, reusing the VM dynamic group", () => {
+test("certificate rotation IAM: 'use' (never 'manage'), opt-in, reusing the VM dynamic group, with no LB id condition", () => {
   const iam = code("edge_iam.tf");
   const policy = block(iam, 'resource "oci_identity_policy" "edge"');
 
   assert.match(policy, /count\s*=\s*var\.manage_edge_iam \? 1 : 0/);
   assert.match(policy, /to use load-balancers in compartment id/);
   assert.doesNotMatch(policy, /to manage /, "o hook nao precisa de manage");
-  assert.match(policy, /where target\.loadbalancer\.id = '\$\{oci_load_balancer_load_balancer\.main\.id\}'/);
+  // Testado na VM real: com "where target.loadbalancer.id = ..." a OCI responde 404 NotAuthorizedOrNotFound a
+  // todas as chamadas do hook (a variavel nao vale para load balancers). Sem a condicao funciona.
+  assert.doesNotMatch(policy, /\bwhere\b/, "a condicao target.loadbalancer.id faz a OCI recusar o hook com 404");
+  assert.match(policy, /to use load-balancers in compartment id \$\{var\.compartment_ocid\}"/);
   assert.match(policy, /oci_identity_dynamic_group\.app\[0\]\.name/);
   assert.match(policy, /precondition\s*\{\s*condition\s*=\s*var\.manage_backup_iam/);
   assert.match(block(code("variables.tf"), 'variable "manage_edge_iam"'), /default\s*=\s*false/);
