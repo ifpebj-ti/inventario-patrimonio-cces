@@ -77,3 +77,13 @@ output "lb_nsg_id" {
   description = "OCID do NSG do Load Balancer."
   value       = oci_core_network_security_group.lb.id
 }
+
+output "waf_policy_id" {
+  description = "OCID da politica do WAF."
+  value       = oci_waf_web_app_firewall_policy.main.id
+}
+
+output "waf_log_group_id" {
+  description = "OCID do log group com os logs do WAF (OCI Logging)."
+  value       = oci_logging_log_group.waf.id
+}
