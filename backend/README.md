@@ -3,6 +3,25 @@
 Contrato de autenticação abaixo. Setor, usuário, cargo e permissão estão documentados em
 `docs/wiki/API-Setor-Perfil-e-Permissoes.md`.
 
+# - Documentação da API (Swagger / OpenAPI)
+
+Todos os endpoints estão documentados com OpenAPI 3 (springdoc), com descrição, permissão exigida, corpos de
+requisição/resposta com exemplos e os códigos de erro de cada rota.
+
+| URL | O que é |
+|---|---|
+| `/swagger-ui.html` | Swagger UI, para ler e testar a API |
+| `/v3/api-docs` | Contrato OpenAPI em JSON (serve para gerar clientes) |
+
+Com o backend local: <http://localhost:8080/swagger-ui.html>. As duas rotas são públicas; os endpoints em si
+continuam protegidos. Para testar os autenticados, faça `POST /auth/login` (conta de sistema) ou `POST /auth/google`,
+copie o `token` da resposta e cole no botão **Authorize** (só o JWT, sem o prefixo `Bearer`).
+
+`SWAGGER_ENABLED=false` desliga as duas rotas (padrão: ligado). A configuração global fica em
+`config/OpenApiConfig.java`; as descrições ficam nas anotações (`@Operation`, `@ApiResponse`) dos controllers e
+nas `@Schema` dos DTOs. Ao criar um endpoint, anote-o no mesmo padrão. Os records de `dto/doc` existem só para
+documentar corpos que o código lê como `Map` ou entidade e não são usados em runtime.
+
 # - Autenticação
 
 O login com Google é o jeito de entrar dos usuários comuns e a **única forma de um usuário ser criado**:
