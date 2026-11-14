@@ -112,8 +112,6 @@ O histórico é atualizado manualmente na própria pull request antes do merge e
 
 ## [v7.2.0] - 2026-10-19
 
-> Inclui as mudanças da tag `v7.1.0` (alocação de usuários pela tela de Setores, #239), que não tem GitHub Release.
-
 ### Added
 
 - Os modais **Novo cargo**, **Editar cargo**, **Novo setor**, **Editar setor** e **Adicionar usuários** passam a seguir o padrão do modal "Gerenciar acesso" do usuário:
@@ -123,6 +121,13 @@ O histórico é atualizado manualmente na própria pull request antes do merge e
 - Um só componente (`AdminModal`, com `AdminModalSection` e `AdminModalFooter`, em `shared.tsx`) passa a servir a todos, inclusive ao modal de acesso do usuário.
 - Só frontend: nenhum endpoint, contrato, permissão ou migration muda.
 - Docs: `frontend/docs/administration.md` e `CHANGELOG.md`.
+
+## [v7.1.0] - 2026-10-19
+
+> Alocação de usuários pela tela de Setores (#239). Tag sem GitHub Release.
+
+### Added
+
 - Adicionada a alocação de usuários pela tela de **Setores**: **Usuários associados** abre uma barra lateral à direita com os usuários do setor agrupados por cargo; nela o administrador (em qualquer setor) e o gestor (nos setores que gerencia) trocam o cargo, removem usuários e abrem **Adicionar usuários**, um modal com os usuários ativos do sistema que ainda não estão no setor, para marcar um ou vários, escolher um cargo e alocar todos de uma vez. Novos endpoints: `GET /sectors/{id}/assignable-users` (só `id`, `name` e `email`) e `PUT /sectors/{id}/members` (`{ userIds, roleId }`, tudo ou nada; o gestor só atribui cargos sem `MANAGE_SECTOR` e não mexe em outro gestor nem em administrador).
 
 ### Changed
@@ -177,7 +182,17 @@ O histórico é atualizado manualmente na própria pull request antes do merge e
 
 ## [v6.0.1] - 2026-10-18
 
-> Inclui as mudanças da tag `v6.0.0` (importação de planilha em CSV, #221), que não tem GitHub Release.
+### Fixed
+
+- **Nginx de produção:** o freio por IP (`zona auth`, 10 req/min com rajada de 10) passa a valer só em `location = /auth/login`. Antes valia para todo `/auth/`, então `/auth/google` e `/auth/me` também levavam 429; o `/auth/me` roda a cada carregamento de página e o campus inteiro sai por um IP só. Os dois agora ficam na zona geral (`api`, 20 req/s). O `/auth/google` recebe um ID token assinado pelo Google (sem segredo para adivinhar).
+- **429 do nginx com CORS e `Retry-After`** (`snippets/login-rate-limited.conf`, via `error_page 429 = @login_rate_limited`). Sem isso o navegador esconde a resposta e o front mostraria "serviço indisponível". Os cabeçalhos de segurança são incluídos de novo no `location` nomeado, porque um `add_header` ali descarta os herdados do `server`.
+- **Backend só por usuário:** `LoginAttemptLimiter` perde o mapa de IP e `AuthController` deixa de ler o IP. O bloqueio por usuário não muda (5 falhas em 15 min bloqueiam por 15 min, inclusive com a senha certa). Sai `AUTH_LOGIN_IP_MAX_FAILURES` (properties, compose de produção, `.env.example`, whitelist do `bootstrap-portainer-stack.sh` e testes). `FORWARD_HEADERS_STRATEGY` continua (padrão `native` em produção), mas o limitador não depende mais dele.
+- **Frontend:** a mensagem de bloqueio do login passa a ser "Conta bloqueada, tente novamente mais tarde.", sem informar o tempo; saiu a leitura do `Retry-After` no front.
+- Docs: `backend/README.md`, doc de API (versão 1.7, para quem faz o frontend), guias de execução, runbook de deploy (4.3) e modelagem de ameaças (I-9).
+
+## [v6.0.0] - 2026-10-12
+
+> Importação de planilha em CSV (#221). Tag sem GitHub Release.
 
 ### Breaking Changes
 
@@ -194,14 +209,6 @@ O histórico é atualizado manualmente na própria pull request antes do merge e
 
 - A importação no frontend exige aprovação HTTP 200 explícita para o arquivo atual; troca/remoção invalida o resultado, respostas antigas são ignoradas e cliques repetidos não reenviam o arquivo. Erros HTTP, rede, leitura e contratos inesperados bloqueiam Processar sem inferência pelo texto.
 - Relatórios de importação total/parcial ou totalmente recusada preservam contadores atuais/legados e detalhes das falhas. A limpeza confirmada bloqueia ações simultâneas e só atualiza itens/seleção após sucesso.
-
-### Fixed
-
-- **Nginx de produção:** o freio por IP (`zona auth`, 10 req/min com rajada de 10) passa a valer só em `location = /auth/login`. Antes valia para todo `/auth/`, então `/auth/google` e `/auth/me` também levavam 429; o `/auth/me` roda a cada carregamento de página e o campus inteiro sai por um IP só. Os dois agora ficam na zona geral (`api`, 20 req/s). O `/auth/google` recebe um ID token assinado pelo Google (sem segredo para adivinhar).
-- **429 do nginx com CORS e `Retry-After`** (`snippets/login-rate-limited.conf`, via `error_page 429 = @login_rate_limited`). Sem isso o navegador esconde a resposta e o front mostraria "serviço indisponível". Os cabeçalhos de segurança são incluídos de novo no `location` nomeado, porque um `add_header` ali descarta os herdados do `server`.
-- **Backend só por usuário:** `LoginAttemptLimiter` perde o mapa de IP e `AuthController` deixa de ler o IP. O bloqueio por usuário não muda (5 falhas em 15 min bloqueiam por 15 min, inclusive com a senha certa). Sai `AUTH_LOGIN_IP_MAX_FAILURES` (properties, compose de produção, `.env.example`, whitelist do `bootstrap-portainer-stack.sh` e testes). `FORWARD_HEADERS_STRATEGY` continua (padrão `native` em produção), mas o limitador não depende mais dele.
-- **Frontend:** a mensagem de bloqueio do login passa a ser "Conta bloqueada, tente novamente mais tarde.", sem informar o tempo; saiu a leitura do `Retry-After` no front.
-- Docs: `backend/README.md`, doc de API (versão 1.7, para quem faz o frontend), guias de execução, runbook de deploy (4.3) e modelagem de ameaças (I-9).
 
 ## [v5.1.0] - 2026-10-12
 
@@ -277,8 +284,6 @@ O CRUD de perfil (criar, vincular e remover permissão, excluir só sem usuário
 
 ## [v4.2.0] - 2026-10-10
 
-> Inclui as mudanças da tag `v4.1.0`, que não tem GitHub Release.
-
 ### Added
 
 - Link discreto **"Entrar com usuário e senha"** abaixo do botão do Google na tela de login. Ele abre o formulário no mesmo card, com "Voltar" para fechar. O Google continua sendo o caminho principal e o card não muda para quem só usa o Google.
@@ -286,76 +291,22 @@ O CRUD de perfil (criar, vincular e remover permissão, excluir só sem usuário
 - Formulário (`react-hook-form` + `zod`) com usuário e senha. Campos vazios mostram a validação sem chamar o backend. Credencial errada mostra o erro na tela e em toast, e limpa a senha. Backend fora do ar mostra a mensagem de indisponibilidade.
 - `passwordSignInRequest` chama `POST /auth/login`. O mapeamento de erro por status HTTP foi extraído para `toAuthError` e é usado também pelo login Google, sem mudar o comportamento dele.
 - `AuthProvider` ganha `signInWithPassword`. A criação da sessão (cookie, usuário e redirect para `/dashboard`) foi extraída para uma função usada pelos dois logins.
-- **Conta de sistema com login por usuário e senha, `POST /auth/login` (#193, tag `v4.1.0`)**
-  - Conta de sistema (`admin` por padrão) que entra por usuário e senha, sem Google, com o perfil `ADMIN_ORGANIZATION`. Todos os outros usuários continuam entrando só pelo Google.
-  - Migration `20261010-1` (changeset novo, sem editar os antigos): `im_user.is_system_user`, `im_user.password_hash` e `google_id` nullable. O banco garante, por CHECK constraint, que `google_id` é nulo se e somente se `is_system_user` é verdadeiro, e que só conta de sistema tem senha.
-  - `POST /auth/login` devolve o mesmo `{ token, user }` do login Google. Falha sempre com `401` e a mesma mensagem (usuário inexistente, senha errada ou login por senha desligado); quando não há conta utilizável a senha é conferida contra um hash descartável, para não vazar por tempo.
-  - A conta é criada/atualizada no boot (`SystemAdminInitializer`) a partir de `SYSTEM_ADMIN_USERNAME` e `SYSTEM_ADMIN_PASSWORD`. **Sem senha default** (o repositório é público): senha vazia desliga o login por senha, senha com menos de 12 caracteres é recusada, e trocar a variável e reiniciar troca a senha.
-  - O identificador de login fica na coluna `email` (valor `admin`, sem `@`, então nenhuma conta Google casa com ele). A conta de sistema é recusada no fluxo Google.
-  - `passwordHash`, `googleId` e `systemUser` ficam fora de qualquer resposta JSON (`@JsonIgnore`), então o contrato de `/auth/me` não muda.
-  - `.env.example`, `docker-compose.yml`, `backend/README.md` e `docs/wiki/API-Setor-Perfil-e-Permissoes.md` atualizados.
 
-## [v4.0.2] - 2026-10-10
+## [v4.1.0] - 2026-10-10
 
-> Inclui as mudanças das tags `v1.0.0`, `v2.0.0`, `v3.0.0`, `v4.0.0` e `v4.0.1`, que não têm GitHub Release.
-
-### Breaking Changes
-
-- **Remove a entidade `Organization` e troca a exclusão de setor por ativar/desativar (#180, tag `v1.0.0`)**
-  - Remove por completo a entidade `Organization` (model, repository, service, controller, DTO, endpoints `/organizations`, permissao `ORGANIZATION_MANAGE`).
-  - `Sector` passa a ser criado diretamente, sem `id_organization` e sem hierarquia de setor pai/filho; nome passa a ser unico de verdade.
-  - `DELETE /sectors/{id}` sai; entram `PATCH /sectors/{id}/activate` e `PATCH /sectors/{id}/deactivate`, com o novo campo `active`.
-  - Edita diretamente os changesets Liquibase de `ORGANIZATION`, `SECTOR` e do seed de permissoes (nada disso chegou a producao ainda, entao nao precisou de migration nova).
-  - Ajusta os testes E2E afetados (`SectorE2ETest` reescrito, `UserSectorProfileE2ETest`, `SeedDataE2ETest`, `ProfileE2ETest`).
-  - `Inventory` nao foi tocado nesta etapa — continua sem vinculo com setor, como ja estava em `main` (fica para uma etapa futura).
-- **Permissões reais (`ADMIN`, `MANAGE_SECTOR`, `MANAGE_ITEM`) em Setor e na alocação usuário↔setor (#182, tag `v2.0.0`)**
-  - Simplifica o seed de permissões para o modelo da revisão 4.0 da proposta: `ADMIN`, `MANAGE_SECTOR`, `MANAGE_ITEM` (trocando as 12 permissões antigas, ainda não lançadas em produção).
-  - `ADMIN_ORGANIZATION` → `ADMIN`; `GESTOR_SETOR` → `MANAGE_SECTOR`; `OPERADOR_CAMPO` → `MANAGE_ITEM`; `CONSULTA` continua sem nenhuma.
-  - Cria `AuthorizationService` para checar permissão e alocação de setor do usuário autenticado.
-  - `/sectors` escrita (create/update/activate/deactivate) exige `ADMIN`.
-  - `/sectors` leitura (list/getById) exige `ADMIN` ou `MANAGE_SECTOR`.
-  - `PATCH /users/{id}/sector` exige `ADMIN`, ou `MANAGE_SECTOR` + estar alocado no setor relevante da operação (o novo setor ao atribuir; o setor atual do usuário-alvo ao desvincular).
-  - `Profile`/`Permission` (CRUD) e `PATCH /users/{id}/profile` continuam só com `TODO` — ficam para uma etapa futura.
-  - `MANAGE_ITEM` fica seedada mas ainda sem nenhum endpoint checando ela (Item/Inventory são etapa futura).
-- **Usuário em vários setores: `im_sector_allocation` no lugar de `id_sector` (#188, tag `v3.0.0`)**
-  - Migration Liquibase: cria `im_sector_allocation` (id/id_user/id_sector, par único), copia os dados existentes de `im_user.id_sector` e derruba a coluna antiga.
-  - `SectorAllocation` (entidade), `SectorAllocationRepository`, `SectorAllocationService` — permite um usuário estar alocado a vários setores ao mesmo tempo.
-  - `PATCH /users/{id}/sector` sai; entram `POST`/`DELETE /users/{id}/sectors/{sectorId}` (idempotentes, mesmo estilo de `/profiles/{id}/permissions/{permissionId}`): `ADMIN` em qualquer setor, ou `MANAGE_SECTOR` + estar alocado no setor informado.
-  - `GET /sectors/{id}/users` novo — lista usuários alocados a um setor (mesma permissão de leitura de `/sectors`: `ADMIN` ou `MANAGE_SECTOR`). É a rota que a tela de setor usa para a aba lateral de usuários.
-  - `GET /users` perde o filtro `?sectorId=` (só `?profileId=` continua). `UserDto` novo: resposta de usuário troca `sectorId` (escalar) por `sectorIds` (lista).
+> Conta de sistema com login por usuário e senha (#193). Tag sem GitHub Release.
 
 ### Added
 
-- **Relatórios SARIF nos scans de segurança, lint do frontend e testes do backend no workflow Quality (#173, tag `v1.0.0`)**
-  - Adicionado lint do frontend ao workflow `Quality`.
-  - Adicionados `spotlessCheck` e testes Gradle do backend ao workflow `Quality`.
-  - Renomeado o workflow de imagens de PR para `Security scans`.
-  - Consolidado o Semgrep no workflow de segurança junto ao Trivy.
-  - Configurada geração de SARIF do Semgrep e Trivy.
-  - Enviados os relatórios para Security → Code scanning e como artifacts temporários.
-  - Mantido o bloqueio do Trivy antes de qualquer push de imagem ao GHCR.
-  - Protegidas interpolações de contexto GitHub em scripts Bash dos workflows.
-- **Changelog manual e imagens multi-arquitetura documentados (#176, tag `v1.0.0`)**
-  - Adicionado o `CHANGELOG.md` versionado para manutenção manual nas Pull Requests.
-  - Documentado o fluxo de atualização manual do changelog conforme o tipo de release.
-  - Registrada a limitação de automação com `GITHUB_TOKEN`, mantendo os checks obrigatórios íntegros.
-  - Documentada a publicação de imagens multi-arquitetura `linux/amd64` e `linux/arm64` no GHCR.
-  - Atualizados README, estratégia de branching, guia de contribuição, guia operacional e documentação da esteira de CI/CD.
-- **Documentação da API de Setor, Perfil e Permissão para o frontend (#184, tag `v4.0.1`)**
-  - Novo documento `docs/wiki/API-Setor-Perfil-e-Permissoes.md` cobrindo `/sectors`, `/users` (listagem e alocação), `/profiles` e `/permissions`.
-  - Para cada rota: permissão exigida, formato de corpo/resposta e os códigos de erro possíveis.
-  - Registra comportamentos não óbvios confirmados empiricamente (subindo a aplicação via Testcontainers): `403` sem token, `401` quando o `subject` do JWT não corresponde a um usuário existente, ausência de campo `message` no corpo de erro (padrão do Spring Boot), e o filtro `sectorId`/`profileId` de `/users` não ser combinável.
+- Conta de sistema (`admin` por padrão) que entra por usuário e senha, sem Google, com o perfil `ADMIN_ORGANIZATION`. Todos os outros usuários continuam entrando só pelo Google.
+- Migration `20261010-1` (changeset novo, sem editar os antigos): `im_user.is_system_user`, `im_user.password_hash` e `google_id` nullable. O banco garante, por CHECK constraint, que `google_id` é nulo se e somente se `is_system_user` é verdadeiro, e que só conta de sistema tem senha.
+- `POST /auth/login` devolve o mesmo `{ token, user }` do login Google. Falha sempre com `401` e a mesma mensagem (usuário inexistente, senha errada ou login por senha desligado); quando não há conta utilizável a senha é conferida contra um hash descartável, para não vazar por tempo.
+- A conta é criada/atualizada no boot (`SystemAdminInitializer`) a partir de `SYSTEM_ADMIN_USERNAME` e `SYSTEM_ADMIN_PASSWORD`. **Sem senha default** (o repositório é público): senha vazia desliga o login por senha, senha com menos de 12 caracteres é recusada, e trocar a variável e reiniciar troca a senha.
+- O identificador de login fica na coluna `email` (valor `admin`, sem `@`, então nenhuma conta Google casa com ele). A conta de sistema é recusada no fluxo Google.
+- `passwordHash`, `googleId` e `systemUser` ficam fora de qualquer resposta JSON (`@JsonIgnore`), então o contrato de `/auth/me` não muda.
+- `.env.example`, `docker-compose.yml`, `backend/README.md` e `docs/wiki/API-Setor-Perfil-e-Permissoes.md` atualizados.
 
-### Changed
-
-- **Backend migrado para o Spring Boot 4.1.1 (#195, tag `v4.0.1`)**
-  - Spring Boot 3.5.16 → **4.1.1** (Spring Framework 7.0.9, Security 7.1.1, Tomcat 11, Hibernate 7.4.5, Liquibase 5.0.3). Corrige as duas CVEs CRITICAL do `spring-webmvc 6.2.19` (GHSA-pc63-qcmh-9cmg e GHSA-j9f9-w8pj-32f8), que só têm correção no Framework 7.0.9 e estavam travando o Trivy obrigatório de qualquer PR que mexe em backend/frontend.
-  - Gradle wrapper 8.13 → 8.14.6 (o Boot 4.1 exige 8.14+).
-  - `build.gradle`: starters renomeados (`webmvc`, `liquibase`), Testcontainers 2 (`testcontainers-junit-jupiter`/`testcontainers-postgresql`), remoção do pin `tomcat.version` (era do Boot 3) e pin do Jackson 2 movido para `jackson-2-bom.version` (segue em 2.21.7, com as correções das CVEs anteriores; o Boot 4 gerencia 2.21.5).
-  - `GoogleTokenProvider`: usa `JdkClientHttpRequestFactory` do Spring Framework no lugar do `RestTemplateBuilder`, que mudou de módulo. Mesmos 5 s de timeout; é o mesmo cliente que o Boot já escolhia por padrão.
-  - `ItemController`: `new ResponseEntity<>(null, status)` ficou ambíguo no Spring 7; trocado por `ResponseEntity.status(...).build()` (mesma resposta).
-  - Testes: `TestRestTemplate` agora vem de `spring-boot-resttestclient` (`@AutoConfigureTestRestTemplate`).
-  - `application.properties`: o Jackson 3 passou a (1) recusar campo primitivo ausente no corpo, o que dava **400** em todo `POST` de criação cujo DTO tem `long id`/`boolean active` que o cliente não envia, e (2) ordenar as chaves do JSON alfabeticamente. Os dois padrões do Boot 3 foram mantidos por configuração.
+## [v4.0.2] - 2026-10-10
 
 ### Fixed
 
@@ -369,6 +320,86 @@ O CRUD de perfil (criar, vincular e remover permissão, excluir só sem usuário
 | `source-map-js` (transitiva) | 1.2.1 | 1.2.2 | `CVE-2026-93749` (HIGH) |
 
 Nenhuma mudança de código. `package.json` muda 2 linhas (`next` e `eslint-config-next`, que já eram fixos em versão exata); o resto é `package-lock.json`: as 40 entradas que mudaram são só da família dessas bibliotecas (`@next/*` e os binários nativos por plataforma do `sharp`/`libvips`), conferido contra o lock da `main`.
+
+## [v4.0.1] - 2026-10-10
+
+> Migração do backend para o Spring Boot 4.1.1 (#195) e documentação da API de Setor, Perfil e Permissão (#184). Tag sem GitHub Release.
+
+### Added
+
+- Novo documento `docs/wiki/API-Setor-Perfil-e-Permissoes.md` cobrindo `/sectors`, `/users` (listagem e alocação), `/profiles` e `/permissions`.
+- Para cada rota: permissão exigida, formato de corpo/resposta e os códigos de erro possíveis.
+- Registra comportamentos não óbvios confirmados empiricamente (subindo a aplicação via Testcontainers): `403` sem token, `401` quando o `subject` do JWT não corresponde a um usuário existente, ausência de campo `message` no corpo de erro (padrão do Spring Boot), e o filtro `sectorId`/`profileId` de `/users` não ser combinável.
+
+### Changed
+
+- Spring Boot 3.5.16 → **4.1.1** (Spring Framework 7.0.9, Security 7.1.1, Tomcat 11, Hibernate 7.4.5, Liquibase 5.0.3). Corrige as duas CVEs CRITICAL do `spring-webmvc 6.2.19` (GHSA-pc63-qcmh-9cmg e GHSA-j9f9-w8pj-32f8), que só têm correção no Framework 7.0.9 e estavam travando o Trivy obrigatório de qualquer PR que mexe em backend/frontend.
+- Gradle wrapper 8.13 → 8.14.6 (o Boot 4.1 exige 8.14+).
+- `build.gradle`: starters renomeados (`webmvc`, `liquibase`), Testcontainers 2 (`testcontainers-junit-jupiter`/`testcontainers-postgresql`), remoção do pin `tomcat.version` (era do Boot 3) e pin do Jackson 2 movido para `jackson-2-bom.version` (segue em 2.21.7, com as correções das CVEs anteriores; o Boot 4 gerencia 2.21.5).
+- `GoogleTokenProvider`: usa `JdkClientHttpRequestFactory` do Spring Framework no lugar do `RestTemplateBuilder`, que mudou de módulo. Mesmos 5 s de timeout; é o mesmo cliente que o Boot já escolhia por padrão.
+- `ItemController`: `new ResponseEntity<>(null, status)` ficou ambíguo no Spring 7; trocado por `ResponseEntity.status(...).build()` (mesma resposta).
+- Testes: `TestRestTemplate` agora vem de `spring-boot-resttestclient` (`@AutoConfigureTestRestTemplate`).
+- `application.properties`: o Jackson 3 passou a (1) recusar campo primitivo ausente no corpo, o que dava **400** em todo `POST` de criação cujo DTO tem `long id`/`boolean active` que o cliente não envia, e (2) ordenar as chaves do JSON alfabeticamente. Os dois padrões do Boot 3 foram mantidos por configuração.
+
+## [v4.0.0] - 2026-10-03
+
+> Tag duplicada: aponta para o mesmo commit da `v3.0.0` (`55c4e97`), sem mudanças de código. Tag sem GitHub Release.
+
+## [v3.0.0] - 2026-10-03
+
+> Usuário em vários setores (#188). Tag sem GitHub Release.
+
+### Breaking Changes
+
+- Migration Liquibase: cria `im_sector_allocation` (id/id_user/id_sector, par único), copia os dados existentes de `im_user.id_sector` e derruba a coluna antiga.
+- `SectorAllocation` (entidade), `SectorAllocationRepository`, `SectorAllocationService` — permite um usuário estar alocado a vários setores ao mesmo tempo.
+- `PATCH /users/{id}/sector` sai; entram `POST`/`DELETE /users/{id}/sectors/{sectorId}` (idempotentes, mesmo estilo de `/profiles/{id}/permissions/{permissionId}`): `ADMIN` em qualquer setor, ou `MANAGE_SECTOR` + estar alocado no setor informado.
+- `GET /sectors/{id}/users` novo — lista usuários alocados a um setor (mesma permissão de leitura de `/sectors`: `ADMIN` ou `MANAGE_SECTOR`). É a rota que a tela de setor usa para a aba lateral de usuários.
+- `GET /users` perde o filtro `?sectorId=` (só `?profileId=` continua). `UserDto` novo: resposta de usuário troca `sectorId` (escalar) por `sectorIds` (lista).
+
+## [v2.0.0] - 2026-10-03
+
+> Permissões reais em Setor e na alocação usuário↔setor (#182). Tag sem GitHub Release.
+
+### Breaking Changes
+
+- Simplifica o seed de permissões para o modelo da revisão 4.0 da proposta: `ADMIN`, `MANAGE_SECTOR`, `MANAGE_ITEM` (trocando as 12 permissões antigas, ainda não lançadas em produção).
+- `ADMIN_ORGANIZATION` → `ADMIN`; `GESTOR_SETOR` → `MANAGE_SECTOR`; `OPERADOR_CAMPO` → `MANAGE_ITEM`; `CONSULTA` continua sem nenhuma.
+- Cria `AuthorizationService` para checar permissão e alocação de setor do usuário autenticado.
+- `/sectors` escrita (create/update/activate/deactivate) exige `ADMIN`.
+- `/sectors` leitura (list/getById) exige `ADMIN` ou `MANAGE_SECTOR`.
+- `PATCH /users/{id}/sector` exige `ADMIN`, ou `MANAGE_SECTOR` + estar alocado no setor relevante da operação (o novo setor ao atribuir; o setor atual do usuário-alvo ao desvincular).
+- `Profile`/`Permission` (CRUD) e `PATCH /users/{id}/profile` continuam só com `TODO` — ficam para uma etapa futura.
+- `MANAGE_ITEM` fica seedada mas ainda sem nenhum endpoint checando ela (Item/Inventory são etapa futura).
+
+## [v1.0.0] - 2026-10-03
+
+> Remoção de `Organization` (#180), relatórios SARIF nos scans (#173) e documentação do changelog manual (#176). Tag sem GitHub Release.
+
+### Breaking Changes
+
+- Remove por completo a entidade `Organization` (model, repository, service, controller, DTO, endpoints `/organizations`, permissao `ORGANIZATION_MANAGE`).
+- `Sector` passa a ser criado diretamente, sem `id_organization` e sem hierarquia de setor pai/filho; nome passa a ser unico de verdade.
+- `DELETE /sectors/{id}` sai; entram `PATCH /sectors/{id}/activate` e `PATCH /sectors/{id}/deactivate`, com o novo campo `active`.
+- Edita diretamente os changesets Liquibase de `ORGANIZATION`, `SECTOR` e do seed de permissoes (nada disso chegou a producao ainda, entao nao precisou de migration nova).
+- Ajusta os testes E2E afetados (`SectorE2ETest` reescrito, `UserSectorProfileE2ETest`, `SeedDataE2ETest`, `ProfileE2ETest`).
+- `Inventory` nao foi tocado nesta etapa — continua sem vinculo com setor, como ja estava em `main` (fica para uma etapa futura).
+
+### Added
+
+- Adicionado lint do frontend ao workflow `Quality`.
+- Adicionados `spotlessCheck` e testes Gradle do backend ao workflow `Quality`.
+- Renomeado o workflow de imagens de PR para `Security scans`.
+- Consolidado o Semgrep no workflow de segurança junto ao Trivy.
+- Configurada geração de SARIF do Semgrep e Trivy.
+- Enviados os relatórios para Security → Code scanning e como artifacts temporários.
+- Mantido o bloqueio do Trivy antes de qualquer push de imagem ao GHCR.
+- Protegidas interpolações de contexto GitHub em scripts Bash dos workflows.
+- Adicionado o `CHANGELOG.md` versionado para manutenção manual nas Pull Requests.
+- Documentado o fluxo de atualização manual do changelog conforme o tipo de release.
+- Registrada a limitação de automação com `GITHUB_TOKEN`, mantendo os checks obrigatórios íntegros.
+- Documentada a publicação de imagens multi-arquitetura `linux/amd64` e `linux/arm64` no GHCR.
+- Atualizados README, estratégia de branching, guia de contribuição, guia operacional e documentação da esteira de CI/CD.
 
 ## [v0.4.0] - 2026-09-28
 
@@ -397,6 +428,19 @@ Nenhuma mudança de código. `package.json` muda 2 linhas (`next` e `eslint-conf
 - Evoluído o changelog Liquibase com as novas estruturas de domínio.
 - Adicionada a base de infraestrutura Terraform para OCI.
 
+## [v0.2.1] - 2026-09-19
+
+> Tag sem GitHub Release.
+
+### Added
+
+- Documentação da wiki: modelagem de ameaças STRIDE, análise de concorrência, guia de desenvolvimento seguro, guia operacional, documento de visão, esteira de CI/CD e mapa da documentação.
+- Proposta de modelo de dados por setor, ligada na wiki.
+
+### Changed
+
+- As imagens de contêiner passam a ser publicadas apenas em releases, e a documentação foi alinhada a isso.
+
 ## [v0.2.0] - 2026-09-14
 
 ### Added
@@ -410,3 +454,7 @@ Nenhuma mudança de código. `package.json` muda 2 linhas (`next` e `eslint-conf
 
 - Corrigidas vulnerabilidades e o runtime das imagens Docker de frontend e backend.
 - Ajustado o scan de imagens do Trivy.
+
+## [v0.1.0] - 2026-09-08
+
+> Tag criada manualmente ao configurar a automação de releases, com o projeto como estava em 2026-09-08. Tag sem GitHub Release.
