@@ -124,7 +124,7 @@ O histórico é atualizado manualmente na própria pull request antes do merge e
 
 ## [v7.1.0] - 2026-10-19
 
-> Alocação de usuários pela tela de Setores (#239). Tag sem GitHub Release.
+> Alocação de usuários pela tela de Setores (#239).
 
 ### Added
 
@@ -192,7 +192,7 @@ O histórico é atualizado manualmente na própria pull request antes do merge e
 
 ## [v6.0.0] - 2026-10-12
 
-> Importação de planilha em CSV (#221). Tag sem GitHub Release.
+> Importação de planilha em CSV (#221).
 
 ### Breaking Changes
 
@@ -294,7 +294,7 @@ O CRUD de perfil (criar, vincular e remover permissão, excluir só sem usuário
 
 ## [v4.1.0] - 2026-10-10
 
-> Conta de sistema com login por usuário e senha (#193). Tag sem GitHub Release.
+> Conta de sistema com login por usuário e senha (#193).
 
 ### Added
 
@@ -323,7 +323,7 @@ Nenhuma mudança de código. `package.json` muda 2 linhas (`next` e `eslint-conf
 
 ## [v4.0.1] - 2026-10-10
 
-> Migração do backend para o Spring Boot 4.1.1 (#195) e documentação da API de Setor, Perfil e Permissão (#184). Tag sem GitHub Release.
+> Migração do backend para o Spring Boot 4.1.1 (#195) e documentação da API de Setor, Perfil e Permissão (#184).
 
 ### Added
 
@@ -343,11 +343,11 @@ Nenhuma mudança de código. `package.json` muda 2 linhas (`next` e `eslint-conf
 
 ## [v4.0.0] - 2026-10-03
 
-> Tag duplicada: aponta para o mesmo commit da `v3.0.0` (`55c4e97`), sem mudanças de código. Tag sem GitHub Release.
+> Tag duplicada: aponta para o mesmo commit da `v3.0.0` (`55c4e97`), sem mudanças de código.
 
 ## [v3.0.0] - 2026-10-03
 
-> Usuário em vários setores (#188). Tag sem GitHub Release.
+> Usuário em vários setores (#188).
 
 ### Breaking Changes
 
@@ -359,7 +359,7 @@ Nenhuma mudança de código. `package.json` muda 2 linhas (`next` e `eslint-conf
 
 ## [v2.0.0] - 2026-10-03
 
-> Permissões reais em Setor e na alocação usuário↔setor (#182). Tag sem GitHub Release.
+> Permissões reais em Setor e na alocação usuário↔setor (#182).
 
 ### Breaking Changes
 
@@ -374,7 +374,7 @@ Nenhuma mudança de código. `package.json` muda 2 linhas (`next` e `eslint-conf
 
 ## [v1.0.0] - 2026-10-03
 
-> Remoção de `Organization` (#180), relatórios SARIF nos scans (#173) e documentação do changelog manual (#176). Tag sem GitHub Release.
+> Remoção de `Organization` (#180), relatórios SARIF nos scans (#173) e documentação do changelog manual (#176).
 
 ### Breaking Changes
 
@@ -430,8 +430,6 @@ Nenhuma mudança de código. `package.json` muda 2 linhas (`next` e `eslint-conf
 
 ## [v0.2.1] - 2026-09-19
 
-> Tag sem GitHub Release.
-
 ### Added
 
 - Documentação da wiki: modelagem de ameaças STRIDE, análise de concorrência, guia de desenvolvimento seguro, guia operacional, documento de visão, esteira de CI/CD e mapa da documentação.
@@ -457,4 +455,4 @@ Nenhuma mudança de código. `package.json` muda 2 linhas (`next` e `eslint-conf
 
 ## [v0.1.0] - 2026-09-08
 
-> Tag criada manualmente ao configurar a automação de releases, com o projeto como estava em 2026-09-08. Tag sem GitHub Release.
+> Tag criada manualmente ao configurar a automação de releases, com o projeto como estava em 2026-09-08.
