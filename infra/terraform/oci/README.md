@@ -17,6 +17,9 @@ Neste primeiro passo, o Terraform ainda nao cria recursos. Ele apenas configura 
 - `compute.tf`: declara as VMs de aplicacao e observabilidade (IPs privados fixos).
 - `public-ip.tf`: IP publico RESERVADO da VM de aplicacao (sobrevive a recriacao da VM; use-o no DNS).
 - `backup.tf`: bucket privado de backups do Postgres, retencao (lifecycle) e IAM (dynamic group e policies) para a VM enviar dumps com instance principal.
+- `load_balancer.tf`: Load Balancer flexivel de camada 7 (IP publico reservado), backend sets, listener 80 e listener HTTPS (so com `lb_https_enabled`). O certificado nunca passa pelo Terraform: o `push-lb-certificate.sh` da VM o envia ao LB (ADR 0009).
+- `waf.tf`: WAF da OCI ligado ao LB, em modo `DETECTION` (acao CHECK) por padrao, com o log no OCI Logging. As regras OWASP vem do catalogo da OCI.
+- `edge_iam.tf`: policy opcional (`manage_edge_iam`) para a VM trocar o certificado do listener do LB com instance principal.
 - `cloud-init-app.yaml.tftpl`: grava os arquivos versionados de `infra/nginx/app-vm` e `infra/scripts/app-vm` na VM e dispara o `bootstrap-vm.sh` (Nginx, Docker, Portainer, timers de backup e de certificado).
 - `cloud-init-observability.yaml.tftpl`: prepara a VM de observabilidade com Nginx e Docker.
 - `backend.oci.hcl.example`: modelo de configuracao do backend remoto, usado depois que o bucket existir.
@@ -59,6 +62,8 @@ O NSG da aplicacao libera:
 - Saida para internet.
 
 A porta `9443` (Portainer) **nao** e mais exposta: o Portainer escuta so em `127.0.0.1` e a UI e publicada pelo Nginx em `portainer.<dominio>`, restrita aos IPs de `allowed_admin_cidrs` (o Terraform recusa `0.0.0.0/0` nessa variavel).
+
+O NSG do Load Balancer (`lb`, ADR 0009) aceita `80` e `443` da internet e so fala com a VM nas portas `80`, `9080` (HTTP simples vindo do LB, que termina o TLS) e `9081` (health check). O NSG da aplicacao aceita essas tres portas **somente do NSG do LB** (`app_from_lb`), entao, depois que `allowed_web_cidrs` for `[]`, a VM nao e alcancavel sem passar pelo WAF. O LB fica em uma subnet publica propria (`lb_public_subnet_cidr`, `10.42.0.128/27`).
 
 O NSG de observabilidade nao recebe trafego direto da internet. Ele libera SSH `22` somente a partir da subnet publica da aplicacao, permitindo um acesso futuro via VM da aplicacao como ponto de entrada interno.
 

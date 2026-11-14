@@ -36,7 +36,7 @@ Este runbook descreve como o Inventarium é publicado na Oracle Cloud Infrastruc
 | `api.inventariumifpe.me` | Backend (Spring Boot); só `/actuator/health` do Actuator | Público (CORS só para `https://inventariumifpe.me`) |
 | `portainer.inventariumifpe.me` | Portainer CE | Só IPs de `allowed_admin_cidrs`; apenas o webhook de stack é público |
 | `sonar.inventariumifpe.me` | SonarQube (VM privada) | Público, com login obrigatório (o scanner do GitHub precisa chegar) |
-| `grafana.inventariumifpe.me` | Grafana (VM privada) | Só IPs de `allowed_admin_cidrs` |
+| `grafana.inventariumifpe.me` | Grafana (VM privada) | Público, com login obrigatório e limite de tentativas por IP (seção 4.13) |
 
 ## 2. O que está no repositório e como chega à VM
 
@@ -53,7 +53,7 @@ Este runbook descreve como o Inventarium é publicado na Oracle Cloud Infrastruc
 1. **Primeiro boot:** o Terraform embute os arquivos de `infra/nginx/app-vm/` e `infra/scripts/app-vm/` no `user_data` (cloud-init, comprimido). O cloud-init grava tudo em `/opt/inventarium-app/src/` e executa `bootstrap-vm.sh`, que instala Nginx, Docker e Portainer e instala a configuração. Sem certificado ainda, só a porta 80 fica ativa.
 2. **Depois:** o Terraform **não** recria a VM quando esses arquivos mudam (`ignore_changes` em `user_data`, porque a VM guarda o banco). Para atualizar o Nginx: merge do PR e `infra/scripts/deploy-nginx.sh <ip>`. O script valida com `nginx -t` e restaura o backup se a configuração for inválida.
 
-Dois arquivos são **gerados na VM** e nunca vão para o Git: `/etc/nginx/inventarium/generated/admin-allowlist.conf` (de `allowed_admin_cidrs`) e `upstreams.conf` (IP privado da observabilidade). Veja os exemplos em `infra/nginx/app-vm/generated.example/`.
+Quatro arquivos são **gerados na VM** e nunca vão para o Git: `/etc/nginx/inventarium/generated/admin-allowlist.conf` (de `allowed_admin_cidrs`), `upstreams.conf` (IP privado da observabilidade) e, para o Load Balancer (seção 4.14), `real-ip.conf` e `lb-allowlist.conf` (de `LB_CIDR`). Veja os exemplos em `infra/nginx/app-vm/generated.example/`.
 
 ## 3. Go-live: primeiro deploy
 
@@ -77,7 +77,7 @@ No PowerShell:
 curl.exe -s https://ifconfig.me
 ```
 
-O resultado (por exemplo `198.51.100.7`) vira `198.51.100.7/32` em `allowed_ssh_cidrs` e `allowed_admin_cidrs`. Internet residencial costuma ter IP dinâmico; se o seu mudar, você perde o SSH, o Portainer e o Grafana até atualizar a lista (veja 4.6). Dá para listar mais de um CIDR, por exemplo casa e IFPE.
+O resultado (por exemplo `198.51.100.7`) vira `198.51.100.7/32` em `allowed_ssh_cidrs` e `allowed_admin_cidrs`. Internet residencial costuma ter IP dinâmico; se o seu mudar, você perde o SSH e o Portainer até atualizar a lista (veja 4.6); o Grafana é público com login (seção 4.13). Dá para listar mais de um CIDR, por exemplo casa e IFPE.
 
 ### ⭐ 3.3 Terraform: aplicar (15 minutos)
 
@@ -424,6 +424,188 @@ No Grafana, abra *Dashboards → Inventarium → Inventarium - Backend* (escolha
 
 **Limitações:** `/actuator/prometheus` não tem autenticação (a proteção é estar só em loopback; outros containers da rede `inventarium-net` alcançam `inventarium-back:8081`); o `/actuator/health` agregado também testa o envio de e-mail (SMTP) e pode demorar segundos se o Gmail estiver lento (o healthcheck do container usa só o `liveness`, que não depende do Gmail); logs e traces não podem conter dados sensíveis, pois o Loki e o Tempo não têm autenticação; as leituras do Alloy e os spans do filtro do Spring Security são descartados antes do Tempo para não poluí-lo.
 
+### 4.13 Grafana público com login (ADR 0008)
+
+O Grafana abre pela internet em `https://grafana.inventariumifpe.me`, **sem lista de IPs**, porque o ambiente é de homologação e o professor aceitou o acesso público desde que exija usuário e senha. O Portainer continua restrito a `allowed_admin_cidrs`, e o Sonar já era público com login. Quem não autentica não vê dashboard, datasource nem dado.
+
+**O que protege o Grafana**
+
+| Camada | O quê |
+| --- | --- |
+| Login obrigatório | Acesso anônimo, cadastro, dashboards públicos, snapshots externos e `/metrics` desligados (`GF_*` em `docker-compose.observability.yml`); cookie só por HTTPS |
+| Bloqueio por usuário | O Grafana bloqueia o usuário por alguns minutos depois de falhas seguidas de senha |
+| Nginx, por IP | `POST /login` limitado a 10 tentativas por minuto (zona `grafana_login`, burst 5) e uso geral a 30 requisições por segundo (zona `grafana`, burst 100); acima disso o Nginx devolve `429` |
+| Senha forte | A senha do `admin` é gerada na VM com `openssl rand -hex 16` e nunca vai ao Git |
+
+**Colocar no ar** (depois do merge, a partir da raiz do repositório, no Git Bash):
+
+```bash
+# 1) Nginx: remove a allowlist do Grafana e cria as zonas de limite (idempotente, valida com nginx -t e volta atrás se falhar)
+infra/scripts/deploy-nginx.sh <IP_RESERVADO>
+
+# 2) Grafana: aplica as variáveis de endurecimento (recria o container; os dashboards e o banco do Grafana ficam no volume)
+infra/scripts/deploy-observability.sh <IP_RESERVADO>
+```
+
+Faça o passo 1 e depois o 2. Valide **sem estar logado**, de qualquer rede:
+
+```bash
+curl -sI https://grafana.inventariumifpe.me/ | head -3                          # 302 para /login
+curl -s -o /dev/null -w '%{http_code}\n' https://grafana.inventariumifpe.me/api/dashboards/home   # 401
+curl -s -o /dev/null -w '%{http_code}\n' https://grafana.inventariumifpe.me/metrics               # nao pode ser 200 com dados
+```
+
+**Criar um usuário só de leitura (por exemplo, para o professor).** Não compartilhe o `admin`. Entre como `admin`, abra *Administration → Users and access → Users → New user*, preencha nome, e-mail, usuário e uma senha de pelo menos 12 caracteres, e depois, em *Organization role*, escolha **Viewer** (só consulta; não edita dashboards nem datasources). Mande a senha por um canal privado, nunca por issue, PR ou chat público. Para a senha do `admin`, veja a seção 4.10.
+
+**Rollback (voltar a restringir por IP):** em `infra/nginx/app-vm/sites-tls/32-grafana.conf`, acrescente de novo `include /etc/nginx/inventarium/generated/admin-allowlist.conf;` logo depois dos `include` de cabeçalhos e rode `deploy-nginx.sh`. As variáveis de endurecimento do Grafana podem ficar.
+
+**Limitações conhecidas:** o endereço `grafana.inventariumifpe.me` fica exposto a varreduras e a vulnerabilidades do próprio Grafana, então mantenha a versão da imagem atualizada; o nome de usuário `admin` é conhecido (a defesa é a senha forte, o bloqueio por usuário e o limite do Nginx); o acesso passa a depender só da senha, sem segundo fator. Se o ambiente deixar de ser de homologação, volte à allowlist ou ponha o Grafana atrás de uma VPN ou de um login corporativo.
+
+
+### 4.14 Preparar a VM para o Load Balancer e o WAF (ADR 0009)
+
+Esta seção cobre a **primeira etapa** da entrada do Load Balancer (LB) da OCI com WAF na frente da aplicação: preparar o Nginx e o certificado, **sem mudar o tráfego atual**. O Terraform do LB e do WAF (etapa 2) e o cutover do DNS (etapa 3) vêm depois. Enquanto `LB_CIDR` e `LB_ID` não existem no `edge.env`, tudo continua como antes.
+
+**O que muda na VM**
+
+| Item | O que faz |
+| --- | --- |
+| `LB_CIDR` (`edge.env`) | Subnet do LB. O Nginx só confia no `X-Forwarded-For` quando a conexão vem dela e passa a ver o **IP real do cliente** (rate limit por IP, allowlist do Portainer e log). Um cabeçalho forjado por quem chega direto na 443 é ignorado |
+| Porta **9080** | HTTP simples vindo do LB, que já terminou o TLS. Todos os vhosts escutam nela, ao lado da 443. O backend continua vendo `X-Forwarded-Proto: https` |
+| Porta **9081** | Health check do LB (`/healthz`), aceito só de `LB_CIDR`. Não depende de Host nem de upstream |
+| SELinux e firewalld | O `install-nginx-config.sh` rotula 9080 e 9081 como `http_port_t` e as libera no firewalld só para `LB_CIDR` (sem `--reload`, para não derrubar as regras do Docker) |
+| `push-lb-certificate.sh` | Depois de cada renovação do certificado, envia o novo ao LB e troca o do listener HTTPS. Sem `LB_ID` não faz nada |
+
+**Chaves novas do `/etc/inventarium/edge.env`** (todas opcionais; o Terraform não as aplica à VM existente, por causa do `ignore_changes`, então são editadas na mão, como `ADMIN_CIDRS` na seção 4.6):
+
+| Chave | Valor | Quando |
+| --- | --- | --- |
+| `LB_CIDR` | subnet do LB, por exemplo `10.42.0.128/27` | Antes do cutover (etapa 2 cria a subnet) |
+| `LB_ID` | OCID do load balancer | Depois que o LB existir |
+| `LB_LISTENER_NAME` | nome do listener HTTPS (padrão `https`) | Só se o nome for outro |
+| `LB_PUBLIC_IP` | IP público do LB | Para o `issue-certificates.sh` aceitar o DNS apontando para o LB |
+
+**Aplicar a etapa 1** (depois do merge, no Git Bash, na raiz do repositório):
+
+```bash
+infra/scripts/deploy-nginx.sh <IP_RESERVADO>
+```
+
+O script instala o Nginx novo, rotula as portas e **confere que o Nginx passou a escutar na 9080 e na 9081**; se não escutar, restaura a configuração anterior e falha. Sem `LB_CIDR` o resultado é o mesmo comportamento de antes, mais as duas portas abertas só dentro da VM.
+
+**Validar na VM** (`ssh opc@<IP_RESERVADO>`):
+
+```bash
+# O Nginx escuta nas duas portas
+sudo ss -ltn | grep -E ':(9080|9081)\b'
+
+# Vhost pela 9080 com Host correto: deve responder 200 (health da API)
+curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: api.inventariumifpe.me' http://127.0.0.1:9080/actuator/health
+
+# Host desconhecido na 9080: conexão encerrada sem resposta (curl sai com erro 52)
+curl -s -o /dev/null -H 'Host: qualquer.exemplo' http://127.0.0.1:9080/; echo "curl=$?"
+
+# Health do LB: de 127.0.0.1 deve dar 403, porque só LB_CIDR é aceito
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:9081/healthz
+```
+
+**Certificado no LB.** Com `LB_ID` definido, o `renew-certificates.sh` (timer das 04:00 e 16:00) e o `issue-certificates.sh` chamam o `push-lb-certificate.sh`. Para o primeiro envio (o listener HTTPS só pode ser criado depois do primeiro certificado, então o modo `--bootstrap` cria só o certificado e imprime o nome para o Terraform; veja a seção 4.15):
+
+```bash
+sudo /opt/inventarium-app/bin/push-lb-certificate.sh --bootstrap
+```
+
+Ele usa a CLI da OCI em container com **instance principal** (política em `edge_iam.tf`, etapa 2). O estado fica em `/var/lib/inventarium/lb-cert.sha256`; se o envio falhar, o hash não é gravado e a próxima execução tenta de novo. A imagem é `ghcr.io/oracle/oci-cli:latest` (a Oracle só documenta essa tag): fixe uma versão ou digest em `OCI_CLI_IMAGE` quando puder.
+
+**Rollback:** remova `LB_CIDR` (e `LB_ID`) do `edge.env` e rode `deploy-nginx.sh` de novo. O Nginx volta a ignorar o `X-Forwarded-For` e a 9081 volta a negar todos. As regras do firewalld criadas para o LB ficam (são só para a subnet do LB) e podem ser removidas com `firewall-cmd --permanent --remove-rich-rule=...`.
+
+**Limitações conhecidas:** o `keepalive_timeout` do Nginx subiu para 350 s (acima do idle timeout planejado do LB), o que mantém conexões abertas por mais tempo mesmo no modo direto; as regras do firewalld não são removidas sozinhas se `LB_CIDR` mudar; o hook depende de `python3` e do SDK da OCI estarem na imagem da CLI (confirmar na primeira execução).
+
+
+### 4.15 Criar o Load Balancer e o WAF em detecção (ADR 0009, etapa 2)
+
+Cria no Terraform o **Load Balancer** (LB) e o **WAF**, e liga o HTTPS dele. **Nada muda para o usuário até o DNS apontar para o LB** (etapa 3): o site continua entrando direto pela VM. Pré-requisito: a etapa 1 (seção 4.14) aplicada.
+
+**O que o Terraform cria** (`terraform plan` mostra `21 to add, 0 to change, 0 to destroy`; nada existente é alterado):
+
+| Recurso | Para quê |
+| --- | --- |
+| Subnet pública `lb_public` (`10.42.0.128/27`) e NSG `lb` | O LB fica fora da subnet da VM. O NSG aceita 80 e 443 da internet e só fala com a VM nas portas 80, 9080 e 9081 |
+| Regras no NSG da VM (`app_from_lb`) | A VM aceita 80, 9080 e 9081 **somente do NSG do LB**. A regra atual de `allowed_web_cidrs` continua até a etapa 3 |
+| LB flexível (IP público reservado), backend sets `http` e `app`, listener 80 | Porta 80 vai ao Nginx (ACME e redirecionamento); saúde por HTTP na 9081 |
+| Listener 443 (só com `lb_https_enabled = true`) | Termina o TLS 1.2/1.3 e fala HTTP com o Nginx na 9080 |
+| WAF (`oci_waf_web_app_firewall`) e política | Grupos colaborativos OWASP de SQL injection, XSS, path traversal/LFI e RCE, mais um conjunto curado de regras individuais; tudo com a ação **CHECK** (só registra) |
+| Log group e log do WAF | Onde se revisam os falsos positivos antes do bloqueio |
+| Policy IAM (`manage_edge_iam = true`, opcional) | A VM pode atualizar certificados e listeners dos LBs do compartment (`use`, não `manage`: não cria nem apaga LBs) |
+
+**Custo:** o WAF fica na franquia gratuita (1 instância e 10 milhões de requisições por mês, segundo a Oracle); o **LB flexível é cobrado por hora** e por banda acima do mínimo de 10 Mbps. Some o item *Load Balancer* no Cost Estimator da OCI antes do apply e confirme o valor.
+
+**Passo a passo** (PowerShell, em `infra\terraform\oci`):
+
+1. **Conferir o plano** (só leitura):
+
+   ```powershell
+   terraform plan
+   ```
+
+   Esperado: `21 to add, 0 to change, 0 to destroy`. Se aparecer qualquer `change` ou `destroy`, pare e investigue. O catálogo de proteção é lido da OCI no plano; se o plano falhar com "catálogo de proteção... SQL injection e XSS", a OCI mudou as chaves e `waf_collaborative_prefixes` em `waf.tf` precisa de revisão.
+
+2. **IAM do certificado.** Se o seu usuário puder criar policies, defina `manage_edge_iam = true` no `terraform.tfvars`. Senão, peça a quem administra a tenancy a policy equivalente:
+   `Allow dynamic-group inventarium-app-instances to use load-balancers in compartment id <compartment>`. **Não** acrescente `where target.loadbalancer.id = ...`: testado na VM real, com essa condição a OCI responde `404 NotAuthorizedOrNotFound` a todas as chamadas do hook. Sem ela funciona, ao custo de a VM poder atualizar qualquer LB do compartment (hoje há um só).
+
+3. **Aplicar** (primeira vez, sem HTTPS):
+
+   ```powershell
+   terraform apply
+   terraform output
+   ```
+
+   O `terraform output` sem argumento lista todas as saídas; anote `lb_public_ip`, `lb_id` e `lb_subnet_cidr`. (O comando aceita um único nome por vez: `terraform output lb_public_ip`.)
+
+4. **Na VM** (`ssh opc@<IP_RESERVADO>`), edite `/etc/inventarium/edge.env` e acrescente (sem aspas dentro das aspas):
+
+   ```bash
+   LB_CIDR="10.42.0.128/27"
+   LB_ID="<saída lb_id>"
+   LB_PUBLIC_IP="<saída lb_public_ip>"
+   ```
+
+   Depois, do seu computador (Git Bash): `infra/scripts/deploy-nginx.sh <IP_RESERVADO>`. Isso gera o `real-ip.conf`, abre as portas 9080 e 9081 no firewalld só para o LB e confere que o Nginx escuta nelas.
+
+5. **Conferir a saúde do LB:** no console da OCI, *Networking → Load balancers → inventarium-lb → Backend sets*: `http` e `app` devem ficar **OK**. Se ficarem críticos, veja `sudo ss -ltn | grep -E ':(9080|9081)'` na VM e o NSG `app`.
+
+6. **Primeiro certificado no LB** (o listener HTTPS só pode ser criado depois do certificado), na VM:
+
+   ```bash
+   sudo /opt/inventarium-app/bin/push-lb-certificate.sh --bootstrap
+   ```
+
+   O comando cria o certificado no LB e imprime `lb_bootstrap_certificate_name = "inventarium-AAAAMMDD-xxxxxxxx"`. Se falhar, confira o `OCI_CLI_IMAGE` (a imagem precisa ter `python3` e o SDK `oci`) e a policy do passo 2.
+
+7. **Ligar o HTTPS:** no `terraform.tfvars` ponha `lb_https_enabled = true` e `lb_bootstrap_certificate_name = "<nome impresso>"`, e rode `terraform apply`. A partir daqui as renovações trocam o certificado do listener sozinhas (o Terraform ignora essa mudança).
+
+8. **Testar o LB sem mexer no DNS** (do seu computador):
+
+   ```bash
+   curl --resolve inventariumifpe.me:443:<lb_public_ip> -sI https://inventariumifpe.me/ | head -3
+   curl --resolve api.inventariumifpe.me:443:<lb_public_ip> -s https://api.inventariumifpe.me/actuator/health
+   ```
+
+   Os dois devem responder normalmente. Repita com `grafana.`, `portainer.` (403 se o seu IP não estiver na allowlist, o esperado) e `sonar.`.
+
+9. **Ver o WAF registrando** (em detecção a resposta continua normal):
+
+   ```bash
+   curl --resolve api.inventariumifpe.me:443:<lb_public_ip> -s -o /dev/null -w '%{http_code}\n' "https://api.inventariumifpe.me/x?q=%27%20OR%201%3D1--"
+   curl --resolve inventariumifpe.me:443:<lb_public_ip> -s -o /dev/null -w '%{http_code}\n' "https://inventariumifpe.me/?q=%3Cscript%3Ealert(1)%3C/script%3E"
+   ```
+
+   Depois olhe no console: *Observability & Management → Logging → Log Groups → inventarium-waf-logs → inventarium-waf → Explore Log*. Os eventos mostram a regra que disparou e a ação `CHECK`. Use o sistema normalmente por alguns dias (login Google, importar CSV, salvar observação, deploy) e anote o que o WAF registrou de legítimo: são os falsos positivos a tratar antes do bloqueio.
+
+**Desfazer a etapa 2:** como o tráfego ainda não passa pelo LB, basta não apontar o DNS. Para remover tudo, `terraform destroy -target=oci_waf_web_app_firewall.main` e depois os demais recursos novos, ou reverta o commit e rode `terraform apply`. O certificado criado no LB some junto com ele.
+
+**Limitações conhecidas:** a semântica exata de `CHECK` e o catálogo foram lidos da documentação e do plano, mas só o primeiro apply mostra se a OCI aceita tudo (limite de regras por política, por exemplo); o WAF inspeciona só os primeiros 8 KB do corpo; as exceções do bloqueio (webhook do Portainer, `actuator/health`, token Google, campo de senha) ainda não existem, porque dependem dos falsos positivos reais, e são a etapa 3; a imagem da CLI da OCI usa a tag `latest`.
+
 
 ## 5. Solução de problemas
 
@@ -432,6 +614,7 @@ No Grafana, abra *Dashboards → Inventarium → Inventarium - Backend* (escolha
 | `issue-certificates.sh` diz que o DNS não bate | Registros A ainda não propagaram ou apontam para outro IP | Aguarde e confira com `Resolve-DnsName`; compare com `terraform output app_public_ip` |
 | Let's Encrypt falha no desafio | Porta 80 fechada para a internet ou CAA bloqueando | Confira `allowed_web_cidrs = ["0.0.0.0/0"]` e o registro CAA |
 | `https://…` responde 502 | Stack ainda não subiu ou o container está reiniciando | `sudo docker ps`, `sudo docker logs inventarium-back --tail 50` |
+| `terraform apply` falha com `404-NotAuthorizedOrNotFound, PublicIp cannot be assigned to or unassigned from PrivateIp ... managed by ...loadbalancer` | O plano propunha `private_ip_id -> null` no IP reservado do LB, que o próprio LB gerencia (versão sem `ignore_changes`) | Atualize para a `main` (o recurso `oci_core_public_ip.lb` ignora `private_ip_id`). Depois de um apply completo, `terraform plan` deve dizer `No changes` |
 | `portainer.…` responde 403 | Seu IP não está em `allowed_admin_cidrs` | Veja 4.6 |
 | Login Google falha com erro de origem | Origem não cadastrada no Google | Passo 3.5 |
 | Front chama a URL errada da API | A release foi gerada antes de trocar `NEXT_PUBLIC_API_URL` | Troque a variável (3.6) e gere nova release |

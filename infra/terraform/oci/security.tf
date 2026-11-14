@@ -98,3 +98,66 @@ resource "oci_core_network_security_group_security_rule" "observability_stack_fr
     }
   }
 }
+
+# ---- Load Balancer (ADR 0009) ------------------------------------------------------------------
+# O LB e o unico ponto de entrada da internet. Ele recebe 80/443 de qualquer origem e fala com a VM so
+# nas portas abaixo; a VM aceita essas portas somente do NSG do LB, entao o WAF nao pode ser contornado.
+resource "oci_core_network_security_group" "lb" {
+  compartment_id = var.compartment_ocid
+  display_name   = "${var.project_name}-lb-nsg"
+  vcn_id         = oci_core_vcn.main.id
+}
+
+resource "oci_core_network_security_group_security_rule" "lb_web_ingress" {
+  for_each = toset(["80", "443"])
+
+  network_security_group_id = oci_core_network_security_group.lb.id
+  description               = "Internet para o Load Balancer (porta ${each.key})"
+  direction                 = "INGRESS"
+  protocol                  = "6"
+  source                    = "0.0.0.0/0"
+  source_type               = "CIDR_BLOCK"
+
+  tcp_options {
+    destination_port_range {
+      min = tonumber(each.key)
+      max = tonumber(each.key)
+    }
+  }
+}
+
+resource "oci_core_network_security_group_security_rule" "lb_to_app_egress" {
+  for_each = local.lb_backend_ports
+
+  network_security_group_id = oci_core_network_security_group.lb.id
+  description               = "Load Balancer para a VM da aplicacao: ${each.key}"
+  direction                 = "EGRESS"
+  protocol                  = "6"
+  destination               = oci_core_network_security_group.app.id
+  destination_type          = "NETWORK_SECURITY_GROUP"
+
+  tcp_options {
+    destination_port_range {
+      min = each.value
+      max = each.value
+    }
+  }
+}
+
+resource "oci_core_network_security_group_security_rule" "app_from_lb" {
+  for_each = local.lb_backend_ports
+
+  network_security_group_id = oci_core_network_security_group.app.id
+  description               = "Do Load Balancer: ${each.key}"
+  direction                 = "INGRESS"
+  protocol                  = "6"
+  source                    = oci_core_network_security_group.lb.id
+  source_type               = "NETWORK_SECURITY_GROUP"
+
+  tcp_options {
+    destination_port_range {
+      min = each.value
+      max = each.value
+    }
+  }
+}

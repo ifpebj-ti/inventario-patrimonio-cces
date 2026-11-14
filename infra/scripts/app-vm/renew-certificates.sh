@@ -15,3 +15,7 @@ if command -v restorecon >/dev/null 2>&1; then
 fi
 nginx -t
 systemctl reload nginx
+
+# Com o Load Balancer na frente, ele guarda o certificado que o navegador ve: envia o renovado. Roda a
+# cada execucao (e idempotente), entao uma falha anterior e tentada de novo em 12 h; sem LB_ID e no-op.
+/opt/inventarium-app/bin/push-lb-certificate.sh

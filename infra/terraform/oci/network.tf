@@ -74,3 +74,16 @@ resource "oci_core_subnet" "observability_private" {
   security_list_ids          = [oci_core_security_list.subnet_baseline.id]
   vcn_id                     = oci_core_vcn.main.id
 }
+
+# Subnet publica dedicada ao Load Balancer (ADR 0009). Separada da subnet da aplicacao para o NSG da VM
+# poder aceitar 80/443 so do NSG do LB (a VM nao fica acessivel sem passar pelo WAF).
+resource "oci_core_subnet" "lb_public" {
+  compartment_id             = var.compartment_ocid
+  cidr_block                 = var.lb_public_subnet_cidr
+  display_name               = "${var.project_name}-lb-public-subnet"
+  dns_label                  = "lbpublic"
+  prohibit_public_ip_on_vnic = false
+  route_table_id             = oci_core_route_table.public.id
+  security_list_ids          = [oci_core_security_list.subnet_baseline.id]
+  vcn_id                     = oci_core_vcn.main.id
+}

@@ -37,6 +37,20 @@ acme_email = "voce@exemplo.com"
 # backup_retention_days = 30
 # manage_backup_iam     = true
 
+# Load Balancer e WAF da OCI (ADR 0009). Os padroes servem; so mexa se precisar.
+# lb_public_subnet_cidr = "10.42.0.128/27"  # subnet publica so do LB, dentro da VCN e sem sobrepor as outras
+# lb_min_mbps           = 10                # banda minima (faixa gratuita, a confirmar no Cost Estimator)
+# lb_max_mbps           = 10
+# waf_mode              = "DETECTION"       # so registra; passe para "BLOCK" depois de revisar os logs do WAF
+# manage_edge_iam       = false             # true cria a policy para a VM trocar o certificado do LB
+#
+# O listener HTTPS so nasce depois do primeiro certificado enviado ao LB (docs/wiki/Deploy-em-Producao-OCI.md,
+# secao 4.15): rode push-lb-certificate.sh --bootstrap na VM e preencha os dois valores abaixo.
+# lb_https_enabled              = true
+# lb_bootstrap_certificate_name = "inventarium-AAAAMMDD-xxxxxxxx"
+#
+# Com o LB em producao (etapa 3) a VM deixa de aceitar 80/443 direto da internet: allowed_web_cidrs = []
+
 # Compute
 app_instance_shape      = "VM.Standard.E5.Flex"
 app_instance_ocpus      = 1
