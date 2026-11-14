@@ -35,7 +35,7 @@ flowchart TD
 
 | Parte | Situação atual |
 | --- | --- |
-| Qualidade da aplicação | `Quality` roda Secretlint, ESLint no frontend, Spotless e testes Gradle/Testcontainers no backend. Commitlint é executado em PRs humanos. |
+| Qualidade da aplicação | `Quality` roda Secretlint, ESLint no frontend, testes unitários (`node --test`) e E2E (Playwright) do frontend, Spotless e testes Gradle/Testcontainers no backend. Commitlint é executado em PRs humanos. A organização dos testes está em [Estratégia de Testes](./Estrategia-de-Testes). |
 | Validação de template | `Validate PR Template` confere issue vinculada e tipo de release. |
 | Segurança em PR | `Security scans` executa Semgrep e Trivy. O Trivy verifica secrets, dependências e imagens; as imagens são construídas no runner, sem publicação no GHCR. |
 | Relatórios de segurança | Semgrep e Trivy geram SARIF para Security → Code scanning, uma tabela no resumo do job e artifacts temporários por 14 dias. Semgrep está em baseline até a triagem dos achados. |
@@ -94,6 +94,7 @@ Os checks aparecem separadamente na interface do GitHub porque cada job represen
 | `Quality / Secret scan` | Procura segredos versionados com Secretlint. | Sim |
 | `Quality / Commit messages` | Valida o padrão dos commits de PRs humanos. | Sim |
 | `Quality / Backend format and tests` | Executa Spotless como aviso temporário e os testes do backend como gate. | Sim, se os testes falharem |
+| `Quality / Frontend spreadsheet tests` | Executa os testes unitários e os E2E do frontend com Playwright, que usam API simulada. | Sim, se os testes falharem |
 | `Quality / Frontend lint` | Executa ESLint; nesta fase é informativo para não bloquear mudanças por dívida de lint existente. | Não |
 | `Security scans / Semgrep SAST baseline` | Executa SAST e registra achados existentes para triagem quando a mudança alcança código-fonte ou workflows. | Não, até a linha de base ser tratada |
 | `Security scans / Trivy container and dependency scans` | Faz scan de segredos, dependências e imagens construídas no runner quando a mudança afeta fontes de imagem. | Sim para segredos, falha operacional e vulnerabilidades `HIGH`/`CRITICAL` |
@@ -126,7 +127,7 @@ O runner da PR constrói uma imagem descartável `linux/amd64`, suficiente para 
 
 ## Direção Desejada
 
-A esteira ainda não faz deploy automático de ambiente, rollback operacional completo nem testes automatizados de frontend. O desenho abaixo mostra a direção desejada sem dizer que tudo isso já existe.
+A esteira ainda não faz deploy automático de ambiente nem rollback operacional completo. O desenho abaixo mostra a direção desejada sem dizer que tudo isso já existe.
 
 ```mermaid
 flowchart TD
@@ -147,7 +148,7 @@ flowchart TD
 | --- | --- |
 | Deploy em VM | O job `deploy-production` aciona o webhook do Portainer a cada release. A release publica cada imagem como `vX.Y.Z` e `latest`; a stack usa `latest` e o webhook não recebe parâmetros. Sem o secret `PORTAINER_STACK_WEBHOOK_URL` ele é ignorado e o deploy segue manual. |
 | Evidência de ambiente | O mesmo job faz um smoke test (`/actuator/health` da API e a página inicial) por até 5 minutos; ele não prova qual versão subiu. |
-| Testes de frontend | O frontend ainda não possui suíte automatizada; o ESLint é o check atual dessa aplicação. |
+| Cobertura de testes | O job do backend gera o relatório do JaCoCo, mas ainda não executa o gate de 90% de cobertura de linhas, que hoje vale em `./gradlew check`. O frontend tem testes unitários e E2E na CI, mas a cobertura dele não é medida. Detalhes em [Estratégia de Testes](./Estrategia-de-Testes). |
 | Observabilidade | Logs, métricas, alertas e dashboards ainda não estão fechados como artefato de infraestrutura. |
 | Rollback operacional | O rollback deve usar a troca para uma tag versionada anterior, mas o procedimento operacional ainda precisa ser consolidado. |
 | Vulnerabilidades abertas | A evidência vem das abas Security/Dependabot e Security/Code scanning do GitHub, não apenas dos arquivos versionados. |
@@ -163,3 +164,4 @@ flowchart TD
 | 1.4 | 2026-09-28 | Documentação dos gates de PR, da política `HIGH`/`CRITICAL` do Trivy, da reconstrução na release e da consulta de SARIF, Code Scanning e artifacts. |
 | 1.5 | 2026-09-28 | Execução de lint, testes e scans pesados condicionada aos arquivos alterados, preservando checks de processo e segredos em qualquer PR. |
 | 1.6 | 2026-09-28 | Inclusão do changelog versionado e publicação de imagens GHCR multi-arquitetura (`amd64` e `arm64`). |
+| 1.7 | 2026-11-14 | Correção da informação sobre testes do frontend (unitários e E2E já rodam na CI), registro da situação da cobertura e link para a Estratégia de Testes. |

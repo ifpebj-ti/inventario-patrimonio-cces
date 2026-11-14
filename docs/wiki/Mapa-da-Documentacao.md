@@ -25,6 +25,7 @@ Este mapa serve para saber rapidamente onde cada artefato está. Ele não substi
 | Modelagem de dados | [Documento de Modelagem de Dados](./Documento-de-Modelagem-de-Dados) | Registra entidades, relacionamentos, chaves e restrições do schema atual. |
 | Modelo de dados | [Documento de Modelagem de Dados](./Documento-de-Modelagem-de-Dados) | Registra o schema implementado e as evoluções pendentes para organizações, setores, perfis, permissões e histórico de validação. |
 | Decisões técnicas | [Architecture Decision Records](./Architecture-Decision-Records) | Guarda decisões arquiteturais que precisam continuar rastreaveis. |
+| Estratégia de testes | [Estratégia de Testes](./Estrategia-de-Testes) | Descreve as camadas de teste do backend e do frontend, como rodar, a meta e a cobertura medida e o que ainda não existe. |
 
 ## Segurança
 
@@ -60,4 +61,5 @@ Este mapa serve para saber rapidamente onde cada artefato está. Ele não substi
 | --- | --- | --- |
 | 1.0 | 2026-09-15 | Criação do mapa de artefatos da wiki com status por Engenharia, Segurança e Infraestrutura. |
 | 1.1 | 2026-09-15 | Ajuste do mapa para registrar a fonte dos requisitos no GitHub Project e incluir a esteira de CI/CD. |
+| 1.2 | 2026-11-14 | Inclusão da página de Estratégia de Testes. |
 | 1.2 | 2026-09-16 | Inclusao da proposta de modelagem para organizações, setores, perfis, permissões e histórico de validação. |

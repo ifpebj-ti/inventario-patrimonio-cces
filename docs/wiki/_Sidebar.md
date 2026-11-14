@@ -15,6 +15,7 @@
 - [Deploy em Produção na OCI](./Deploy-em-Produção-OCI)
 - [Guia de Boas Práticas de Desenvolvimento Seguro](./Guia-de-Boas-Praticas-de-Desenvolvimento-Seguro)
 - [Esteira de CI/CD](./Esteira-de-CI-CD)
+- [Estratégia de Testes](./Estrategia-de-Testes)
 - [Modelagem de Ameaças](./Modelagem-de-Ameaças)
 
 ## Arquitetura

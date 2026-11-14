@@ -69,6 +69,7 @@ Documentos disponiveis:
 12. [C4 - Containers](./C4-Containers)
 13. [C4 - Componentes](./C4-Componentes)
 14. [Validação de Planilha](./Validacao-de-Planilha)
+15. [Estratégia de Testes](./Estrategia-de-Testes)
 
 Os documentos pendentes ou parcialmente cobertos estao acompanhados em [Mapa da Documentação](./Mapa-da-Documentação).
 
