@@ -23,21 +23,17 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
-import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -776,83 +772,5 @@ public class InventoryController {
     }
     result.add(current.toString().trim());
     return result;
-  }
-
-  private List<Item> parseExcelFile(MultipartFile file) throws IOException, ParseException {
-    List<Item> items = new ArrayList<>();
-    Workbook workbook;
-
-    try (InputStream inputStream = file.getInputStream()) {
-      if (file.getOriginalFilename().endsWith(".xlsx")) {
-        workbook = new XSSFWorkbook(inputStream);
-      } else if (file.getOriginalFilename().endsWith(".xls")) {
-        workbook = new HSSFWorkbook(inputStream);
-      } else {
-        throw new IllegalArgumentException("Unsupported file format");
-      }
-
-      Sheet sheet = workbook.getSheetAt(0);
-
-      for (Row row : sheet) {
-        if (row.getRowNum() == 0) {
-          continue;
-        }
-
-        // Layout fixo da planilha usada pelo setor: A é ignorada, B=código, C=descrição,
-        // D=responsável, E=preço, F=local, G=observação. Alterar a ordem quebra a importação.
-        String code = getCellValueAsString(row.getCell(1));
-        String name = "";
-        String description = getCellValueAsString(row.getCell(2));
-        String responsible = getCellValueAsString(row.getCell(3));
-        String price = getCellValueAsString(row.getCell(4));
-        String locale = getCellValueAsString(row.getCell(5));
-        String observation = getCellValueAsString(row.getCell(6));
-
-        // A planilha traz o valor em reais; a entidade persiste em centavos.
-        long priceParseLong =
-            price != null && !price.isEmpty()
-                ? new BigDecimal(price).multiply(BigDecimal.valueOf(100)).longValue()
-                : 0L;
-
-        Item item = new Item(code, name, description, priceParseLong, locale, responsible);
-
-        if (observation != null && !observation.isEmpty()) {
-          Observation obs = new Observation(observation);
-          item.addObservation(obs);
-        }
-
-        items.add(item);
-      }
-    }
-
-    return items;
-  }
-
-  private String getCellValueAsString(Cell cell) {
-    if (cell == null) return "";
-
-    switch (cell.getCellType()) {
-      case STRING:
-        return cell.getStringCellValue();
-
-      case NUMERIC:
-        if (DateUtil.isCellDateFormatted(cell)) {
-          return cell.getLocalDateTimeCellValue().toString();
-        } else {
-          double numericValue = cell.getNumericCellValue();
-          // O POI lê todo número como double; sem o cast, um código inteiro viraria "123.0".
-          if (numericValue == Math.floor(numericValue)) {
-            return String.valueOf((long) numericValue);
-          } else {
-            return String.valueOf(numericValue);
-          }
-        }
-
-      case BLANK:
-        return "";
-
-      default:
-        return "UNKNOWN_TYPE";
-    }
   }
 }
