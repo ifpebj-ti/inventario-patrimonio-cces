@@ -7,7 +7,7 @@ Esta página registra o comportamento da branch `feat/validacao-planilha`, compa
 - Os endpoints `/inventory/validate-sheet` e `/inventory/add-items`, a validação de código/preço e a importação sequencial já existiam antes desta branch, usando Excel (`.xls` e `.xlsx`).
 - O commit `436bdc5`, de CamilleMariaa, introduziu CSV no frontend e backend, verificação de cabeçalho, modelo para download, mensagens de importação e limpeza dos itens do inventário. O título do commit descreve apenas parte dessas alterações.
 - O commit `9d2eb7b`, também de CamilleMariaa, sincronizou a branch com a `main`.
-- Nesta branch, os dois endpoints de entrada aceitam exclusivamente `.csv`. O método privado `parseExcelFile` permanece no controller, mas não é chamado por esses endpoints. Clientes que enviavam Excel precisam migrar; trata-se de mudança incompatível. A exportação continua em XLSX.
+- Nesta branch, os dois endpoints de entrada aceitam exclusivamente `.csv`. O código de leitura de Excel (`parseExcelFile`), que ficou sem chamador, foi removido do controller. Clientes que enviavam Excel precisam migrar; trata-se de mudança incompatível. A exportação continua em XLSX.
 - A documentação de requisitos já previa informar linhas inválidas. Os documentos C4 foram atualizados para distinguir importação CSV de exportação XLSX.
 - Não foi encontrada implementação de lote/paralelismo neste fluxo no código atual nem no histórico pesquisado por `parallelStream` e `saveAll`.
 
@@ -86,4 +86,4 @@ Os caminhos abaixo são relativos à raiz do repositório:
 
 ## Evidências para revisão
 
-Há testes específicos de interface em `frontend/tests/e2e/spreadsheet.spec.ts`, além de verificação TypeScript e lint. Não há teste automatizado específico desse fluxo em `backend/src/test`; os 156 testes gerais passaram na revisão anterior. O PR registra a execução frontend e distingue o que foi testado de garantias ainda pendentes no servidor.
+Há testes específicos de interface em `frontend/tests/e2e/spreadsheet.spec.ts`, além de verificação TypeScript e lint. O backend cobre o fluxo em `backend/src/test` com `InventoryItemsE2ETest` (importação e validação de CSV com PostgreSQL real); na revisão anterior os 156 testes gerais passaram. O PR registra a execução frontend e distingue o que foi testado de garantias ainda pendentes no servidor.
