@@ -203,12 +203,12 @@ public class InventoryController {
   @Operation(
       summary = "Adicionar item avulso",
       description =
-          "Inclui um item no inventário. Exige administrador ou gestor do setor, e o inventário não pode estar finalizado. A sala (locale) é encontrada ou criada no setor.")
+          "Inclui um item no inventário. Exige administrador ou gestor do setor, e o inventário não pode estar finalizado. A sala (locale) é encontrada ou criada no setor. Só code, name, description, price, locale e responsible são lidos; id, qrCode e demais campos do corpo são ignorados (o item é sempre novo).")
   @ApiResponses({
     @ApiResponse(
         responseCode = "201",
-        description = "Item adicionado (devolve o corpo enviado).",
-        content = @Content),
+        description = "Item adicionado (devolve o item criado, com id e QR Code).",
+        content = @Content(schema = @Schema(implementation = ItemDto.class))),
     @ApiResponse(
         responseCode = "400",
         description = "Dados inválidos (mensagem no corpo).",
@@ -222,17 +222,12 @@ public class InventoryController {
   @PostMapping("/add-single-item")
   public ResponseEntity<?> addOneItem(
       @Parameter(description = "Id do inventário.") @RequestParam("inventoryId") long inventoryId,
-      @io.swagger.v3.oas.annotations.parameters.RequestBody(
-              content =
-                  @Content(
-                      schema =
-                          @Schema(implementation = clp.inventory.dto.doc.NewItemRequest.class)))
-          @RequestBody
-          Item item,
+      @RequestBody NewItemRequest newItem,
       HttpServletRequest request) {
     try {
-      inventoryService.addSingleItemToInventory(inventoryId, item, actingUserId(request));
-      return ResponseEntity.status(HttpStatus.CREATED).body(item);
+      Item item =
+          inventoryService.addSingleItemToInventory(inventoryId, newItem, actingUserId(request));
+      return ResponseEntity.status(HttpStatus.CREATED).body(ItemDto.from(item));
     } catch (ResponseStatusException e) {
       throw e;
     } catch (RuntimeException e) {

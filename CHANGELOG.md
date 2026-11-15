@@ -6,6 +6,11 @@ O histórico é atualizado manualmente na própria pull request antes do merge e
 
 ## [Unreleased]
 
+### Fixed
+
+- Backend: `POST /inventory/add-single-item` deixa de receber a entidade `Item` e passa a ler o DTO `NewItemRequest` (`code`, `name`, `description`, `price`, `locale`, `responsible`). Antes, um `id` no corpo fazia o Hibernate atualizar um item existente, e um gestor podia mover para o próprio inventário um item de outro setor (ou de um inventário concluído) e reescrever seus dados. Agora o item é sempre novo; `id`, `qrCode`, `isValid`, `validatedAt` e `divergent` do corpo são ignorados, e `code` ausente ou em branco retorna 400.
+- Backend: o 201 de `add-single-item` passa a devolver o `ItemDto` do item criado (com `id` e `qrCode`) em vez da entidade serializada.
+
 ## [v8.3.0] - 2026-11-14
 
 ### Added

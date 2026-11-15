@@ -2,6 +2,7 @@ package clp.inventory.service;
 
 import clp.inventory.dto.InventoryDto;
 import clp.inventory.dto.ItemProcessingResult;
+import clp.inventory.dto.NewItemRequest;
 import clp.inventory.dto.RoomsPreviewDto;
 import clp.inventory.model.Inventory;
 import clp.inventory.model.Item;
@@ -336,12 +337,22 @@ public class InventoryService {
     }
   }
 
-  public void addSingleItemToInventory(long inventoryId, Item item, long userId) {
+  /**
+   * Cria um item novo no inventário. A entrada é um DTO (nunca a entidade): o item nasce sem id,
+   * então não há como atualizar um item existente, de outro inventário ou de outro setor.
+   */
+  @Transactional
+  public Item addSingleItemToInventory(long inventoryId, NewItemRequest request, long userId) {
     Inventory inventory = requireItemStructureChange(inventoryId, userId);
     try {
+      if (request.code() == null || request.code().isBlank()) {
+        throw new IllegalArgumentException("Item code cannot be null or empty");
+      }
+      Item item = request.toNewItem();
       attachRoom(inventory, item);
       inventory.addItem(item);
       inventoryRepository.save(inventory);
+      return item;
     } catch (Exception e) {
       throw new RuntimeException("Error adding item: " + e.getMessage());
     }
