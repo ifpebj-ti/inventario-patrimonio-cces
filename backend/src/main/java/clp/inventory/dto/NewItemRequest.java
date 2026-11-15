@@ -1,10 +1,13 @@
-package clp.inventory.dto.doc;
+package clp.inventory.dto;
 
+import clp.inventory.model.Item;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
- * Só documentação: forma do corpo de {@code POST /inventory/add-single-item}, que na prática é lido
- * direto na entidade {@code Item}. Não é usada pelo código.
+ * Corpo de {@code POST /inventory/add-single-item}. Só estes campos são lidos: qualquer outro que
+ * venha no JSON ({@code id}, {@code qrCode}, {@code isValid}, {@code validatedAt}, {@code
+ * divergent}, {@code room}, {@code inventory}, {@code observations}...) é ignorado, de modo que o
+ * cliente nunca escolhe a identidade do item nem atualiza um item existente.
  */
 @Schema(description = "Item avulso a incluir no inventário.")
 public record NewItemRequest(
@@ -22,4 +25,10 @@ public record NewItemRequest(
             example = "Sala 101")
         String locale,
     @Schema(description = "Responsável pela carga do bem.", example = "João Souza")
-        String responsible) {}
+        String responsible) {
+
+  /** Sempre um item novo: sem id, com QR Code gerado pelo servidor e não validado. */
+  public Item toNewItem() {
+    return new Item(code, name, description, price, locale, responsible);
+  }
+}

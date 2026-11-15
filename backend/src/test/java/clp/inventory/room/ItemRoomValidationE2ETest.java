@@ -460,4 +460,127 @@ class ItemRoomValidationE2ETest {
     assertThat(saved.room().id()).isEqualTo(r105.id());
     assertThat(roomRepository.countBySector_Id(sector.id())).isEqualTo(1);
   }
+
+  // ---- FIN-01: add-single-item não aceita a entidade; o item é sempre novo ----
+
+  @Test
+  void addSingleItem_idDoCorpoNaoAtualizaItemDeOutroSetor() {
+    Sector mySector = sector();
+    Sector otherSector = sector();
+    User manager = user(TestAccess.MANAGER);
+    access.allocate(manager, mySector);
+    Inventory mine = inventory(user(TestAccess.ADMIN), mySector);
+    Inventory other = inventory(user(TestAccess.ADMIN), otherSector);
+    Item victim = item(other, "VIT-001", null);
+
+    Map<String, Object> body = new HashMap<>();
+    body.put("id", victim.id());
+    body.put("code", "VIT-001");
+    body.put("description", "BemDaVitrine");
+    body.put("responsible", "Atacante");
+    body.put("price", 50);
+    var response =
+        call(
+            manager,
+            HttpMethod.POST,
+            "/inventory/add-single-item?inventoryId=" + mine.id(),
+            body,
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    // devolve o item criado, com id novo (não o da vítima)
+    assertThat(((Number) response.getBody().get("id")).longValue()).isNotEqualTo(victim.id());
+    Item untouched = itemRepository.findById(victim.id()).orElseThrow();
+    assertThat(untouched.inventory().id()).isEqualTo(other.id());
+    assertThat(untouched.description()).isEqualTo("Descricao");
+    assertThat(untouched.responsible()).isEqualTo("Responsavel");
+    assertThat(untouched.price()).isEqualTo(1000);
+    // o inventário do atacante ganhou um item novo (cópia), não o da vítima
+    assertThat(
+            itemRepository
+                .findByInventory_Id(mine.id(), org.springframework.data.domain.Pageable.unpaged())
+                .getContent())
+        .extracting(Item::id)
+        .doesNotContain(victim.id())
+        .hasSize(1);
+  }
+
+  @Test
+  void addSingleItem_naoPermiteTirarItemDeInventarioConcluido() {
+    Sector sector = sector();
+    User manager = user(TestAccess.MANAGER);
+    access.allocate(manager, sector);
+    Inventory mine = inventory(user(TestAccess.ADMIN), sector);
+    Inventory finished = inventory(user(TestAccess.ADMIN), sector);
+    Item inFinished = item(finished, "FIN-1", null);
+    finished.finish(LocalDateTime.now());
+    inventoryRepository.save(finished);
+
+    Map<String, Object> body = new HashMap<>();
+    body.put("id", inFinished.id());
+    body.put("code", "FIN-1");
+    var response =
+        call(
+            manager,
+            HttpMethod.POST,
+            "/inventory/add-single-item?inventoryId=" + mine.id(),
+            body,
+            String.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    assertThat(itemRepository.findById(inFinished.id()).orElseThrow().inventory().id())
+        .isEqualTo(finished.id());
+  }
+
+  @Test
+  void addSingleItem_ignoraQrCodeValidacaoEDivergenciaDoCorpo() {
+    Sector sector = sector();
+    User manager = user(TestAccess.MANAGER);
+    access.allocate(manager, sector);
+    Inventory inventory = inventory(user(TestAccess.ADMIN), sector);
+
+    Map<String, Object> body = new HashMap<>();
+    body.put("code", "MA-1");
+    body.put("description", "Mesa");
+    body.put("qrCode", "QR-INJETADO");
+    body.put("isValid", true);
+    body.put("valid", true);
+    body.put("validatedAt", "2031-01-01T00:00:00");
+    body.put("divergent", true);
+    var response =
+        call(
+            manager,
+            HttpMethod.POST,
+            "/inventory/add-single-item?inventoryId=" + inventory.id(),
+            body,
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    Item saved =
+        itemRepository
+            .findByInventory_Id(inventory.id(), org.springframework.data.domain.Pageable.unpaged())
+            .getContent()
+            .get(0);
+    assertThat(saved.qrCode()).isNotEqualTo("QR-INJETADO").hasSize(36);
+    assertThat(saved.isValid()).isFalse();
+    assertThat(saved.validatedAt()).isNull();
+  }
+
+  @Test
+  void addSingleItem_semCodigoRetorna400() {
+    Sector sector = sector();
+    User manager = user(TestAccess.MANAGER);
+    access.allocate(manager, sector);
+    Inventory inventory = inventory(user(TestAccess.ADMIN), sector);
+
+    var response =
+        call(
+            manager,
+            HttpMethod.POST,
+            "/inventory/add-single-item?inventoryId=" + inventory.id(),
+            Map.of("description", "sem código"),
+            String.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+  }
 }
