@@ -6,8 +6,15 @@ O histórico é atualizado manualmente na própria pull request antes do merge e
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- Backend: `GET /item/export-sheet` e `POST /item/send-email-sheet` passam a exigir administrador ou gestor do setor do inventário (`MANAGE_SECTOR`). Consulta e Operador, que antes exportavam, recebem `403`; o front esconde os botões para eles. O envio só aceita destinatário de domínio permitido, e o `200` agora significa que o servidor de e-mail aceitou a mensagem (antes voltava antes do envio).
+
 ### Fixed
 
+- Backend (FIN-02): a planilha patrimonial, com responsável e valor de todos os bens, não sai mais para quem só pode ler nem para qualquer endereço. `send-email-sheet` valida o corpo (`@Email`, assunto sem quebra de linha, tamanhos), aceita só domínios de `EMAIL_SHEET_ALLOWED_DOMAINS` (padrão `ifpe.edu.br`, com subdomínios; `400` fora da lista), limita os envios por usuário (`EMAIL_SHEET_MAX_PER_WINDOW`, padrão 10 por `EMAIL_SHEET_WINDOW`, `1h`; `429` com `Retry-After`) e responde `502` se o envio falhar, em vez de engolir o erro.
+- Backend: migration `10.0.xml` cria `im_inventory_audit`; cada exportação e envio, inclusive os recusados (domínio, limite, falha), grava ator, setor do autor, inventário, destinatário e resultado. A tabela não tem FK de setor nem de inventário, para o histórico não impedir excluí-los.
+- Frontend: botões de exportar planilha e enviar por e-mail só aparecem para quem gerencia o inventário; o envio mostra mensagem por status (`400`, `403`, `429`, `502`) e confirma "Planilha enviada por e-mail" só depois do envio.
 - Backend: `POST /inventory/add-single-item` deixa de receber a entidade `Item` e passa a ler o DTO `NewItemRequest` (`code`, `name`, `description`, `price`, `locale`, `responsible`). Antes, um `id` no corpo fazia o Hibernate atualizar um item existente, e um gestor podia mover para o próprio inventário um item de outro setor (ou de um inventário concluído) e reescrever seus dados. Agora o item é sempre novo; `id`, `qrCode`, `isValid`, `validatedAt` e `divergent` do corpo são ignorados, e `code` ausente ou em branco retorna 400.
 - Backend: o 201 de `add-single-item` passa a devolver o `ItemDto` do item criado (com `id` e `qrCode`) em vez da entidade serializada.
 

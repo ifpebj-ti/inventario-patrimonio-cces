@@ -100,7 +100,7 @@ export default function Inventory() {
 
   const handleSendEmail = async (formData: SendEmailSheetRequest) => {
     await sendSheetByEmail(Number(id), formData)
-    toast.success('Solicitação de envio recebida pelo Inventarium.')
+    toast.success('Planilha enviada por e-mail.')
   }
 
   const spreadsheet = useSpreadsheetImport(Number(id), fetchItemsByInventory)
@@ -437,7 +437,7 @@ export default function Inventory() {
           selectedRows={selectedRows}
           onRowSelect={setSelectedRows}
           onRowDoubleClick={handleRowDoubleClick}
-          showExportButtons={true}
+          showExportButtons={canManageInventories}
           onClearInventory={handleOpenClearInventoryModal}
           disableClear={isUploading || spreadsheet.state.status === 'importing'}
           hideClear={!canManageInventories}

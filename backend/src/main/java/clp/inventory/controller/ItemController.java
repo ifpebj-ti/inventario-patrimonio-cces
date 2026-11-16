@@ -5,10 +5,9 @@ import clp.inventory.dto.ItemDto;
 import clp.inventory.dto.ObservationDto;
 import clp.inventory.dto.ValidateItemRequest;
 import clp.inventory.model.Item;
-import clp.inventory.service.EmailService;
 import clp.inventory.service.ItemService;
+import clp.inventory.service.SheetShareService;
 import clp.inventory.service.generatePdf.ItemPdfService;
-import clp.inventory.service.generateSheet.SheetBuilderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -32,18 +31,13 @@ import org.springframework.web.server.ResponseStatusException;
 public class ItemController {
 
   private final ItemPdfService itemPdfService;
-  private final SheetBuilderService sheetBuilderService;
-  private final EmailService emailService;
+  private final SheetShareService sheetShareService;
   private final ItemService itemService;
 
   public ItemController(
-      ItemPdfService itemPdfService,
-      SheetBuilderService sheetBuilderService,
-      EmailService emailService,
-      ItemService itemService) {
+      ItemPdfService itemPdfService, SheetShareService sheetShareService, ItemService itemService) {
     this.itemPdfService = itemPdfService;
-    this.sheetBuilderService = sheetBuilderService;
-    this.emailService = emailService;
+    this.sheetShareService = sheetShareService;
     this.itemService = itemService;
   }
 
@@ -219,7 +213,8 @@ public class ItemController {
 
   @Operation(
       summary = "Exportar planilha do inventário",
-      description = "Baixa o patrimônio do inventário em Excel (patrimonio.xlsx).")
+      description =
+          "Baixa o patrimônio do inventário em Excel (patrimonio.xlsx). A planilha traz o responsável e o valor de todos os bens: exige administrador ou gestor do setor do inventário (a Consulta e o operador não exportam). Cada exportação fica na auditoria.")
   @ApiResponses({
     @ApiResponse(
         responseCode = "200",
@@ -228,6 +223,10 @@ public class ItemController {
             @Content(
                 mediaType = "application/octet-stream",
                 schema = @Schema(type = "string", format = "binary"))),
+    @ApiResponse(
+        responseCode = "403",
+        description = "Só administrador ou gestor do setor.",
+        content = @Content),
     @ApiResponse(
         responseCode = "404",
         description = "Inventário não encontrado.",
@@ -238,8 +237,7 @@ public class ItemController {
       @Parameter(description = "Id do inventário.") @RequestParam long inventoryId,
       HttpServletRequest request)
       throws IOException {
-    itemService.requireInventoryView(inventoryId, actingUserId(request));
-    byte[] excelData = sheetBuilderService.createAllItemsSheet(inventoryId);
+    byte[] excelData = sheetShareService.exportSheet(inventoryId, actingUserId(request));
 
     HttpHeaders headers = new HttpHeaders();
     headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
@@ -252,9 +250,25 @@ public class ItemController {
   @Operation(
       summary = "Enviar planilha do inventário por e-mail",
       description =
-          "Gera a planilha do inventário e a envia como anexo (patrimonio.xlsx) ao e-mail informado.")
+          "Gera a planilha do inventário e a envia como anexo (patrimonio.xlsx) ao e-mail informado. Exige administrador ou gestor do setor do inventário. O destinatário precisa ser de um domínio permitido (padrão ifpe.edu.br) e há limite de envios por usuário. A resposta só é 200 depois de o servidor de e-mail aceitar a mensagem. Cada envio, inclusive os recusados, fica na auditoria.")
   @ApiResponses({
     @ApiResponse(responseCode = "200", description = "E-mail enviado.", content = @Content),
+    @ApiResponse(
+        responseCode = "400",
+        description = "Dados inválidos ou destinatário de domínio não permitido.",
+        content = @Content),
+    @ApiResponse(
+        responseCode = "403",
+        description = "Só administrador ou gestor do setor.",
+        content = @Content),
+    @ApiResponse(
+        responseCode = "429",
+        description = "Muitos envios. O cabeçalho Retry-After traz os segundos até poder enviar.",
+        content = @Content),
+    @ApiResponse(
+        responseCode = "502",
+        description = "O servidor de e-mail não aceitou a mensagem.",
+        content = @Content),
     @ApiResponse(
         responseCode = "404",
         description = "Inventário não encontrado.",
@@ -263,18 +277,10 @@ public class ItemController {
   @PostMapping("/send-email-sheet")
   public ResponseEntity<Void> sendSheetByEmail(
       @Parameter(description = "Id do inventário.") @RequestParam long inventoryId,
-      @RequestBody EmailRequestDto emailRequest,
+      @Valid @RequestBody EmailRequestDto emailRequest,
       HttpServletRequest request)
       throws IOException {
-    itemService.requireInventoryView(inventoryId, actingUserId(request));
-    byte[] excelData = sheetBuilderService.createAllItemsSheet(inventoryId);
-
-    emailService.sendEmailWithAttachment(
-        emailRequest.email(),
-        emailRequest.subject(),
-        emailRequest.message(),
-        "patrimonio.xlsx",
-        excelData);
+    sheetShareService.sendSheetByEmail(inventoryId, emailRequest, actingUserId(request));
 
     return ResponseEntity.ok().build();
   }

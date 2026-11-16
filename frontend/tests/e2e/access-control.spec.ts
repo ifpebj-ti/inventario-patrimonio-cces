@@ -200,6 +200,10 @@ test.describe('detalhe do inventário', () => {
     page.getByRole('button', { name: 'Importar Planilha CSV' })
   const clear = (page: Page) =>
     page.getByRole('button', { name: 'Inventário já está vazio' })
+  const exportSheet = (page: Page) =>
+    page.getByRole('button', { name: 'Exportar planilha Excel' })
+  const sendSheet = (page: Page) =>
+    page.getByRole('button', { name: 'Enviar planilha por e-mail' })
 
   test('gestor escaneia, importa e pode limpar itens', async ({ page }) => {
     await setup(page, 'manager')
@@ -207,6 +211,9 @@ test.describe('detalhe do inventário', () => {
     await expect(scan(page)).toBeEnabled()
     await expect(importButton(page)).toBeEnabled()
     await expect(clear(page)).toBeVisible()
+    // Exportar e enviar a planilha exigem gestão do setor.
+    await expect(exportSheet(page)).toBeVisible()
+    await expect(sendSheet(page)).toBeVisible()
   })
 
   test('operador escaneia mas não importa nem limpa', async ({ page }) => {
@@ -218,6 +225,8 @@ test.describe('detalhe do inventário', () => {
       page.getByText('Seu cargo neste setor não permite importar planilhas.'),
     ).toBeVisible()
     await expect(clear(page)).toHaveCount(0)
+    await expect(exportSheet(page)).toHaveCount(0)
+    await expect(sendSheet(page)).toHaveCount(0)
   })
 
   test('consulta é somente leitura', async ({ page }) => {
@@ -231,10 +240,9 @@ test.describe('detalhe do inventário', () => {
     ).toBeVisible()
     await expect(importButton(page)).toBeDisabled()
     await expect(clear(page)).toHaveCount(0)
-    // Pode exportar para acompanhar o andamento.
-    await expect(
-      page.getByRole('button', { name: 'Exportar planilha Excel' }),
-    ).toBeVisible()
+    // Não exporta nem envia a planilha: o backend responde 403 para quem não gerencia.
+    await expect(exportSheet(page)).toHaveCount(0)
+    await expect(sendSheet(page)).toHaveCount(0)
   })
 })
 

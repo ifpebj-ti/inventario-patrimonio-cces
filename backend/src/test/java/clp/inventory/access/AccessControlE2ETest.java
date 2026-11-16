@@ -225,7 +225,7 @@ class AccessControlE2ETest {
   }
 
   @Test
-  void inventoryDetailsItemsAndExportRequireTheSector() {
+  void inventoryDetailsAndItemsRequireTheSectorAndExportRequiresManagement() {
     Scenario s = new Scenario();
     String details = "/inventory/" + s.inventoryA.id();
     String listing =
@@ -236,8 +236,14 @@ class AccessControlE2ETest {
     for (User user : List.of(s.admin, s.managerA, s.operatorA, s.consultA)) {
       assertThat(status(user, HttpMethod.GET, details, null)).isEqualTo(HttpStatus.OK);
       assertThat(status(user, HttpMethod.GET, listing, null)).isEqualTo(HttpStatus.OK);
-      assertThat(status(user, HttpMethod.GET, export, null)).isEqualTo(HttpStatus.OK);
       assertThat(status(user, HttpMethod.GET, itemUrl, null)).isEqualTo(HttpStatus.OK);
+    }
+    // A planilha leva o responsável e o valor de todos os bens: só administrador e gestor exportam.
+    for (User user : List.of(s.admin, s.managerA)) {
+      assertThat(status(user, HttpMethod.GET, export, null)).isEqualTo(HttpStatus.OK);
+    }
+    for (User user : List.of(s.operatorA, s.consultA)) {
+      assertThat(status(user, HttpMethod.GET, export, null)).isEqualTo(HttpStatus.FORBIDDEN);
     }
     // Outro setor não enxerga nada do inventário A.
     assertThat(status(s.managerB, HttpMethod.GET, details, null)).isEqualTo(HttpStatus.FORBIDDEN);
