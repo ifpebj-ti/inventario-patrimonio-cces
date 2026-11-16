@@ -56,7 +56,7 @@ public class ItemService {
     return item;
   }
 
-  /** Leitura de um inventário (exportar planilha, etiquetas, enviar por e-mail). */
+  /** Leitura de um inventário (por exemplo, as etiquetas). */
   @Transactional(readOnly = true)
   public void requireInventoryView(long inventoryId, long userId) {
     Inventory inventory =
@@ -67,6 +67,24 @@ public class ItemService {
                     new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Inventário não encontrado."));
     authorizationService.requireViewInventory(userId, inventory);
+  }
+
+  /**
+   * Exportar a planilha do inventário ou enviá-la por e-mail: administrador ou gestor do setor do
+   * inventário. A planilha traz o responsável e o valor de todos os bens, então não basta enxergar
+   * o inventário. Devolve o inventário para quem precisa do setor (auditoria).
+   */
+  @Transactional(readOnly = true)
+  public Inventory requireInventoryManage(long inventoryId, long userId) {
+    Inventory inventory =
+        inventoryRepository
+            .findById(inventoryId)
+            .orElseThrow(
+                () ->
+                    new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Inventário não encontrado."));
+    authorizationService.requireManageInventory(userId, inventory);
+    return inventory;
   }
 
   /** Leitura de vários itens (etiquetas): todos precisam pertencer a inventários visíveis. */

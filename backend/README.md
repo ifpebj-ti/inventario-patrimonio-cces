@@ -162,6 +162,14 @@ Os limites do backend são configuráveis: `AUTH_LOGIN_USER_MAX_FAILURES`, `AUTH
 `AUTH_LOGIN_BLOCK_DURATION` (ex.: `15m`). Os do Nginx ficam em `infra/nginx` e mudam com
 `infra/scripts/deploy-nginx.sh`.
 
+**Planilha por e-mail.** `GET /item/export-sheet` e `POST /item/send-email-sheet` exigem administrador
+ou gestor do setor, porque a planilha traz o responsável e o valor de todos os bens. O e-mail só vai
+para domínios de `EMAIL_SHEET_ALLOWED_DOMAINS` (padrão `ifpe.edu.br`, vale também para subdomínios),
+com no máximo `EMAIL_SHEET_MAX_PER_WINDOW` envios por usuário a cada `EMAIL_SHEET_WINDOW` (padrão 10
+por `1h`; 429 com `Retry-After`). O envio é síncrono: `200` só depois de o servidor de e-mail aceitar
+a mensagem, `502` se falhar. Cada exportação e envio, inclusive os recusados, fica em `im_inventory_audit`.
+O contador de envios é em memória: zera ao reiniciar e vale por instância.
+
 **IP do cliente.** Quem enxerga o IP real é o Nginx, por isso o limite por IP é dele: o backend não lê
 o IP no login. Em desenvolvimento, sem Nginx na frente, só vale o bloqueio por usuário.
 `FORWARD_HEADERS_STRATEGY=native` (padrão de produção, com o Nginx sobrescrevendo o

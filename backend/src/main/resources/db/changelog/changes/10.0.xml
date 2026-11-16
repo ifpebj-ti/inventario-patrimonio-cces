@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+    <!--
+        Auditoria de atos sobre o inventario. A im_item_audit so registra validacao de item (id_item e obrigatorio) e
+        nao serve para atos sobre o inventario inteiro: exportar a planilha do inventario e envia-la por e-mail. Esta
+        tabela guarda esses atos (hoje EXPORT_SHEET e SEND_SHEET_EMAIL), inclusive os recusados (dominio fora da lista,
+        limite de envios), para responder "quem tirou a planilha patrimonial, quando e para quem".
+
+        Por ser historico, so o usuario autor tem chave estrangeira. O setor do autor e o inventario ficam como ids
+        simples: uma FK deles impediria excluir o setor ou o inventario depois (o mesmo problema que a FK da
+        im_item_audit causa na exclusao de itens). id_actor_sector fica nulo para o administrador, que nao pertence
+        a um setor.
+    -->
+    <changeSet id="20261115-01" author="inventarium">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="im_inventory_audit"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="im_inventory_audit">
+            <column name="id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="id_actor_user" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="id_actor_sector" type="BIGINT"/>
+            <column name="id_inventory" type="BIGINT"/>
+            <column name="action_type" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="recipient" type="VARCHAR(254)"/>
+            <column name="status" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="details" type="VARCHAR(1000)"/>
+            <column name="occurred_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addPrimaryKey tableName="im_inventory_audit" columnNames="id" constraintName="pk_inventory_audit"/>
+
+        <addForeignKeyConstraint baseTableName="im_inventory_audit" baseColumnNames="id_actor_user"
+                                 referencedTableName="im_user" referencedColumnNames="id"
+                                 constraintName="fk_6120483774915"/>
+
+        <createIndex tableName="im_inventory_audit" indexName="idx_inventory_audit_inventory">
+            <column name="id_inventory"/>
+        </createIndex>
+
+        <createSequence sequenceName="im_inventory_audit_id" incrementBy="1" startValue="1"/>
+
+    </changeSet>
+</databaseChangeLog>

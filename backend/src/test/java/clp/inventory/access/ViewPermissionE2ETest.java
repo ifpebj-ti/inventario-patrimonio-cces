@@ -155,7 +155,8 @@ class ViewPermissionE2ETest {
     String export = "/item/export-sheet?inventoryId=" + s.inventoryA.id();
     assertThat(status(viewer, HttpMethod.GET, details, null)).isEqualTo(HttpStatus.OK);
     assertThat(status(viewer, HttpMethod.GET, listing, null)).isEqualTo(HttpStatus.OK);
-    assertThat(status(viewer, HttpMethod.GET, export, null)).isEqualTo(HttpStatus.OK);
+    // A planilha traz responsável e valor de todos os bens: exportar exige gestão, não só leitura.
+    assertThat(status(viewer, HttpMethod.GET, export, null)).isEqualTo(HttpStatus.FORBIDDEN);
     assertThat(status(viewer, HttpMethod.GET, "/item/" + s.itemA.id(), null))
         .isEqualTo(HttpStatus.OK);
     assertThat(status(viewer, HttpMethod.GET, "/sectors/" + s.sectorA.id(), null))

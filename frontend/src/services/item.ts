@@ -1,3 +1,4 @@
+import axios from 'axios'
 import { api } from '@/services/api'
 import sendEmail from '@/validations/sendEmail'
 import { z } from 'zod'
@@ -33,9 +34,33 @@ export const sendSheetByEmail = async (
   inventoryId: number,
   payload: SendEmailSheetRequest,
 ): Promise<void> => {
-  await api.post('/item/send-email-sheet', payload, {
-    params: { inventoryId },
-  })
+  try {
+    await api.post('/item/send-email-sheet', payload, {
+      params: { inventoryId },
+    })
+  } catch (error) {
+    throw new Error(sendSheetErrorMessage(error))
+  }
+}
+
+// O backend não devolve texto de erro no corpo, então a mensagem vem do status:
+// 400 (destinatário de domínio não permitido ou dados inválidos), 403 (só
+// administrador e gestor do setor), 429 (limite de envios) e 502 (o servidor de
+// e-mail não aceitou a mensagem).
+const sendSheetErrorMessage = (error: unknown): string => {
+  if (axios.isAxiosError(error)) {
+    switch (error.response?.status) {
+      case 400:
+        return 'Destinatário inválido ou de domínio não permitido. Use um e-mail institucional.'
+      case 403:
+        return 'Seu cargo neste setor não permite enviar a planilha.'
+      case 429:
+        return 'Muitos envios em pouco tempo. Tente novamente mais tarde.'
+      case 502:
+        return 'O servidor de e-mail não aceitou a mensagem. Tente novamente.'
+    }
+  }
+  return 'Não foi possível enviar.'
 }
 
 // Requisição para pegar item por Id

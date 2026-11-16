@@ -1,5 +1,6 @@
 package clp.inventory.service;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -26,12 +27,18 @@ class EmailServiceTest {
   }
 
   @Test
-  void falhaNoEnvioNaoPropagaErro() {
+  void falhaNoEnvioPropagaErroSemExporAMensagemInterna() {
     JavaMailSender sender = mock(JavaMailSender.class);
     when(sender.createMimeMessage()).thenThrow(new IllegalStateException("smtp fora do ar"));
 
-    new EmailService(sender)
-        .sendEmailWithAttachment("destino@ifpe.edu.br", "A", "M", "p.xlsx", new byte[] {1});
+    assertThatThrownBy(
+            () ->
+                new EmailService(sender)
+                    .sendEmailWithAttachment(
+                        "destino@ifpe.edu.br", "A", "M", "p.xlsx", new byte[] {1}))
+        .isInstanceOf(EmailDeliveryException.class)
+        .hasMessage("Não foi possível enviar o e-mail.")
+        .hasCauseInstanceOf(IllegalStateException.class);
 
     verify(sender, never()).send(any(MimeMessage.class));
   }
