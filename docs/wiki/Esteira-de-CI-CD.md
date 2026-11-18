@@ -38,7 +38,7 @@ flowchart TD
 | Qualidade da aplicação | `Quality` roda Secretlint, ESLint no frontend, testes unitários (`node --test`) e E2E (Playwright) do frontend, Spotless e testes Gradle/Testcontainers no backend. Commitlint é executado em PRs humanos. A organização dos testes está em [Estratégia de Testes](./Estrategia-de-Testes). |
 | Validação de template | `Validate PR Template` confere issue vinculada e tipo de release. |
 | Segurança em PR | `Security scans` executa Semgrep e Trivy. O Trivy verifica secrets, dependências e imagens; as imagens são construídas no runner, sem publicação no GHCR. |
-| Relatórios de segurança | Semgrep e Trivy geram SARIF para Security → Code scanning, uma tabela no resumo do job e artifacts temporários por 14 dias. Semgrep está em baseline até a triagem dos achados. |
+| Relatórios de segurança | Semgrep e Trivy geram SARIF para Security → Code scanning, uma tabela no resumo do job e artifacts temporários por 14 dias. O Semgrep é bloqueante: qualquer achado reprova o check `Semgrep SAST`. |
 | Changelog | A pessoa autora atualiza o `CHANGELOG.md` manualmente na PR antes do merge; a entrada é revisada junto com a entrega. |
 | Release | Merge em `main` cria tag e GitHub Release quando o PR humano não está como `sem release`; Dependabot gera `patch` automaticamente. |
 | Imagens produtivas | A release reconstrói as imagens a partir da tag `vX.Y.Z`, executa os scans novamente e só então publica no GHCR um manifesto para `linux/amd64` e `linux/arm64`. A imagem transitória da PR nunca é promovida. |
@@ -51,10 +51,10 @@ Nem toda PR precisa consumir o mesmo tempo de runner. A esteira identifica os ar
 
 | Tipo de alteração | Validações executadas além das regras de processo e segredos |
 | --- | --- |
-| Apenas documentação, template ou arquivos não executáveis | Não executa lint do frontend, testes do backend, Semgrep nem build/scan de imagens. |
+| Apenas documentação, template ou arquivos não executáveis | Não executa lint do frontend, testes do backend nem build/scan de imagens. |
 | `frontend/`, manifestos npm ou workflow `Quality` | Executa ESLint do frontend. |
 | `backend/` ou workflow `Quality` | Executa Spotless e testes do backend. |
-| `backend/src/`, `frontend/src/` ou `.github/` | Executa Semgrep. |
+| Qualquer alteração | Executa Semgrep (sem filtro de caminho, para o check obrigatório sempre reportar status). |
 | Frontend, backend, Docker Compose, `.env.example` ou workflow de imagens/segurança | Constrói as imagens afetadas e executa Trivy. |
 
 Independentemente do escopo, a PR continua executando a validação do template, Commitlint e Secretlint. Isso preserva rastreabilidade e evita que uma alteração documental exponha segredos. Jobs condicionais aparecem como *skipped* quando não se aplicam; o GitHub os considera concluídos com sucesso, inclusive quando são checks exigidos no ruleset.
@@ -96,7 +96,7 @@ Os checks aparecem separadamente na interface do GitHub porque cada job represen
 | `Quality / Backend format and tests` | Executa Spotless como aviso temporário e os testes do backend como gate. | Sim, se os testes falharem |
 | `Quality / Frontend spreadsheet tests` | Executa os testes unitários e os E2E do frontend com Playwright, que usam API simulada. | Sim, se os testes falharem |
 | `Quality / Frontend lint` | Executa ESLint; nesta fase é informativo para não bloquear mudanças por dívida de lint existente. | Não |
-| `Security scans / Semgrep SAST baseline` | Executa SAST e registra achados existentes para triagem quando a mudança alcança código-fonte ou workflows. | Não, até a linha de base ser tratada |
+| `Security scans / Semgrep SAST` | Executa SAST (`p/default`, imagem fixada por versão e digest) em `backend/src`, `frontend/src` e `.github`; qualquer achado reprova o job. | Sim, quando marcado como obrigatório no ruleset `Protect main` |
 | `Security scans / Trivy container and dependency scans` | Faz scan de segredos, dependências e imagens construídas no runner quando a mudança afeta fontes de imagem. | Sim para segredos, falha operacional e vulnerabilidades `HIGH`/`CRITICAL` |
 
 ## Relatórios de Segurança: SARIF, Code Scanning e Artifacts
@@ -165,3 +165,4 @@ flowchart TD
 | 1.5 | 2026-09-28 | Execução de lint, testes e scans pesados condicionada aos arquivos alterados, preservando checks de processo e segredos em qualquer PR. |
 | 1.6 | 2026-09-28 | Inclusão do changelog versionado e publicação de imagens GHCR multi-arquitetura (`amd64` e `arm64`). |
 | 1.7 | 2026-11-14 | Correção da informação sobre testes do frontend (unitários e E2E já rodam na CI), registro da situação da cobertura e link para a Estratégia de Testes. |
+| 1.8 | 2026-11-17 | Semgrep passa a ser bloqueante e a rodar em todo PR; actions fixadas por SHA, `cooldown` no Dependabot e `secrets` explícitos no workflow `Release`. |

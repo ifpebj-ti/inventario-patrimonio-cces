@@ -107,7 +107,7 @@ Boas praticas:
 
 O workflow `Security scans` usa Semgrep para SAST e Trivy para scan de secrets, dependências e imagens. Os dois produzem relatórios SARIF enviados para Security → Code scanning; os arquivos também ficam como artifacts temporários da execução para consulta detalhada.
 
-Vulnerabilidades `HIGH` ou `CRITICAL` detectadas pelo Trivy, ou falhas de execução do scan, devem bloquear a pipeline. O Semgrep está inicialmente em baseline para permitir a triagem dos achados existentes; depois dessa triagem, ele também deve bloquear pull requests com achados confirmados.
+Vulnerabilidades `HIGH` ou `CRITICAL` detectadas pelo Trivy, ou falhas de execução do scan, devem bloquear a pipeline. O Semgrep também bloqueia pull requests: qualquer achado reprova o check `Semgrep SAST`. Falsos positivos comprovados são suprimidos com `nosemgrep` e uma justificativa escrita na linha acima.
 
 Não versione relatórios brutos de scan na `main`: eles são evidências de execução, podem ser volumosos e podem expor detalhes sensíveis. Use a aba Code Scanning e os artifacts da execução; uma branch de auditoria separada só deve ser criada se houver exigência formal de retenção versionada.
 

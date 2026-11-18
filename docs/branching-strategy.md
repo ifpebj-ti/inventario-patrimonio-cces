@@ -49,9 +49,9 @@ As imagens construídas durante a PR são descartáveis e servem somente para va
 - `Security scans`: executa Semgrep e Trivy em PRs para `main`. O Trivy verifica secrets, dependências e imagens Docker alteradas; o Semgrep realiza análise estática de segurança.
 - `Release`: publica tag, GitHub Release e imagens produtivas quando aplicável.
 
-Os relatórios de Semgrep e Trivy são gerados em SARIF, enviados para Security → Code scanning e disponibilizados como artifacts temporários da execução. O Trivy mantém achados de todas as severidades no relatório, mas bloqueia apenas segredos, falhas operacionais e vulnerabilidades `HIGH` ou `CRITICAL`. Na fase inicial, o Semgrep opera como baseline para triagem dos achados; depois da triagem, seu check deve tornar-se bloqueante.
+Os relatórios de Semgrep e Trivy são gerados em SARIF, enviados para Security → Code scanning e disponibilizados como artifacts temporários da execução. O Trivy mantém achados de todas as severidades no relatório, mas bloqueia apenas segredos, falhas operacionais e vulnerabilidades `HIGH` ou `CRITICAL`. O Semgrep é bloqueante: qualquer achado reprova o check `Semgrep SAST`.
 
-Para evitar gasto desnecessário de runners, lint, testes, Semgrep e Trivy são condicionados aos caminhos alterados. PRs somente de documentação ainda validam template, commits e segredos, mas não constroem imagens nem executam testes que não se aplicam. Jobs condicionais ficam como *skipped* e satisfazem o respectivo check do ruleset.
+Para evitar gasto desnecessário de runners, lint, testes e Trivy são condicionados aos caminhos alterados. PRs somente de documentação ainda validam template, commits e segredos, mas não constroem imagens nem executam testes que não se aplicam. Jobs condicionais ficam como *skipped* e satisfazem o respectivo check do ruleset. O Semgrep é exceção: roda em todo PR (leva cerca de 1 minuto) para sempre reportar o check.
 
 Proteja `main` exigindo os checks aplicáveis, revisão e conversa resolvida antes do merge. Não configure mais regras ou checks obrigatórios para a antiga branch de integração.
 
