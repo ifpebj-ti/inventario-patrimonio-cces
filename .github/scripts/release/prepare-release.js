@@ -172,10 +172,13 @@ function getSemverTags() {
 }
 
 function writeReleaseNotes(tag, heading, summary) {
-  const releaseNotesPath = path.join(
-    process.env.RUNNER_TEMP || ROOT,
-    `release-notes-${tag}.md`,
-  );
+  if (!/^v\d+\.\d+\.\d+$/.test(tag)) {
+    throw new Error(`Tag de release invalida: ${tag}`);
+  }
+
+  const releaseNotesDir = path.resolve(process.env.RUNNER_TEMP || ROOT);
+  // `tag` e validada acima (v<major>.<minor>.<patch>) e nao pode conter separadores de caminho.
+  const releaseNotesPath = `${releaseNotesDir}${path.sep}release-notes-${tag}.md`;
 
   fs.writeFileSync(
     releaseNotesPath,

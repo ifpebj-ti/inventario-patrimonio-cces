@@ -21,8 +21,11 @@ function getLinkedIssueNumbers(body) {
 
 function getSection(body, heading) {
   const lines = String(body || "").split(/\r?\n/);
-  const headingPattern = new RegExp(`^##\\s+${escapeRegExp(heading)}\\s*$`, "i");
-  const start = lines.findIndex((line) => headingPattern.test(line.trim()));
+  const expectedHeading = heading.toLowerCase();
+  const start = lines.findIndex((line) => {
+    const match = /^##\s+(.*?)\s*$/.exec(line.trim());
+    return match !== null && match[1].toLowerCase() === expectedHeading;
+  });
 
   if (start === -1) {
     return "";
@@ -62,10 +65,6 @@ function getReleaseOption(body) {
 
 function stripHtmlComments(text) {
   return String(text || "").replace(/<!--[\s\S]*?-->/g, "").trim();
-}
-
-function escapeRegExp(text) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 module.exports = {
