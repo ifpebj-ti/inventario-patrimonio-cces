@@ -93,7 +93,7 @@ Os checks aparecem separadamente na interface do GitHub porque cada job represen
 | `Validate PR Template` | Exige uma issue vinculada e um tipo de release para PRs humanos. | Sim |
 | `Quality / Secret scan` | Procura segredos versionados com Secretlint. | Sim |
 | `Quality / Commit messages` | Valida o padrão dos commits de PRs humanos. | Sim |
-| `Quality / Backend format and tests` | Executa Spotless como aviso temporário e os testes do backend como gate. | Sim, se os testes falharem |
+| `Quality / Backend format and tests` | Executa Spotless como aviso temporário, os testes do backend e o gate de cobertura de linhas (mínimo de 80%). | Sim, se os testes falharem ou a cobertura ficar abaixo de 80% |
 | `Quality / Frontend spreadsheet tests` | Executa os testes unitários e os E2E do frontend com Playwright, que usam API simulada. | Sim, se os testes falharem |
 | `Quality / Frontend lint` | Executa ESLint; nesta fase é informativo para não bloquear mudanças por dívida de lint existente. | Não |
 | `Security scans / Semgrep SAST baseline` | Executa SAST e registra achados existentes para triagem quando a mudança alcança código-fonte ou workflows. | Não, até a linha de base ser tratada |
@@ -148,7 +148,7 @@ flowchart TD
 | --- | --- |
 | Deploy em VM | O job `deploy-production` aciona o webhook do Portainer a cada release. A release publica cada imagem como `vX.Y.Z` e `latest`; a stack usa `latest` e o webhook não recebe parâmetros. Sem o secret `PORTAINER_STACK_WEBHOOK_URL` ele é ignorado e o deploy segue manual. |
 | Evidência de ambiente | O mesmo job faz um smoke test (`/actuator/health` da API e a página inicial) por até 5 minutos; ele não prova qual versão subiu. |
-| Cobertura de testes | O job do backend gera o relatório do JaCoCo, mas ainda não executa o gate de 90% de cobertura de linhas, que hoje vale em `./gradlew check`. O frontend tem testes unitários e E2E na CI, mas a cobertura dele não é medida. Detalhes em [Estratégia de Testes](./Estrategia-de-Testes). |
+| Cobertura de testes | O job do backend executa o gate de 80% de cobertura de linhas (`jacocoTestCoverageVerification`) e publica o relatório do JaCoCo como artefato `backend-coverage-report`. O frontend tem testes unitários e E2E na CI, mas a cobertura dele não é medida. Detalhes em [Estratégia de Testes](./Estrategia-de-Testes). |
 | Observabilidade | Logs, métricas, alertas e dashboards ainda não estão fechados como artefato de infraestrutura. |
 | Rollback operacional | O rollback deve usar a troca para uma tag versionada anterior, mas o procedimento operacional ainda precisa ser consolidado. |
 | Vulnerabilidades abertas | A evidência vem das abas Security/Dependabot e Security/Code scanning do GitHub, não apenas dos arquivos versionados. |

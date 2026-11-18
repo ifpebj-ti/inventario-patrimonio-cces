@@ -78,7 +78,7 @@ São sete especificações em `tests/e2e`: `access-control`, `administration`, `
 | Métrica do gate | Cobertura de **linhas** do backend, medida pelo JaCoCo |
 | Meta da Unidade 1 | Pelo menos 70% |
 | Meta da Unidade 2 | Acima de 90% |
-| Gate configurado | 90% de linhas (`jacocoTestCoverageVerification`, ligado ao `check`) |
+| Gate configurado | 80% de linhas (`jacocoTestCoverageVerification`, ligado ao `check` e executado na CI) |
 | Cobertura medida em 2026-11-14 | **93,4%** das linhas (2.045 de 2.190); 83,0% dos branches |
 
 Para medir localmente:
@@ -90,7 +90,7 @@ cd backend
 # relatório em XML:    backend/build/reports/jacoco/test/jacocoTestReport.xml
 ```
 
-O build falha quando a cobertura de linhas fica abaixo de 90%. O relatório HTML mostra a cobertura por pacote e por classe e marca, no código, as linhas sem teste; é o ponto de partida para decidir onde escrever o próximo teste.
+O build, e o check `Backend format and tests` da CI, falham quando a cobertura de linhas fica abaixo de 80%. O piso do gate (80%) é menor que a meta da Unidade 2 (acima de 90%): ele impede regressões grandes, mas a meta continua sendo perseguida acima dele. O relatório HTML mostra a cobertura por pacote e por classe e marca, no código, as linhas sem teste; é o ponto de partida para decidir onde escrever o próximo teste.
 
 A métrica escolhida é a de linhas porque a de branches (83,0%) tem menos folga e oscila mais com mudanças pequenas. Código sem chamador não deve ser mantido só para existir: ele conta como cobertura perdida e deve ser removido.
 
@@ -108,7 +108,6 @@ Os testes rodam no workflow `Quality`, para PRs que alteram a respectiva aplica�
 
 | Lacuna | Situação |
 | --- | --- |
-| Gate de cobertura na CI | O job do backend roda `./gradlew test`, que gera o relatório do JaCoCo, mas não executa `jacocoTestCoverageVerification`. O gate de 90% hoje vale para quem roda `./gradlew check` ou o comando acima localmente. Ligá-lo no workflow é uma pendência da esteira. |
 | Cobertura do frontend | Não há medição nem meta numérica para o frontend. Os 93,4% são do backend. |
 | Badge de cobertura | Não há badge no README. |
 | Integração frontend + backend | Os E2E do frontend usam API simulada e os do backend não passam pela interface. Nenhum teste automatizado exercita as duas pontas juntas. |
@@ -120,3 +119,4 @@ Os testes rodam no workflow `Quality`, para PRs que alteram a respectiva aplica�
 | Versão | Data | Descrição |
 | --- | --- | --- |
 | 1.0 | 2026-11-14 | Criação da página de Estratégia de Testes com camadas, comandos, cobertura, execução na CI e lacunas. |
+| 1.1 | 2026-11-17 | Gate de cobertura de linhas passa a rodar na CI, com piso de 80%. |
