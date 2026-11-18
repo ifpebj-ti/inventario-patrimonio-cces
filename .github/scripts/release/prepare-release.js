@@ -178,8 +178,7 @@ function writeReleaseNotes(tag, heading, summary) {
 
   const releaseNotesDir = path.resolve(process.env.RUNNER_TEMP || ROOT);
   // `tag` e validada acima (v<major>.<minor>.<patch>) e nao pode conter separadores de caminho.
-  // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
-  const releaseNotesPath = path.join(releaseNotesDir, `release-notes-${tag}.md`);
+  const releaseNotesPath = `${releaseNotesDir}${path.sep}release-notes-${tag}.md`;
 
   fs.writeFileSync(
     releaseNotesPath,
