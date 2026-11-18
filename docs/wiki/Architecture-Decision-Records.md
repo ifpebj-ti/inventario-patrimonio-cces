@@ -19,6 +19,9 @@ Eles registram decisões arquiteturais relevantes, incluindo contexto, decisao, 
 | `0005-adotar-api-rest-stateless.md` | Adotar API REST stateless com Bearer JWT. | Accepted |
 | `0006-publicar-na-oci-com-nginx-tls-e-portainer.md` | Publicar o Inventarium na OCI com Nginx, TLS Let's Encrypt e Portainer. | Accepted |
 | `0007-stack-de-observabilidade-na-vm-privada.md` | Stack de observabilidade (Prometheus, Loki, Tempo, Grafana) e SonarQube na VM privada. | Accepted |
+| `0008-grafana-publico-com-login.md` | Grafana público na internet com login obrigatório. | Accepted |
+| `0009-load-balancer-e-waf-da-oci.md` | Load Balancer e WAF da OCI na frente da aplicação. | Accepted |
+| `0010-gates-bloqueantes-de-semgrep-e-cobertura.md` | Gates bloqueantes de Semgrep e de cobertura de testes na CI. | Accepted |
 
 ## Convencao
 

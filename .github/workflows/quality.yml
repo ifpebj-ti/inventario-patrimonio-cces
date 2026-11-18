@@ -175,8 +175,9 @@ jobs:
         run: |
           echo "::warning::O Spotless encontrou problemas de formatação. O check é informativo temporariamente e não bloqueia este pull request."
 
-      - name: Run backend tests
-        run: ./gradlew test --no-daemon --console=plain
+      # Gate de cobertura: falha se a cobertura de linhas ficar abaixo de 80% (backend/build.gradle).
+      - name: Run backend tests and coverage gate
+        run: ./gradlew test jacocoTestCoverageVerification --no-daemon --console=plain
 
       - name: Upload test report
         if: always()
@@ -184,6 +185,15 @@ jobs:
         with:
           name: backend-test-report
           path: backend/build/reports/tests/test
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: backend-coverage-report
+          path: backend/build/reports/jacoco/test
           retention-days: 14
           if-no-files-found: warn
 
