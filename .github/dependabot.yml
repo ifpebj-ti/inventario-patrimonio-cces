@@ -10,6 +10,8 @@ updates:
       time: "09:00"
       timezone: "America/Sao_Paulo"
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     groups:
       npm-minor-and-patch:
         update-types:
@@ -25,6 +27,8 @@ updates:
       time: "09:30"
       timezone: "America/Sao_Paulo"
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -34,3 +38,5 @@ updates:
       day: "monday"
       time: "10:00"
       timezone: "America/Sao_Paulo"
+    cooldown:
+      default-days: 7

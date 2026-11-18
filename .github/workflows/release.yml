@@ -27,7 +27,7 @@ jobs:
       tag: ${{ steps.prepare.outputs.tag }}
     steps:
       - name: Checkout main
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: main
           fetch-depth: 0
@@ -36,7 +36,7 @@ jobs:
         run: git fetch --tags --force
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
 
@@ -70,7 +70,7 @@ jobs:
 
       - name: Upload release notes
         if: steps.prepare.outputs.skip != 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: release-notes
           path: ${{ steps.prepare.outputs.release_notes_path }}
@@ -89,7 +89,9 @@ jobs:
       force_build_all: true
       frontend_api_url: ${{ vars.NEXT_PUBLIC_API_URL }}
       frontend_google_client_id: ${{ vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID || vars.GOOGLE_OAUTH_CLIENT_ID }}
-    secrets: inherit
+    secrets:
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
+      GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
     permissions:
       contents: read
       packages: write
@@ -106,12 +108,12 @@ jobs:
       contents: write
     steps:
       - name: Checkout main
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: main
 
       - name: Download release notes
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: release-notes
           path: ${{ runner.temp }}/release-notes

@@ -18,11 +18,10 @@ jobs:
     name: Determine security scan scope
     runs-on: ubuntu-latest
     outputs:
-      semgrep: ${{ steps.scope.outputs.semgrep }}
       images: ${{ steps.scope.outputs.images }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
@@ -36,19 +35,13 @@ jobs:
           set -euo pipefail
 
           changed_files="$(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}")"
-          semgrep=false
           images=false
-
-          if echo "${changed_files}" | grep -Eq '^(backend/src/|frontend/src/|\.github/)'; then
-            semgrep=true
-          fi
 
           if echo "${changed_files}" | grep -Eq '^(frontend/|backend/|docker-compose\.yml|\.env\.example|\.github/workflows/(build-container-images|security-scans)\.yml)'; then
             images=true
           fi
 
           {
-            echo "semgrep=${semgrep}"
             echo "images=${images}"
           } >> "${GITHUB_OUTPUT}"
 
@@ -57,53 +50,45 @@ jobs:
             echo ""
             echo "| Scan | Executar |"
             echo "| --- | --- |"
-            echo "| Semgrep | ${semgrep} |"
             echo "| Mudancas em codigo de imagem (o job de imagens sempre roda e se autolimita) | ${images} |"
           } >> "${GITHUB_STEP_SUMMARY}"
 
   semgrep:
-    name: Semgrep SAST baseline
-    needs: changes
-    if: needs.changes.outputs.semgrep == 'true'
+    name: Semgrep SAST
+    # Sem `if:` de proposito: o check e obrigatorio no ruleset da main e um job pulado nunca reporta status.
+    # O scan leva cerca de 1 minuto, entao roda em todo PR.
     runs-on: ubuntu-latest
     container:
-      image: semgrep/semgrep
+      image: semgrep/semgrep:1.185.0@sha256:67518c174185a2043fdbed16c70631b79209499b3671178e7194379b48295a0d
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Run Semgrep baseline
-        id: semgrep
-        continue-on-error: true
+      - name: Run Semgrep
         run: >-
           semgrep scan
           --config p/default
           --metrics off
+          --error
           --sarif
           --output semgrep-report.sarif
           backend/src frontend/src .github
 
       - name: Upload Semgrep SARIF to Code Scanning
         if: always() && hashFiles('semgrep-report.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@9418214df1f2c4b8128c770156c409013b07d6b9 # v3
         with:
           sarif_file: semgrep-report.sarif
           category: semgrep
 
       - name: Upload Semgrep report artifact
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: semgrep-report
           path: semgrep-report.sarif
           retention-days: 14
           if-no-files-found: error
-
-      - name: Report baseline result
-        if: steps.semgrep.outcome == 'failure'
-        run: |
-          echo "Semgrep encontrou achados. O relatório SARIF foi anexado a esta execução."
-          echo "O gate bloqueante será ativado depois da triagem da linha de base."
 
   container-images:
     name: Trivy container and dependency scans

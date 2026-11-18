@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.checkout_ref }}
           fetch-depth: 0
@@ -127,7 +127,7 @@ jobs:
         if: steps.changes.outputs.frontend == 'true' || steps.changes.outputs.backend == 'true'
         id: trivy_secrets
         continue-on-error: true
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -140,7 +140,7 @@ jobs:
         if: steps.changes.outputs.frontend == 'true'
         id: trivy_frontend_dependencies
         continue-on-error: true
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scan-ref: ./frontend
@@ -158,7 +158,7 @@ jobs:
         if: steps.changes.outputs.backend == 'true'
         id: trivy_backend_dependencies
         continue-on-error: true
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scan-ref: ./backend
@@ -174,11 +174,11 @@ jobs:
 
       - name: Set up QEMU for multi-platform release images
         if: inputs.publish_images && (steps.changes.outputs.frontend == 'true' || steps.changes.outputs.backend == 'true')
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
 
       - name: Set up Docker Buildx
         if: steps.changes.outputs.frontend == 'true' || steps.changes.outputs.backend == 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Resolve image metadata
         if: steps.changes.outputs.frontend == 'true' || steps.changes.outputs.backend == 'true'
@@ -252,7 +252,7 @@ jobs:
 
       - name: Build frontend image
         if: steps.changes.outputs.frontend == 'true'
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
@@ -276,7 +276,7 @@ jobs:
         if: steps.changes.outputs.frontend == 'true'
         id: trivy_frontend_image
         continue-on-error: true
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ steps.meta.outputs.frontend_primary_tag }}
           scan-type: image
@@ -292,7 +292,7 @@ jobs:
 
       - name: Build backend image
         if: steps.changes.outputs.backend == 'true'
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: ./backend
           file: ./backend/Dockerfile
@@ -311,7 +311,7 @@ jobs:
         if: steps.changes.outputs.backend == 'true'
         id: trivy_backend_image
         continue-on-error: true
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ steps.meta.outputs.backend_primary_tag }}
           scan-type: image
@@ -374,7 +374,7 @@ jobs:
 
       - name: Upload Trivy report artifacts
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: trivy-reports
           path: trivy-*.sarif
@@ -383,35 +383,35 @@ jobs:
 
       - name: Upload Trivy secret report to Code Scanning
         if: always() && hashFiles('trivy-secrets.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@9418214df1f2c4b8128c770156c409013b07d6b9 # v3
         with:
           sarif_file: trivy-secrets.sarif
           category: trivy-secrets
 
       - name: Upload Trivy frontend dependency report to Code Scanning
         if: always() && hashFiles('trivy-frontend-dependencies.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@9418214df1f2c4b8128c770156c409013b07d6b9 # v3
         with:
           sarif_file: trivy-frontend-dependencies.sarif
           category: trivy-frontend-dependencies
 
       - name: Upload Trivy backend dependency report to Code Scanning
         if: always() && hashFiles('trivy-backend-dependencies.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@9418214df1f2c4b8128c770156c409013b07d6b9 # v3
         with:
           sarif_file: trivy-backend-dependencies.sarif
           category: trivy-backend-dependencies
 
       - name: Upload Trivy frontend image report to Code Scanning
         if: always() && hashFiles('trivy-frontend-image.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@9418214df1f2c4b8128c770156c409013b07d6b9 # v3
         with:
           sarif_file: trivy-frontend-image.sarif
           category: trivy-frontend-image
 
       - name: Upload Trivy backend image report to Code Scanning
         if: always() && hashFiles('trivy-backend-image.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@9418214df1f2c4b8128c770156c409013b07d6b9 # v3
         with:
           sarif_file: trivy-backend-image.sarif
           category: trivy-backend-image
@@ -507,7 +507,7 @@ jobs:
 
       - name: Log in to GHCR
         if: inputs.publish_images && (steps.changes.outputs.frontend == 'true' || steps.changes.outputs.backend == 'true')
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -515,7 +515,7 @@ jobs:
 
       - name: Build and publish multi-platform frontend image
         if: inputs.publish_images && steps.changes.outputs.frontend == 'true'
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
@@ -533,7 +533,7 @@ jobs:
 
       - name: Build and publish multi-platform backend image
         if: inputs.publish_images && steps.changes.outputs.backend == 'true'
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: ./backend
           file: ./backend/Dockerfile
