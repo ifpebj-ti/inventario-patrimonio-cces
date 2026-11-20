@@ -41,7 +41,7 @@ class InventoryCompletionTest {
     Sector sector = mock(Sector.class);
     when(sector.id()).thenReturn(3L);
     inventory = new Inventory("Teste", "", LocalDate.now().plusDays(1), actor, sector);
-    when(inventories.findByIdForUpdate(10L)).thenReturn(Optional.of(inventory));
+    when(inventories.findById(10L)).thenReturn(Optional.of(inventory));
     when(inventories.findById(10L)).thenReturn(Optional.of(inventory));
     when(inventories.save(inventory)).thenReturn(inventory);
   }
@@ -110,7 +110,7 @@ class InventoryCompletionTest {
   void adminCanFinishLegacyInventoryWithoutSector() {
     grant("ADMIN");
     Inventory legacy = new Inventory("Legado", "", null, actor, null);
-    when(inventories.findByIdForUpdate(10L)).thenReturn(Optional.of(legacy));
+    when(inventories.findById(10L)).thenReturn(Optional.of(legacy));
     service.finishInventory(10L, 7L);
     assertThat(legacy.status()).isEqualTo(Inventory.Status.CONCLUIDO);
   }
@@ -119,7 +119,7 @@ class InventoryCompletionTest {
   void managerCannotFinishInventoryWithoutSector() {
     grant("MANAGE_SECTOR");
     Inventory legacy = new Inventory("Legado", "", null, actor, null);
-    when(inventories.findByIdForUpdate(10L)).thenReturn(Optional.of(legacy));
+    when(inventories.findById(10L)).thenReturn(Optional.of(legacy));
     assertStatus(() -> service.finishInventory(10L, 7L), HttpStatus.FORBIDDEN);
   }
 
@@ -135,7 +135,7 @@ class InventoryCompletionTest {
 
   @Test
   void missingInventoryReturnsNotFound() {
-    when(inventories.findByIdForUpdate(10L)).thenReturn(Optional.empty());
+    when(inventories.findById(10L)).thenReturn(Optional.empty());
     assertStatus(() -> service.finishInventory(10L, 7L), HttpStatus.NOT_FOUND);
   }
 

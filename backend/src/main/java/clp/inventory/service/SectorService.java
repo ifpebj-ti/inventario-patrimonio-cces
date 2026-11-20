@@ -9,6 +9,7 @@ import clp.inventory.repository.SectorAllocationRepository;
 import clp.inventory.repository.SectorRepository;
 import java.util.List;
 import java.util.NoSuchElementException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,11 +44,16 @@ public class SectorService {
   public Sector createSector(SectorDto dto, long actingUserId) {
     authorizationService.requireAdmin(actingUserId);
     validateFields(dto);
-    if (sectorRepository.existsByName(dto.name())) {
-      throw new IllegalArgumentException("Sector with name '" + dto.name() + "' already exists");
+    String name = dto.name().trim();
+    if (sectorRepository.existsByName(name)) {
+      throw duplicateName(name);
     }
-    Sector sector = new Sector(dto.name().trim(), dto.code());
-    return sectorRepository.save(sector);
+    try {
+      // saveAndFlush: a violação da constraint por uma corrida aparece aqui e vira 400.
+      return sectorRepository.saveAndFlush(new Sector(name, dto.code()));
+    } catch (DataIntegrityViolationException e) {
+      throw duplicateName(name);
+    }
   }
 
   @Transactional
@@ -55,12 +61,17 @@ public class SectorService {
     authorizationService.requireAdmin(actingUserId);
     validateFields(dto);
     Sector sector = findSectorByIdInternal(id);
-    if (sectorRepository.existsByNameAndIdNot(dto.name(), id)) {
-      throw new IllegalArgumentException("Sector with name '" + dto.name() + "' already exists");
+    String name = dto.name().trim();
+    if (sectorRepository.existsByNameAndIdNot(name, id)) {
+      throw duplicateName(name);
     }
-    sector.setName(dto.name().trim());
+    sector.setName(name);
     sector.setCode(dto.code());
-    return sectorRepository.save(sector);
+    try {
+      return sectorRepository.saveAndFlush(sector);
+    } catch (DataIntegrityViolationException e) {
+      throw duplicateName(name);
+    }
   }
 
   @Transactional
@@ -126,6 +137,10 @@ public class SectorService {
     return sectorRepository
         .findById(id)
         .orElseThrow(() -> new NoSuchElementException("Sector not found with id: " + id));
+  }
+
+  private IllegalArgumentException duplicateName(String name) {
+    return new IllegalArgumentException("Sector with name '" + name + "' already exists");
   }
 
   private void validateFields(SectorDto dto) {

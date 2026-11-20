@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -60,7 +61,7 @@ public class InventoryService {
   public Inventory finishInventory(long inventoryId, long userId) {
     Inventory inventory =
         inventoryRepository
-            .findByIdForUpdate(inventoryId)
+            .findById(inventoryId)
             .orElseThrow(
                 () ->
                     new ResponseStatusException(
@@ -86,7 +87,7 @@ public class InventoryService {
   public Inventory reopenInventory(long inventoryId, long userId) {
     Inventory inventory =
         inventoryRepository
-            .findByIdForUpdate(inventoryId)
+            .findById(inventoryId)
             .orElseThrow(
                 () ->
                     new ResponseStatusException(
@@ -135,6 +136,7 @@ public class InventoryService {
     return inventory;
   }
 
+  @Transactional
   public Inventory createInventory(InventoryDto inventoryDto, long userId) {
     validateInventoryDto(inventoryDto);
     // Um setor é obrigatório na criação para que o inventário possa compor os indicadores por
@@ -156,7 +158,13 @@ public class InventoryService {
         new Inventory(
             inventoryDto.name(), inventoryDto.description(), plannedEndDate, user, sector);
 
-    return inventoryRepository.save(inventory);
+    // saveAndFlush: o INSERT sai aqui, dentro do método, e não só no commit. Se outra requisição
+    // criou o mesmo nome entre a conferência e a gravação, o índice único recusa e vira 400.
+    try {
+      return inventoryRepository.saveAndFlush(inventory);
+    } catch (DataIntegrityViolationException e) {
+      throw duplicateName(inventoryDto.name());
+    }
   }
 
   @Transactional
@@ -196,10 +204,20 @@ public class InventoryService {
       }
       inventory.setSector(sector);
     }
+    // O nome é único por responsável: o responsável é quem criou, não quem está editando.
+    if (!inventoryDto.name().equals(inventory.name())
+        && inventoryRepository.existsByNameAndUser_IdAndIdNot(
+            inventoryDto.name(), inventory.User().getId(), inventoryId)) {
+      throw duplicateName(inventoryDto.name());
+    }
     inventory.setName(inventoryDto.name());
     inventory.setDescription(inventoryDto.description());
     inventory.setPlannedEndDate(plannedEndDate);
-    return inventoryRepository.save(inventory);
+    try {
+      return inventoryRepository.saveAndFlush(inventory);
+    } catch (DataIntegrityViolationException e) {
+      throw duplicateName(inventoryDto.name());
+    }
   }
 
   /** Leitura de um inventário (e dos seus itens): admin ou alocado ao setor. */
@@ -375,9 +393,13 @@ public class InventoryService {
 
   private void validateInventoryUniqueness(String inventoryName, long userId) {
     if (inventoryRepository.existsByNameAndUser_Id(inventoryName, userId)) {
-      throw new RuntimeException(
-          "Inventory with name '" + inventoryName + "' already exists for this user");
+      throw duplicateName(inventoryName);
     }
+  }
+
+  private IllegalArgumentException duplicateName(String inventoryName) {
+    return new IllegalArgumentException(
+        "Inventory with name '" + inventoryName + "' already exists for this user");
   }
 
   /**
