@@ -354,7 +354,7 @@ test('drag-and-drop aceita BOM, delimitador entre aspas e aspas escapadas; model
 })
 
 for (const legacy of [false, true]) {
-  test(`sucesso parcial apresenta contadores e relatório (${legacy ? 'legado' : 'atual'})`, async ({
+  test(`206 não é mais aceito: a importação é tudo ou nada (${legacy ? 'legado' : 'atual'})`, async ({
     page,
   }) => {
     const report: Record<string, unknown> = {
@@ -380,13 +380,14 @@ for (const legacy of [false, true]) {
     )
     await select(page, csv + '002;Teclado;TI;100;Sala 1;Bom\n')
     await page.getByRole('button', { name: 'Processar', exact: true }).click()
-    await expect(page.getByTestId('import-counters')).toContainText(
-      'Importados: 1 · Falhas: 1',
-    )
-    await page.getByRole('button', { name: 'Ver erros (1)' }).click()
     await expect(
-      page.getByRole('dialog', { name: 'Falhas da importação' }),
-    ).toContainText('Item already exists in inventory')
+      page.getByRole('alert').filter({
+        hasText: 'O servidor não confirmou a importação. Confira o inventário.',
+      }),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: 'Processar', exact: true }),
+    ).toBeDisabled()
   })
 }
 
@@ -403,7 +404,7 @@ test('importação totalmente recusada preserva relatório e exige nova validaç
           code: '001',
           line: 2,
           success: false,
-          message: 'Item already exists in inventory',
+          message: 'Código repetido na planilha (já usado na linha 2)',
         },
       ],
     }),
@@ -418,7 +419,7 @@ test('importação totalmente recusada preserva relatório e exige nova validaç
   ).toBeDisabled()
   await page.getByRole('button', { name: 'Ver erros (1)' }).click()
   await expect(page.getByRole('dialog')).toContainText(
-    'Item already exists in inventory',
+    'Código repetido na planilha (já usado na linha 2)',
   )
 })
 

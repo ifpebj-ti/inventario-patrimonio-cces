@@ -186,14 +186,73 @@ class InventoryItemsE2ETest {
   }
 
   @Test
-  void importaCsvComCodigoRepetidoDevolveFalhaParcialOuTotal() {
+  void importaCsvComCodigoRepetidoRecusaAPlanilhaInteiraENadaEImportado() {
     long[] s = setup();
-    String csv = HEADER + "DUP-1;Item;Eu;1,00;Sala A;\nDUP-1;Item de novo;Eu;1,00;Sala A;\n";
+    String csv =
+        HEADER
+            + "OK-1;Item;Eu;1,00;Sala A;\nDUP-1;Item;Eu;1,00;Sala A;\nDUP-1;Item de novo;Eu;1,00;Sala A;\n";
 
     var response = importCsv(s[0], s[2], csv);
 
-    assertThat(response.getStatusCode()).isIn(HttpStatus.PARTIAL_CONTENT, HttpStatus.BAD_REQUEST);
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(response.getBody().get("successes\n")).isEqualTo(0);
     assertThat(response.getBody().get("failures\n")).isEqualTo(1);
+    assertThat(response.getBody().get("failedItems\n").toString())
+        .contains("DUP-1")
+        .contains("Código repetido na planilha")
+        .contains("linha 3");
+    // Nada entrou, nem a linha válida: a importação é tudo ou nada.
+    assertThat(listItems(s[0], s[2]).getBody()).isEmpty();
+  }
+
+  @Test
+  void importaCsvComLinhaInvalidaNaoImportaNenhumItem() {
+    long[] s = setup();
+    String csv =
+        HEADER + "OK-1;Item;Eu;1,00;Sala A;\n" + "C".repeat(31) + ";Item;Eu;1,00;Sala A;\n";
+
+    var response = importCsv(s[0], s[2], csv);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(response.getBody().get("successes\n")).isEqualTo(0);
+    assertThat(listItems(s[0], s[2]).getBody()).isEmpty();
+  }
+
+  @Test
+  void importaCsvComNomeDeSalaLongoDemaisRecusaAPlanilha() {
+    long[] s = setup();
+    String csv = HEADER + "OK-1;Item;Eu;1,00;" + "S".repeat(101) + ";\n";
+
+    var response = importCsv(s[0], s[2], csv);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(response.getBody().get("failedItems\n").toString()).contains("Nome da sala");
+    assertThat(listItems(s[0], s[2]).getBody()).isEmpty();
+  }
+
+  @Test
+  void segundaImportacaoNoMesmoInventarioDevolve409ESemDuplicar() {
+    long[] s = setup();
+    String csv = HEADER + "SEQ-1;Item;Eu;1,00;Sala A;\nSEQ-2;Item;Eu;1,00;Sala A;\n";
+
+    assertThat(importCsv(s[0], s[2], csv).getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    var second = importCsv(s[0], s[2], csv);
+
+    assertThat(second.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    assertThat(listItems(s[0], s[2]).getBody()).hasSize(2);
+  }
+
+  @Test
+  void validaPlanilhaComCodigoRepetidoDevolveErroNaLinhaRepetida() {
+    long[] s = setup();
+    String csv = HEADER + "DUP-1;Item;Eu;1,00;Sala;\nDUP-1;Item de novo;Eu;1,00;Sala;\n";
+
+    var response = postCsv("/inventory/validate-sheet", s[0], "itens.csv", csv);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(response.getBody().get("errors").toString())
+        .contains("Código repetido na planilha")
+        .contains("linha 2");
   }
 
   @Test
@@ -318,6 +377,33 @@ class InventoryItemsE2ETest {
 
     assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     assertThat(details.getStatusCode()).isEqualTo(HttpStatus.OK);
+  }
+
+  @Test
+  void itemAvulsoComCodigoRepetidoNoInventarioDevolve400() {
+    long[] s = setup();
+    var item = new HashMap<String, Object>();
+    item.put("code", "AV-DUP-" + System.nanoTime());
+    item.put("name", "Impressora");
+    item.put("price", 50000);
+
+    var first =
+        restTemplate.exchange(
+            "/inventory/add-single-item?inventoryId=" + s[2],
+            HttpMethod.POST,
+            new HttpEntity<>(item, authHeaders(s[0])),
+            Map.class);
+    var second =
+        restTemplate.exchange(
+            "/inventory/add-single-item?inventoryId=" + s[2],
+            HttpMethod.POST,
+            new HttpEntity<>(item, authHeaders(s[0])),
+            String.class);
+
+    assertThat(first.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    assertThat(second.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(second.getBody()).contains("Já existe um item com o código");
+    assertThat(listItems(s[0], s[2]).getBody()).hasSize(1);
   }
 
   @Test

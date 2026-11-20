@@ -106,7 +106,8 @@ export const addItemsBySheet = async (data: File, inventoryId: number) => {
     const response = await api.post('/inventory/add-items', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
-    if (response.status !== 201 && response.status !== 206) {
+    // A importação é tudo ou nada: o servidor só responde 201 quando a planilha inteira entrou.
+    if (response.status !== 201) {
       throw new SpreadsheetRequestError(
         'O servidor não confirmou a importação. Confira o inventário.',
       )
@@ -119,10 +120,7 @@ export const addItemsBySheet = async (data: File, inventoryId: number) => {
         report,
       )
     }
-    if (
-      (response.status === 201 && report.failures > 0) ||
-      (response.status === 206 && report.failures === 0)
-    ) {
+    if (report.failures > 0) {
       throw new SpreadsheetRequestError(
         'Resposta de importação inconsistente. Confira o inventário.',
         report.errors,

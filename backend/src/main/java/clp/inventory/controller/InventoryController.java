@@ -11,6 +11,7 @@ import clp.inventory.model.Observation;
 import clp.inventory.service.InventoryService;
 import clp.inventory.service.ItemService;
 import clp.inventory.utils.AuthenticationUtils;
+import clp.inventory.utils.RoomNames;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
@@ -268,19 +269,16 @@ public class InventoryController {
   @Operation(
       summary = "Importar planilha CSV de itens",
       description =
-          "Importa os itens de uma planilha CSV para o inventário. Planilha CSV (UTF-8) com cabeçalho. Delimitador ponto e vírgula (também aceita vírgula ou tab). Colunas reconhecidas pelo nome do cabeçalho: código (obrigatória; também 'patrimônio', 'etiqueta', 'tombamento'), descrição, responsável, valor/preço (em reais, convertido para centavos), sala/local e observação. Exige administrador ou gestor do setor; o inventário não pode estar finalizado nem já ter itens (para reimportar, limpe com DELETE /inventory/clear-items). Salas citadas que não existem no setor são criadas. Use antes POST /inventory/validate-sheet para conferir. Respostas: 201 se todos entraram, 206 se parte falhou, 400 se nenhum entrou. Atenção: os campos totalProcessed, successes, failures, successfulItems e failedItems têm uma quebra de linha no fim do nome (ex.: \"totalProcessed\\n\"), e é assim mesmo que a API os devolve.")
+          "Importa os itens de uma planilha CSV para o inventário. Planilha CSV (UTF-8) com cabeçalho. Delimitador ponto e vírgula (também aceita vírgula ou tab). Colunas reconhecidas pelo nome do cabeçalho: código (obrigatória; também 'patrimônio', 'etiqueta', 'tombamento'), descrição, responsável, valor/preço (em reais, convertido para centavos), sala/local e observação. Exige administrador ou gestor do setor; o inventário não pode estar finalizado nem já ter itens (para reimportar, limpe com DELETE /inventory/clear-items). Salas citadas que não existem no setor são criadas. Use antes POST /inventory/validate-sheet para conferir. A importação é tudo ou nada: a planilha inteira é validada (código obrigatório, até 30 caracteres e sem repetição na planilha; valor não negativo; sala com até 100 caracteres) e gravada numa transação só, com o inventário travado, então duas importações do mesmo inventário nunca se sobrepõem. Respostas: 201 se todos entraram, 400 se alguma linha é inválida (nada é gravado; failedItems traz as linhas com erro), 409 se o inventário já tem itens ou está finalizado. Atenção: os campos totalProcessed, successes, failures, successfulItems e failedItems têm uma quebra de linha no fim do nome (ex.: \"totalProcessed\\n\"), e é assim mesmo que a API os devolve.")
   @ApiResponses({
     @ApiResponse(
         responseCode = "201",
         description = "Todos os itens foram adicionados.",
         content = @Content(schema = @Schema(implementation = ImportItemsResponse.class))),
     @ApiResponse(
-        responseCode = "206",
-        description = "Importação parcial: alguns itens foram adicionados, outros falharam.",
-        content = @Content(schema = @Schema(implementation = ImportItemsResponse.class))),
-    @ApiResponse(
         responseCode = "400",
-        description = "Arquivo vazio, não CSV, sem itens ou nenhum item adicionado.",
+        description =
+            "Arquivo vazio, não CSV, sem itens ou com linhas inválidas (nada é importado).",
         content = @Content(schema = @Schema(implementation = MessageResponse.class))),
     @ApiResponse(
         responseCode = "404",
@@ -326,40 +324,33 @@ public class InventoryController {
             .body(Map.of("message", "A planilha CSV não contém itens ou dados para importar."));
       }
 
-      long roomsBefore = inventoryService.roomCountOf(inventoryId);
-      List<ItemProcessingResult> results = new ArrayList<>();
-
-      for (int i = 0; i < items.size(); i++) {
-        Item item = items.get(i);
-        ItemProcessingResult resultado =
-            inventoryService.addItemToInventory(inventoryId, item, i + 2);
-        results.add(resultado);
+      // O lote inteiro é validado antes de gravar: com qualquer linha inválida nada é importado.
+      ValidationResponse validation = validateItems(items);
+      if (validation.hasErrors()) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(rejectedImport(validation));
       }
 
-      List<ItemProcessingResult> successes =
-          results.stream().filter(ItemProcessingResult::success).collect(Collectors.toList());
+      InventoryService.ImportResult imported =
+          inventoryService.importItems(inventoryId, items, actingUserId(request));
 
-      List<ItemProcessingResult> errors =
-          results.stream().filter(r -> !r.success()).collect(Collectors.toList());
+      List<ItemProcessingResult> successes = new ArrayList<>();
+      for (int i = 0; i < items.size(); i++) {
+        successes.add(
+            new ItemProcessingResult(
+                items.get(i).code(), i + 2, true, "Item added successfully to inventory"));
+      }
 
       Map<String, Object> response = new HashMap<>();
-      response.put("totalProcessed\n", items.size());
-      response.put("successes\n", successes.size());
-      response.put("failures\n", errors.size());
+      response.put("totalProcessed\n", imported.imported());
+      response.put("successes\n", imported.imported());
+      response.put("failures\n", 0);
       response.put("successfulItems\n", successes);
-      response.put("failedItems\n", errors);
-      response.put("createdRooms", inventoryService.roomCountOf(inventoryId) - roomsBefore);
-
-      if (errors.isEmpty()) {
-        response.put("status", "Todos os itens foram adicionados com sucesso!");
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
-      } else if (successes.isEmpty()) {
-        response.put("status", "Nenhum item foi adicionado.");
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-      } else {
-        response.put("status", "Alguns itens foram adicionados, outros falharam.");
-        return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT).body(response);
-      }
+      response.put("failedItems\n", List.of());
+      response.put("createdRooms", imported.createdRooms());
+      response.put("status", "Todos os itens foram adicionados com sucesso!");
+      return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    } catch (ResponseStatusException e) {
+      throw e;
     } catch (IllegalArgumentException e) {
       return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", e.getMessage()));
     } catch (Exception e) {
@@ -589,8 +580,33 @@ public class InventoryController {
     return Long.parseLong(request.getAttribute("id_user").toString());
   }
 
+  /**
+   * Corpo do 400 quando a planilha tem linhas inválidas: mesmo formato do relatório de importação,
+   * com {@code successes} zero porque nada foi gravado. {@code totalProcessed} conta as linhas com
+   * erro (o front exige successes + failures = totalProcessed).
+   */
+  private Map<String, Object> rejectedImport(ValidationResponse validation) {
+    List<ItemProcessingResult> failed =
+        validation.errors().stream()
+            .map(
+                error ->
+                    new ItemProcessingResult(
+                        error.code(), error.line(), false, String.join("; ", error.errors())))
+            .toList();
+    Map<String, Object> response = new HashMap<>();
+    response.put("totalProcessed\n", failed.size());
+    response.put("successes\n", 0);
+    response.put("failures\n", failed.size());
+    response.put("successfulItems\n", List.of());
+    response.put("failedItems\n", failed);
+    response.put("createdRooms", 0);
+    response.put("status", "Nenhum item foi adicionado: a planilha tem linhas inválidas.");
+    return response;
+  }
+
   private ValidationResponse validateItems(List<Item> items) {
     List<ValidationError> errors = new ArrayList<>();
+    Map<String, Integer> firstLineOfCode = new HashMap<>();
 
     for (int i = 0; i < items.size(); i++) {
       Item item = items.get(i);
@@ -604,6 +620,19 @@ public class InventoryController {
 
       if (item.price() < 0) {
         errosItem.add("Preço não pode ser negativo");
+      }
+
+      String room = RoomNames.display(item.locale());
+      if (room != null && room.length() > RoomNames.MAX_LENGTH) {
+        errosItem.add("Nome da sala não pode ter mais de " + RoomNames.MAX_LENGTH + " caracteres");
+      }
+
+      // O código é único no inventário: a segunda linha em diante com o mesmo código é recusada.
+      if (item.code() != null && !item.code().trim().isEmpty()) {
+        Integer firstLine = firstLineOfCode.putIfAbsent(item.code(), i + 2);
+        if (firstLine != null) {
+          errosItem.add("Código repetido na planilha (já usado na linha " + firstLine + ")");
+        }
       }
 
       if (!errosItem.isEmpty()) {

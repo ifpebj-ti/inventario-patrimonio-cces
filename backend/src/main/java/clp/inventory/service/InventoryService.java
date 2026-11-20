@@ -1,7 +1,6 @@
 package clp.inventory.service;
 
 import clp.inventory.dto.InventoryDto;
-import clp.inventory.dto.ItemProcessingResult;
 import clp.inventory.dto.NewItemRequest;
 import clp.inventory.dto.RoomsPreviewDto;
 import clp.inventory.model.Inventory;
@@ -248,11 +247,23 @@ public class InventoryService {
     authorizationService.requireAdminOrSectorManager(userId);
   }
 
-  /** Só existe uma importação por inventário: para importar outra, limpe os itens antes. */
+  /**
+   * Conferência antecipada da importação, sem lock: devolve 403, 404 ou 409 antes de ler o arquivo.
+   * Só existe uma importação por inventário: para importar outra, limpe os itens antes. A
+   * conferência que vale é a de {@link #importItems}, feita com o inventário travado.
+   */
   @Transactional(readOnly = true)
   public void requireImportAllowed(long inventoryId, long userId) {
-    requireItemStructureChange(inventoryId, userId);
-    if (itemRepository.countByInventory_Id(inventoryId) > 0) {
+    checkImportAllowed(findInventoryOrNotFound(inventoryId), userId);
+  }
+
+  private void checkImportAllowed(Inventory inventory, long userId) {
+    authorizationService.requireManageInventory(userId, inventory);
+    if (inventory.status() == Inventory.Status.CONCLUIDO) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "Inventário finalizado: não é possível alterar os itens.");
+    }
+    if (itemRepository.countByInventory_Id(inventory.id()) > 0) {
       throw new ResponseStatusException(
           HttpStatus.CONFLICT,
           "Este inventário já tem itens importados. Para importar outra planilha, exclua primeiro"
@@ -267,33 +278,44 @@ public class InventoryService {
             () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Inventário não encontrado."));
   }
 
-  public ItemProcessingResult addItemToInventory(long inventoryId, Item item, int line) {
-    try {
-      Inventory inventory =
-          inventoryRepository
-              .findById(inventoryId)
-              .orElseThrow(
-                  () -> new RuntimeException("Inventory not found with id: " + inventoryId));
+  /** Resultado de uma importação concluída: itens gravados e salas novas criadas no setor. */
+  public record ImportResult(int imported, long createdRooms) {}
 
-      boolean itemExist =
-          inventory.items().stream()
-              .anyMatch(existingItem -> existingItem.code().equals(item.code()));
+  /**
+   * Importa a planilha inteira ou nada. Roda numa transação só e trava o inventário (SELECT ... FOR
+   * UPDATE) antes de conferir: duas importações do mesmo inventário não se sobrepõem, e a segunda
+   * encontra os itens da primeira e recebe 409. Qualquer falha desfaz tudo, inclusive as salas
+   * criadas, em vez de deixar o inventário meio importado. A planilha já deve ter sido validada
+   * (códigos, valores, repetições); o índice único (inventário, código) é a última barreira.
+   */
+  @Transactional
+  public ImportResult importItems(long inventoryId, List<Item> items, long userId) {
+    Inventory inventory =
+        inventoryRepository
+            .findByIdForUpdate(inventoryId)
+            .orElseThrow(
+                () ->
+                    new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Inventário não encontrado."));
+    checkImportAllowed(inventory, userId);
 
-      if (itemExist) {
-        return new ItemProcessingResult(
-            item.code(), line, false, "Item already exists in inventory");
-      }
-
+    long roomsBefore = countRoomsOf(inventory);
+    for (Item item : items) {
       attachRoom(inventory, item);
       inventory.addItem(item);
-      inventoryRepository.save(inventory);
-
-      return new ItemProcessingResult(
-          item.code(), line, true, "Item added successfully to inventory");
-    } catch (Exception e) {
-      return new ItemProcessingResult(
-          item.code(), line, false, "Error processing item: " + e.getMessage());
     }
+    try {
+      inventoryRepository.saveAndFlush(inventory);
+    } catch (DataIntegrityViolationException e) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "Os itens do inventário mudaram durante a importação; nada foi importado. Tente de novo.");
+    }
+    return new ImportResult(items.size(), countRoomsOf(inventory) - roomsBefore);
+  }
+
+  private long countRoomsOf(Inventory inventory) {
+    return inventory.sector() == null ? 0 : roomService.countRooms(inventory.sector().id());
   }
 
   public boolean removeItemFromInventory(long inventoryId, long itemId, long userId) {
@@ -414,13 +436,22 @@ public class InventoryService {
         throw new IllegalArgumentException("Item code cannot be null or empty");
       }
       Item item = request.toNewItem();
+      if (itemRepository.existsByInventory_IdAndCode(inventoryId, item.code())) {
+        throw new IllegalArgumentException(duplicateCodeMessage(item.code()));
+      }
       attachRoom(inventory, item);
       inventory.addItem(item);
-      inventoryRepository.save(inventory);
+      inventoryRepository.saveAndFlush(inventory);
       return item;
+    } catch (DataIntegrityViolationException e) {
+      throw new RuntimeException("Error adding item: " + duplicateCodeMessage(request.code()));
     } catch (Exception e) {
       throw new RuntimeException("Error adding item: " + e.getMessage());
     }
+  }
+
+  private static String duplicateCodeMessage(String code) {
+    return "Já existe um item com o código '" + code + "' neste inventário.";
   }
 
   /**
@@ -440,8 +471,7 @@ public class InventoryService {
   /** Quantas salas o setor do inventário tem hoje (para informar quantas a importação criou). */
   @Transactional(readOnly = true)
   public long roomCountOf(long inventoryId) {
-    Inventory inventory = findInventoryOrNotFound(inventoryId);
-    return inventory.sector() == null ? 0 : roomService.countRooms(inventory.sector().id());
+    return countRoomsOf(findInventoryOrNotFound(inventoryId));
   }
 
   /**
