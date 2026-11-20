@@ -8,10 +8,20 @@ O histórico é atualizado manualmente na própria pull request antes do merge e
 
 ### Breaking Changes
 
+- Backend: `PUT /item/{id}` passa a responder `409` quando o inventário está finalizado ou o item está validado e o corpo muda código, descrição, responsável, valor ou sala (vale também para administrador); antes só o estado de validação era barrado depois do fechamento. Um `PUT` que não muda esses dados continua `200`, e as observações seguem livres. Para corrigir um item validado é preciso desvalidá-lo antes (gestor ou administrador).
+- Backend: desvalidar um item (`PATCH /item/{id}/validate` com `{ "isValid": false }`, ou `PUT` com `isValid` falso) passa a exigir administrador ou gestor do setor e inventário aberto; antes o operador desvalidava pelo `PUT`. O `PATCH` deixa de devolver `200` sem aplicar nada.
 - Backend: `GET /item/export-sheet` e `POST /item/send-email-sheet` passam a exigir administrador ou gestor do setor do inventário (`MANAGE_SECTOR`). Consulta e Operador, que antes exportavam, recebem `403`; o front esconde os botões para eles. O envio só aceita destinatário de domínio permitido, e o `200` agora significa que o servidor de e-mail aceitou a mensagem (antes voltava antes do envio).
+
+### Added
+
+- Backend: `POST /inventory/{id}/reopen` (administrador ou gestor do setor) volta um inventário finalizado para `EM_ANDAMENTO` e limpa `completedAt`; é o caminho de correção depois do fechamento. `409` se o inventário não está finalizado.
 
 ### Fixed
 
+- Backend (FIN-03 e parte da FIN-14): item validado ou de inventário finalizado só aceita observações. `PUT /item/{id}` recusa com `409` a mudança de código, descrição, responsável, valor ou sala nesses casos; antes só a mudança de `isValid` era barrada, e um gestor podia, por exemplo, trocar o valor de um bem de um inventário concluído sem deixar rastro.
+- Backend: a transição de validação passa a ter uma regra única, usada pelo `PATCH /item/{id}/validate` e pelo `PUT`: validar exige poder operar e inventário aberto; desvalidar exige gestão, inventário aberto e item validado. Desvalidar e alterar dados no mesmo `PUT` é `409`.
+- Backend: auditoria de toda mudança. A desvalidação grava `VALIDATION_REVOKED` em `im_item_audit`; cada edição de dados grava `UPDATE_ITEM` em `im_inventory_audit` com o antes e depois dos campos que mudaram; a reabertura grava `REOPEN_INVENTORY`. Migration `11.0.xml` adiciona `id_item` (sem FK) a `im_inventory_audit`, para a trilha de edição não impedir excluir o item.
+- Frontend: a página do item esconde "Editar item" quando o item está validado, e o salvar mostra mensagem por status (`403` e `409`) em vez do texto genérico.
 - Backend (FIN-02): a planilha patrimonial, com responsável e valor de todos os bens, não sai mais para quem só pode ler nem para qualquer endereço. `send-email-sheet` valida o corpo (`@Email`, assunto sem quebra de linha, tamanhos), aceita só domínios de `EMAIL_SHEET_ALLOWED_DOMAINS` (padrão `ifpe.edu.br`, com subdomínios; `400` fora da lista), limita os envios por usuário (`EMAIL_SHEET_MAX_PER_WINDOW`, padrão 10 por `EMAIL_SHEET_WINDOW`, `1h`; `429` com `Retry-After`) e responde `502` se o envio falhar, em vez de engolir o erro.
 - Backend: migration `10.0.xml` cria `im_inventory_audit`; cada exportação e envio, inclusive os recusados (domínio, limite, falha), grava ator, setor do autor, inventário, destinatário e resultado. A tabela não tem FK de setor nem de inventário, para o histórico não impedir excluí-los.
 - Frontend: botões de exportar planilha e enviar por e-mail só aparecem para quem gerencia o inventário; o envio mostra mensagem por status (`400`, `403`, `429`, `502`) e confirma "Planilha enviada por e-mail" só depois do envio.
