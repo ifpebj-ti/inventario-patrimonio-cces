@@ -53,7 +53,7 @@ O catálogo de permissões é fixo (definido em código e migration) e tem 3 per
 | Permissão | O que libera no setor em que o cargo vale |
 | --- | --- |
 | `VIEW_SECTOR` (Consultar) | **Base da leitura**: lê, só do setor em que o cargo vale, a lista e o detalhe dos inventários, os itens e as observações e vê o histórico de validação. **Não altera nada** (nem valida, escaneia, edita, importa nem exclui) e **não exporta a planilha** (ela traz o responsável e o valor de todos os bens: exportar e enviar por e-mail são da gestão). |
-| `MANAGE_SECTOR` | Cria, edita, finaliza e exclui inventários do setor, importa e limpa itens, edita os dados dos itens, **exporta a planilha do inventário e a envia por e-mail** (só para domínios permitidos, com limite de envios e auditoria); aloca e desaloca usuários no próprio setor, **só com cargos sem `MANAGE_SECTOR`**; lê a lista de cargos e permissões. |
+| `MANAGE_SECTOR` | Cria, edita, finaliza, **reabre** e exclui inventários do setor, importa e limpa itens, edita os dados dos itens (**só com o inventário aberto e o item não validado**), **desvalida itens**, **exporta a planilha do inventário e a envia por e-mail** (só para domínios permitidos, com limite de envios e auditoria); aloca e desaloca usuários no próprio setor, **só com cargos sem `MANAGE_SECTOR`**; lê a lista de cargos e permissões. |
 | `MANAGE_ITEM` | Opera os itens do setor: valida (escaneia) e registra observações. Não cria, edita nem finaliza inventários e não altera os dados do item. **Inclui a Consulta.** |
 | (nenhuma) | Cargo sem permissões: o usuário está alocado, mas **não lê os dados do setor** (inventários, itens). |
 
@@ -236,8 +236,22 @@ encontrada é só registro: **não altera** a sala cadastrada.
   com ao menos uma sala, sem `roomId` (ou com sala de outro setor) a resposta é `400` e nada é gravado. Em setor **sem**
   salas valida como antes (sem corpo). `PUT /item/{id}` que muda `isValid` de falso para verdadeiro segue a mesma regra e
   lê `foundRoomId` do corpo, e grava a mesma auditoria. Inventário finalizado segue `409`.
-- Validar de novo um item já validado só gera outro registro se a sala informada for diferente da registrada. Desmarcar a
-  validação (`PUT` com `isValid` falso) limpa a sala encontrada.
+- Validar de novo um item já validado só gera outro registro se a sala informada for diferente da registrada.
+- **Item validado só aceita observações.** `PUT /item/{id}` que muda código, descrição, responsável, valor ou sala responde
+  `409` quando o inventário está finalizado **ou** o item está validado (vale também para administrador), e `403` para quem
+  não gerencia o inventário. Um `PUT` que não muda nenhum desses dados segue `200`. Observações (`PATCH /item/{id}/notes`)
+  continuam livres. Cada edição grava uma linha `UPDATE_ITEM` em `im_inventory_audit` (ator, setor do autor, inventário,
+  `id_item` e o antes e depois dos campos que mudaram); a trilha de edição não fica em `im_item_audit` para não prender o
+  item por chave estrangeira na exclusão.
+- **Desvalidar é ato de gestão.** `PATCH /item/{id}/validate` com `{ "isValid": false }` (ou `PUT /item/{id}` com
+  `isValid` falso, que usa as mesmas regras) desvalida o item: só administrador ou gestor do setor (`403` para os demais),
+  só com o inventário aberto (`409` se finalizado) e só se o item está validado (`409` se não está). Limpa a sala
+  encontrada e grava `VALIDATION_REVOKED` (status `REVOKED`) em `im_item_audit`. Desvalidar e alterar dados no mesmo `PUT`
+  é `409`: primeiro desvalida, depois edita.
+- **Reabrir o inventário.** `POST /inventory/{id}/reopen` (administrador ou gestor do setor; `403` para os demais, `409` se
+  o inventário não está finalizado, `404` se não existe) volta o inventário para `EM_ANDAMENTO` e limpa `completedAt`. É o
+  único caminho de correção depois do fechamento e grava `REOPEN_INVENTORY` em `im_inventory_audit`. Os itens continuam
+  validados: para corrigir os dados de um deles, o gestor ainda precisa desvalidá-lo.
 - `ItemDto` ganha `roomId`, `roomName`, `foundRoomId`, `foundRoomName` e `divergent`; `locale` continua só como nome da
   sala cadastrada (nulo se o item não tem sala); a coluna do banco foi removida. `ItemAuditDto` ganha `foundRoomId`, `foundRoomName`,
   `expectedRoomId`, `expectedRoomName` e `divergent`.
@@ -459,3 +473,4 @@ Para quem já tinha algo montado em cima da versão 1.x. **Mudança incompatíve
 | 2.1 | 2026-10-19 | Entram `GET /sectors/{id}/assignable-users` (só `id`, `name` e `email` de quem pode ser alocado) e `PUT /sectors/{id}/members` (alocação em lote com um cargo, tudo ou nada); nada existente muda de contrato (sub-issue de #154). |
 | 2.2 | 2026-11-01 | Entra a permissão `VIEW_SECTOR` (Consultar), a base da leitura: ler os inventários, itens e a exportação de um setor exige o cargo ter `VIEW_SECTOR` (ou `MANAGE_ITEM`/`MANAGE_SECTOR`, que a incluem); **cargo sem nenhuma permissão não lê os dados do setor** (antes bastava estar alocado). `GET /inventory/user-inventories` e `GET /sectors` só trazem setores em que o cargo dá leitura. A migration 8.0 dá `VIEW_SECTOR` a todos os cargos existentes, então ninguém perde acesso; salvar cargo com `MANAGE_*` inclui `VIEW_SECTOR` (sub-issue de #154). |
 | 2.3 | 2026-11-15 | **Contrato:** `GET /item/export-sheet` e `POST /item/send-email-sheet` passam a exigir administrador ou gestor do setor (`MANAGE_SECTOR`); Consulta e Operador recebem `403`. O envio por e-mail só aceita destinatário de domínio permitido (`EMAIL_SHEET_ALLOWED_DOMAINS`, padrão `ifpe.edu.br`, com subdomínios), corpo validado (`400`), limite de envios por usuário (`429` com `Retry-After`) e responde conforme o envio real (`200` só depois de o servidor de e-mail aceitar; `502` se falhar). Cada exportação e envio, inclusive os recusados, é registrado em `im_inventory_audit`. |
+| 2.4 | 2026-11-20 | **Contrato:** `PUT /item/{id}` só muda código, descrição, responsável, valor e sala com o inventário aberto e o item não validado (`409` caso contrário, inclusive para administrador); cada edição é registrada em `im_inventory_audit` (`UPDATE_ITEM`, com o antes e depois). `PATCH /item/{id}/validate` passa a aplicar `{ "isValid": false }`, restrito a administrador e gestor do setor, com inventário aberto, e grava `VALIDATION_REVOKED`; o `PUT` com `isValid` falso usa a mesma regra (antes qualquer operador desvalidava, sem trilha). Entra `POST /inventory/{id}/reopen` (administrador ou gestor), registrado como `REOPEN_INVENTORY`. Migration `11.0.xml` adiciona `id_item` a `im_inventory_audit`. |

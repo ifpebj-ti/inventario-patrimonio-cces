@@ -331,7 +331,16 @@ class AccessControlE2ETest {
     assertThat(status(s.operatorA, HttpMethod.PUT, url, itemBody(s.itemA, true, "Outra")))
         .isEqualTo(HttpStatus.FORBIDDEN);
     assertThat(items.findById(s.itemA.id()).orElseThrow().description()).isEqualTo("Mesa");
+    // Item validado só aceita observações: nem o gestor altera os dados.
     assertThat(status(s.managerA, HttpMethod.PUT, url, itemBody(s.itemA, true, "Outra")))
+        .isEqualTo(HttpStatus.CONFLICT);
+    assertThat(items.findById(s.itemA.id()).orElseThrow().description()).isEqualTo("Mesa");
+    // Para corrigir, o gestor desvalida antes (o operador não pode).
+    assertThat(status(s.operatorA, HttpMethod.PUT, url, itemBody(s.itemA, false, "Mesa")))
+        .isEqualTo(HttpStatus.FORBIDDEN);
+    assertThat(status(s.managerA, HttpMethod.PUT, url, itemBody(s.itemA, false, "Mesa")))
+        .isEqualTo(HttpStatus.OK);
+    assertThat(status(s.managerA, HttpMethod.PUT, url, itemBody(s.itemA, false, "Outra")))
         .isEqualTo(HttpStatus.OK);
     assertThat(items.findById(s.itemA.id()).orElseThrow().description()).isEqualTo("Outra");
   }

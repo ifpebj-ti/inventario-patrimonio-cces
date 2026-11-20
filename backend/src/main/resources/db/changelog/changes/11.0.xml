@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+    <!--
+        im_inventory_audit passa a registrar tambem a edicao dos dados de um item (UPDATE_ITEM) e a reabertura de um
+        inventario finalizado (REOPEN_INVENTORY). A edicao de item nao vai para a im_item_audit de proposito: a FK
+        im_item_audit.id_item nao tem regra de exclusao, entao cada linha ali impede excluir o item (delete-item e
+        clear-items respondem 500). id_item aqui e um id simples, sem FK, para o historico nao travar a exclusao.
+    -->
+    <changeSet id="20261120-01" author="inventarium">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="im_inventory_audit" columnName="id_item"/>
+            </not>
+        </preConditions>
+
+        <addColumn tableName="im_inventory_audit">
+            <column name="id_item" type="BIGINT"/>
+        </addColumn>
+
+        <createIndex tableName="im_inventory_audit" indexName="idx_inventory_audit_item">
+            <column name="id_item"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

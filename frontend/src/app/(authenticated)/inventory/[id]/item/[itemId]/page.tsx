@@ -25,6 +25,7 @@ import {
   getItemByIdRequest,
   updateItemRequest,
   updateItemNotesRequest,
+  updateItemErrorMessage,
 } from '@/services/item'
 import { ObservationModal } from '@/components/organisms/modalObservation'
 import { toast } from 'sonner'
@@ -111,8 +112,8 @@ export default function ItemDetailPage() {
       setItem(saved)
       setDraft(null)
       toast.success('Item atualizado com sucesso.')
-    } catch {
-      setEditError('Não foi possível salvar o item. Tente novamente.')
+    } catch (error) {
+      setEditError(updateItemErrorMessage(error))
     } finally {
       setBusy(false)
     }
@@ -171,7 +172,8 @@ export default function ItemDetailPage() {
                 <h2 className="text-lg font-semibold text-foreground">
                   Dados do item
                 </h2>
-                {canManageInventories && (
+                {/* Item validado só aceita observações: o gestor desvalida antes de corrigir. */}
+                {canManageInventories && !item.isValid && (
                   <UiButton
                     variant="default"
                     className="w-auto"

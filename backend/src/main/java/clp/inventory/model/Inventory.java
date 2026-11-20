@@ -66,6 +66,15 @@ public class Inventory {
     this.status = Status.CONCLUIDO;
   }
 
+  /** Volta um inventário finalizado para em andamento. A data de finalização deixa de valer. */
+  public void reopen() {
+    if (status != Status.CONCLUIDO) {
+      throw new IllegalStateException("O inventário não está finalizado.");
+    }
+    this.completedAt = null;
+    this.status = Status.EM_ANDAMENTO;
+  }
+
   @ManyToOne
   @JoinColumn(name = "id_user", nullable = false)
   private User user;

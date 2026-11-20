@@ -15,7 +15,9 @@ public class ItemAuditService {
 
   public static final String EVENT_VALIDATION = "VALIDATION";
   public static final String EVENT_PARTIAL_VALIDATION = "PARTIAL_VALIDATION";
+  public static final String EVENT_VALIDATION_REVOKED = "VALIDATION_REVOKED";
   public static final String STATUS_VALIDATED = "VALIDATED";
+  public static final String STATUS_REVOKED = "REVOKED";
   public static final String STATUS_PENDING_TARGET_SECTOR = "PENDING_TARGET_SECTOR";
 
   private final ItemAuditRepository itemAuditRepository;
