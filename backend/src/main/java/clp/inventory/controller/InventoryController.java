@@ -170,11 +170,10 @@ public class InventoryController {
   })
   @PostMapping("/{inventoryId}/reopen")
   public ResponseEntity<InventoryDto> reopenInventory(
-      @PathVariable long inventoryId,
-      @Parameter(hidden = true) @RequestHeader("Authorization") String authHeader) {
-    long userId = Long.parseLong(authenticationUtils.getUserIdFromToken(authHeader));
+      @PathVariable long inventoryId, HttpServletRequest request) {
     return ResponseEntity.ok(
-        inventoryService.toDto(inventoryService.reopenInventory(inventoryId, userId)));
+        inventoryService.toDto(
+            inventoryService.reopenInventory(inventoryId, actingUserId(request))));
   }
 
   @Operation(
