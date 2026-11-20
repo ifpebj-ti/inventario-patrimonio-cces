@@ -29,7 +29,11 @@ import {
   Save,
   TriangleAlert,
 } from 'lucide-react'
-import { updateItemRequest, updateItemNotesRequest } from '@/services/item'
+import {
+  updateItemRequest,
+  updateItemNotesRequest,
+  updateItemErrorMessage,
+} from '@/services/item'
 import { toast } from 'sonner'
 
 interface ItemDetailDrawerProps {
@@ -154,7 +158,7 @@ export const ItemDetailDrawer: React.FC<ItemDetailDrawerProps> = ({
       onClose()
     } catch (error) {
       console.error('Erro ao salvar item:', error)
-      toast.error('Não foi possível salvar as alterações do item.')
+      toast.error(updateItemErrorMessage(error))
     } finally {
       setIsSaving(false)
     }

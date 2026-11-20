@@ -76,6 +76,21 @@ export const updateItemRequest = async (updatedItem: Item): Promise<Item> => {
   return response.data
 }
 
+// O backend não devolve texto de erro no corpo, então a mensagem vem do status ao salvar um item:
+// 403 (desvalidar ou editar dados é do gestor do setor) e 409 (item validado ou inventário
+// finalizado: só observações podem mudar).
+export const updateItemErrorMessage = (error: unknown): string => {
+  if (axios.isAxiosError(error)) {
+    switch (error.response?.status) {
+      case 403:
+        return 'Seu cargo neste setor não permite esta alteração. Desvalidar um item e editar os dados é do gestor do setor.'
+      case 409:
+        return 'Item validado ou inventário finalizado: só é possível registrar observações. O gestor pode desvalidar o item ou reabrir o inventário para corrigir.'
+    }
+  }
+  return 'Não foi possível salvar o item. Tente novamente.'
+}
+
 // Valida o item informando a sala em que foi encontrado (obrigatória em setor com salas).
 export const validateItemRequest = async (
   itemId: number,
