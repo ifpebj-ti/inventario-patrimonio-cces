@@ -28,7 +28,8 @@ class InventoryCompletionTest {
           mock(SectorRepository.class),
           mock(UserService.class),
           authorization,
-          mock(RoomService.class));
+          mock(RoomService.class),
+          mock(InventoryAuditService.class));
   private User actor;
   private Inventory inventory;
 

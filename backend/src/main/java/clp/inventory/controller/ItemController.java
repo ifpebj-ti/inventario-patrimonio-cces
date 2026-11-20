@@ -94,7 +94,7 @@ public class ItemController {
   @Operation(
       summary = "Atualizar item",
       description =
-          "O id do caminho precisa ser igual ao do corpo. Exige poder operar o inventário (administrador, gestor ou MANAGE_ITEM). Alterar o estado de validação de um item não é permitido depois que o inventário é finalizado.")
+          "O id do caminho precisa ser igual ao do corpo. Exige poder operar o inventário (administrador, gestor ou MANAGE_ITEM). Código, descrição, responsável, valor e sala só mudam para administrador ou gestor do setor, com o inventário aberto e o item não validado (409 caso contrário; para corrigir um item validado, desvalide antes). Cada edição é registrada na auditoria (UPDATE_ITEM). Alterar isValid segue as regras de PATCH /item/{id}/validate. Observações têm endpoint próprio e continuam livres.")
   @ApiResponses({
     @ApiResponse(
         responseCode = "200",
@@ -105,7 +105,10 @@ public class ItemController {
         description = "Id do caminho diferente do id do corpo, ou corpo inválido.",
         content = @Content),
     @ApiResponse(responseCode = "404", description = "Item não encontrado.", content = @Content),
-    @ApiResponse(responseCode = "409", description = "Inventário finalizado.", content = @Content)
+    @ApiResponse(
+        responseCode = "409",
+        description = "Inventário finalizado ou item validado.",
+        content = @Content)
   })
   @PutMapping("/{id}")
   public ResponseEntity<ItemDto> updateItem(
@@ -119,9 +122,9 @@ public class ItemController {
   }
 
   @Operation(
-      summary = "Validar item",
+      summary = "Validar ou desvalidar item",
       description =
-          "Marca o item como validado na sala informada e registra a auditoria (sala encontrada x cadastrada e se divergem). Em setor que tem salas, roomId é obrigatório; em setor sem salas pode ser omitido. Se o usuário não é alocado ao setor do inventário (e não é administrador), a validação é parcial e fica pendente do setor de destino. Validar de novo um item já validado só gera novo registro se a sala for outra. Não é permitido com o inventário finalizado.")
+          "Com o corpo omitido ou isValid true, marca o item como validado na sala informada e registra a auditoria (sala encontrada x cadastrada e se divergem). Em setor que tem salas, roomId é obrigatório; em setor sem salas pode ser omitido. Se o usuário não é alocado ao setor do inventário (e não é administrador), a validação é parcial e fica pendente do setor de destino. Validar de novo um item já validado só gera novo registro se a sala for outra. Com isValid false, desvalida o item: só administrador ou gestor do setor, com o inventário aberto e o item validado, e registra a auditoria (VALIDATION_REVOKED). Nenhuma das duas é permitida com o inventário finalizado.")
   @ApiResponses({
     @ApiResponse(
         responseCode = "200",
@@ -132,8 +135,15 @@ public class ItemController {
         description =
             "roomId ausente em setor com salas, ou sala que não é do setor do inventário.",
         content = @Content),
+    @ApiResponse(
+        responseCode = "403",
+        description = "Desvalidar sem ser administrador nem gestor do setor.",
+        content = @Content),
     @ApiResponse(responseCode = "404", description = "Item não encontrado.", content = @Content),
-    @ApiResponse(responseCode = "409", description = "Inventário finalizado.", content = @Content)
+    @ApiResponse(
+        responseCode = "409",
+        description = "Inventário finalizado, ou desvalidar um item que não está validado.",
+        content = @Content)
   })
   @PatchMapping("/{id}/validate")
   public ResponseEntity<ItemDto> validateItem(
@@ -142,8 +152,11 @@ public class ItemController {
           @RequestBody(required = false)
           ValidateItemRequest body,
       HttpServletRequest request) {
-    Item validated =
-        itemService.validateItem(id, actingUserId(request), body != null ? body.roomId() : null);
+    long userId = actingUserId(request);
+    if (body != null && Boolean.FALSE.equals(body.isValid())) {
+      return ResponseEntity.ok(ItemDto.from(itemService.invalidateItem(id, userId)));
+    }
+    Item validated = itemService.validateItem(id, userId, body != null ? body.roomId() : null);
     return ResponseEntity.ok(ItemDto.from(validated));
   }
 

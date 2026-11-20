@@ -37,6 +37,7 @@ public class InventoryService {
   private final UserService userService;
   private final AuthorizationService authorizationService;
   private final RoomService roomService;
+  private final InventoryAuditService inventoryAuditService;
 
   public InventoryService(
       InventoryRepository inventoryRepository,
@@ -44,13 +45,15 @@ public class InventoryService {
       SectorRepository sectorRepository,
       UserService userService,
       AuthorizationService authorizationService,
-      RoomService roomService) {
+      RoomService roomService,
+      InventoryAuditService inventoryAuditService) {
     this.inventoryRepository = inventoryRepository;
     this.itemRepository = itemRepository;
     this.sectorRepository = sectorRepository;
     this.userService = userService;
     this.authorizationService = authorizationService;
     this.roomService = roomService;
+    this.inventoryAuditService = inventoryAuditService;
   }
 
   @Transactional
@@ -72,6 +75,46 @@ public class InventoryService {
     }
     inventory.finish(LocalDateTime.now());
     return inventoryRepository.save(inventory);
+  }
+
+  /**
+   * Reabre um inventário finalizado (volta para em andamento) para que o gestor corrija o que for
+   * preciso. É o único caminho de correção depois do fechamento, e o ato fica na trilha de
+   * auditoria. Mesma permissão de finalizar: administrador ou gestor do setor.
+   */
+  @Transactional
+  public Inventory reopenInventory(long inventoryId, long userId) {
+    Inventory inventory =
+        inventoryRepository
+            .findByIdForUpdate(inventoryId)
+            .orElseThrow(
+                () ->
+                    new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Inventário não encontrado."));
+    if (!canFinalize(inventory, userId)) {
+      throw new ResponseStatusException(
+          HttpStatus.FORBIDDEN,
+          "Somente o admin ou o responsável pelo setor pode reabrir o inventário.");
+    }
+    if (inventory.status() != Inventory.Status.CONCLUIDO) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "O inventário não está finalizado.");
+    }
+    LocalDateTime completedAt = inventory.completedAt();
+    inventory.reopen();
+    Inventory saved = inventoryRepository.save(inventory);
+
+    Long sectorId = inventory.sector() == null ? null : inventory.sector().id();
+    Long actorSectorId =
+        sectorId != null && authorizationService.isAllocatedTo(userId, sectorId) ? sectorId : null;
+    inventoryAuditService.record(
+        userService.findUserById(userId),
+        actorSectorId,
+        inventory.id(),
+        InventoryAuditService.ACTION_REOPEN_INVENTORY,
+        null,
+        InventoryAuditService.STATUS_SUCCESS,
+        completedAt == null ? null : "Finalizado em " + completedAt);
+    return saved;
   }
 
   public boolean canFinalize(Inventory inventory, long userId) {

@@ -147,6 +147,37 @@ public class InventoryController {
   }
 
   @Operation(
+      summary = "Reabrir inventário",
+      description =
+          "Exige administrador ou gestor (MANAGE_SECTOR) do setor. Volta um inventário finalizado para EM_ANDAMENTO e limpa a data de finalização, para que o gestor corrija itens. O ato é registrado na auditoria (REOPEN_INVENTORY).")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "Inventário reaberto.",
+        content = @Content(schema = @Schema(implementation = InventoryDto.class))),
+    @ApiResponse(
+        responseCode = "403",
+        description = "Sem permissão para reabrir este inventário.",
+        content = @Content),
+    @ApiResponse(
+        responseCode = "404",
+        description = "Inventário não encontrado.",
+        content = @Content),
+    @ApiResponse(
+        responseCode = "409",
+        description = "O inventário não está finalizado.",
+        content = @Content)
+  })
+  @PostMapping("/{inventoryId}/reopen")
+  public ResponseEntity<InventoryDto> reopenInventory(
+      @PathVariable long inventoryId,
+      @Parameter(hidden = true) @RequestHeader("Authorization") String authHeader) {
+    long userId = Long.parseLong(authenticationUtils.getUserIdFromToken(authHeader));
+    return ResponseEntity.ok(
+        inventoryService.toDto(inventoryService.reopenInventory(inventoryId, userId)));
+  }
+
+  @Operation(
       summary = "Excluir inventário",
       description = "Exige administrador ou gestor (MANAGE_SECTOR) do setor.")
   @ApiResponses({

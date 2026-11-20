@@ -170,6 +170,14 @@ por `1h`; 429 com `Retry-After`). O envio é síncrono: `200` só depois de o se
 a mensagem, `502` se falhar. Cada exportação e envio, inclusive os recusados, fica em `im_inventory_audit`.
 O contador de envios é em memória: zera ao reiniciar e vale por instância.
 
+**Edição de item e reabertura.** Código, descrição, responsável, valor e sala de um item só mudam
+(`PUT /item/{id}`) com o inventário aberto e o item não validado, e só para administrador e gestor
+do setor; fora disso é `409`. Observações seguem livres. Para corrigir um item validado, o gestor o
+desvalida antes (`PATCH /item/{id}/validate` com `{ "isValid": false }`, que grava
+`VALIDATION_REVOKED` em `im_item_audit`); para corrigir depois do fechamento, reabre o inventário
+(`POST /inventory/{id}/reopen`). Cada edição (`UPDATE_ITEM`) e cada reabertura (`REOPEN_INVENTORY`)
+fica em `im_inventory_audit`, que não tem FK do item, para a trilha não impedir excluir o item.
+
 **IP do cliente.** Quem enxerga o IP real é o Nginx, por isso o limite por IP é dele: o backend não lê
 o IP no login. Em desenvolvimento, sem Nginx na frente, só vale o bloqueio por usuário.
 `FORWARD_HEADERS_STRATEGY=native` (padrão de produção, com o Nginx sobrescrevendo o

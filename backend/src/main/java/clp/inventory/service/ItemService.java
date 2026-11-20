@@ -11,6 +11,7 @@ import clp.inventory.repository.InventoryRepository;
 import clp.inventory.repository.ItemRepository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -32,6 +33,7 @@ public class ItemService {
   private final UserService userService;
   private final ItemAuditService itemAuditService;
   private final RoomService roomService;
+  private final InventoryAuditService inventoryAuditService;
 
   public ItemService(
       ItemRepository itemRepository,
@@ -39,13 +41,15 @@ public class ItemService {
       AuthorizationService authorizationService,
       UserService userService,
       ItemAuditService itemAuditService,
-      RoomService roomService) {
+      RoomService roomService,
+      InventoryAuditService inventoryAuditService) {
     this.itemRepository = itemRepository;
     this.inventoryRepository = inventoryRepository;
     this.authorizationService = authorizationService;
     this.userService = userService;
     this.itemAuditService = itemAuditService;
     this.roomService = roomService;
+    this.inventoryAuditService = inventoryAuditService;
   }
 
   /** Leitura de um item: quem enxerga o inventário a que ele pertence. */
@@ -140,6 +144,72 @@ public class ItemService {
     return itemRepository.save(item);
   }
 
+  /**
+   * Desvalida um item validado. Só administrador ou gestor do setor, e só com o inventário aberto:
+   * é o jeito de destravar um item validado para corrigir os dados dele. Grava a auditoria
+   * (VALIDATION_REVOKED). 409 se o item não está validado.
+   */
+  @Transactional
+  public Item invalidateItem(long itemId, long userId) {
+    Item item = requireItem(itemId);
+    Inventory inventory = inventoryOf(item);
+    if (!authorizationService.canManageInventory(userId, inventory)) {
+      throw new ResponseStatusException(
+          HttpStatus.FORBIDDEN, "Somente o admin ou o gestor do setor pode desvalidar um item.");
+    }
+    if (inventory.status() == Inventory.Status.CONCLUIDO) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "Inventário finalizado: não é possível desvalidar itens. Reabra o inventário.");
+    }
+    if (!item.isValid()) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "O item não está validado.");
+    }
+    revokeValidation(item, inventory, userId);
+    return itemRepository.save(item);
+  }
+
+  /** Desfaz a validação e grava a auditoria com o que foi desfeito. */
+  private void revokeValidation(Item item, Inventory inventory, long userId) {
+    String details = revokedValidationDetails(item);
+    item.setValid(false);
+    item.setValidatedAt(null);
+    item.setFoundRoom(null);
+    itemRepository.save(item);
+    itemAuditService.record(
+        item,
+        inventory,
+        userService.findUserById(userId),
+        actorSectorOf(userId, inventory),
+        inventory.sector(),
+        ItemAuditService.EVENT_VALIDATION_REVOKED,
+        ItemAuditService.STATUS_REVOKED,
+        details,
+        null);
+  }
+
+  private static String revokedValidationDetails(Item item) {
+    StringBuilder details = new StringBuilder();
+    if (item.validatedAt() != null) {
+      details.append("Validado em ").append(item.validatedAt());
+    }
+    if (item.foundRoom() != null) {
+      if (details.length() > 0) {
+        details.append("; ");
+      }
+      details.append("sala encontrada: ").append(item.foundRoom().name());
+    }
+    return details.length() == 0 ? null : details.toString();
+  }
+
+  /** O setor do autor é o do inventário quando ele é alocado a ele; administrador fica sem. */
+  private Sector actorSectorOf(long userId, Inventory inventory) {
+    Sector sector = inventory.sector();
+    return sector != null && authorizationService.isAllocatedTo(userId, sector.id())
+        ? sector
+        : null;
+  }
+
   private static void requireOpen(Inventory inventory) {
     if (inventory.status() == Inventory.Status.CONCLUIDO) {
       throw new ResponseStatusException(
@@ -206,16 +276,21 @@ public class ItemService {
     return null;
   }
 
+  /**
+   * Atualiza os dados de um item. Código, descrição, responsável, valor e sala só mudam com o
+   * inventário aberto e o item não validado (para corrigir um item validado, desvalide antes); e só
+   * quem gerencia o inventário altera esses dados. Cada edição grava a auditoria (UPDATE_ITEM) com
+   * o antes e o depois. Observações têm endpoint próprio e continuam livres.
+   *
+   * <p>A mudança de {@code isValid} segue as mesmas regras e a mesma auditoria de PATCH
+   * /item/{id}/validate: validar exige poder operar e inventário aberto; desvalidar exige gestão.
+   */
   @Transactional
   public Item updateItem(ItemDto updatedItem, long userId) {
     Item existingItem = requireItem(updatedItem.id());
     Inventory inventory = inventoryOf(existingItem);
     authorizationService.requireOperateInventory(userId, inventory);
     boolean validationChanged = updatedItem.isValid() != existingItem.isValid();
-    if (inventory.status() == Inventory.Status.CONCLUIDO && validationChanged) {
-      throw new ResponseStatusException(
-          HttpStatus.CONFLICT, "Inventário finalizado: não é possível validar itens.");
-    }
 
     // O DTO traz o valor em reais; a entidade persiste em centavos.
     // Trata moedas formatadas ("R$ 1.500,00"), decimais ou valores numéricos simples
@@ -239,35 +314,115 @@ public class ItemService {
             ? !Objects.equals(currentRoomId, updatedItem.roomId())
             : !Objects.equals(existingItem.locale(), updatedItem.locale());
 
-    if (!authorizationService.canManageInventory(userId, inventory)
-        && !(Objects.equals(existingItem.code(), updatedItem.code())
-            && Objects.equals(existingItem.description(), updatedItem.description())
-            && !roomChanged
-            && Objects.equals(existingItem.responsible(), updatedItem.responsible())
-            && priceParseLong == existingItem.price())) {
+    boolean dataChanged =
+        !Objects.equals(existingItem.code(), updatedItem.code())
+            || !Objects.equals(existingItem.description(), updatedItem.description())
+            || roomChanged
+            || !Objects.equals(existingItem.responsible(), updatedItem.responsible())
+            || priceParseLong != existingItem.price();
+
+    if (dataChanged) {
+      if (!authorizationService.canManageInventory(userId, inventory)) {
+        throw new ResponseStatusException(
+            HttpStatus.FORBIDDEN, "Seu perfil só pode validar itens e registrar observações.");
+      }
+      requireDataEditable(inventory, existingItem);
+
+      ItemSnapshot before = ItemSnapshot.of(existingItem);
+      existingItem.setCode(updatedItem.code());
+      existingItem.setName("");
+      existingItem.setDescription(updatedItem.description());
+      existingItem.setPrice(priceParseLong);
+      if (roomChanged) {
+        changeRoom(existingItem, inventory, updatedItem);
+      }
+      existingItem.setResponsible(updatedItem.responsible());
+      itemRepository.save(existingItem);
+      recordItemUpdate(existingItem, inventory, userId, before);
+    }
+
+    if (validationChanged) {
+      return updatedItem.isValid()
+          ? validateItem(existingItem.id(), userId, updatedItem.foundRoomId())
+          : invalidateItem(existingItem.id(), userId);
+    }
+    return existingItem;
+  }
+
+  /** Dados do item só mudam com o inventário aberto e o item não validado. */
+  private static void requireDataEditable(Inventory inventory, Item item) {
+    if (inventory.status() == Inventory.Status.CONCLUIDO) {
       throw new ResponseStatusException(
-          HttpStatus.FORBIDDEN, "Seu perfil só pode validar itens e registrar observações.");
+          HttpStatus.CONFLICT,
+          "Inventário finalizado: não é possível alterar os dados do item. Reabra o inventário.");
+    }
+    if (item.isValid()) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "Item validado: só é possível registrar observações. Desvalide o item para alterar os dados.");
+    }
+  }
+
+  private void recordItemUpdate(Item item, Inventory inventory, long userId, ItemSnapshot before) {
+    Sector actorSector = actorSectorOf(userId, inventory);
+    inventoryAuditService.record(
+        userService.findUserById(userId),
+        actorSector == null ? null : actorSector.id(),
+        inventory.id(),
+        item.id(),
+        InventoryAuditService.ACTION_UPDATE_ITEM,
+        null,
+        InventoryAuditService.STATUS_SUCCESS,
+        before.diffTo(ItemSnapshot.of(item)));
+  }
+
+  /** Foto dos campos editáveis do item, para registrar o antes e o depois na auditoria. */
+  private record ItemSnapshot(
+      String code, String description, String responsible, long price, String room) {
+
+    private static final int VALUE_LIMIT = 100;
+    private static final int DETAILS_LIMIT = 1000;
+
+    static ItemSnapshot of(Item item) {
+      String room = item.room() != null ? item.room().name() : item.locale();
+      return new ItemSnapshot(
+          item.code(), item.description(), item.responsible(), item.price(), room);
     }
 
-    existingItem.setCode(updatedItem.code());
-    existingItem.setName("");
-    existingItem.setDescription(updatedItem.description());
-    existingItem.setPrice(priceParseLong);
-    if (roomChanged) {
-      changeRoom(existingItem, inventory, updatedItem);
-    }
-    existingItem.setResponsible(updatedItem.responsible());
-
-    if (updatedItem.isValid() && !existingItem.isValid()) {
-      // Marcar como validado pelo PUT segue a mesma regra e a mesma auditoria de PATCH /validate.
-      applyValidation(existingItem, inventory, userId, updatedItem.foundRoomId());
-    } else if (!updatedItem.isValid()) {
-      existingItem.setValid(false);
-      existingItem.setValidatedAt(null);
-      existingItem.setFoundRoom(null);
+    /** Só os campos que mudaram, no formato {@code campo: "antes" -> "depois"}. */
+    String diffTo(ItemSnapshot after) {
+      List<String> changes = new ArrayList<>();
+      addText(changes, "code", code, after.code);
+      addText(changes, "description", description, after.description);
+      addText(changes, "responsible", responsible, after.responsible);
+      if (price != after.price) {
+        changes.add("price: " + money(price) + " -> " + money(after.price));
+      }
+      addText(changes, "room", room, after.room);
+      String details = String.join("; ", changes);
+      return details.length() <= DETAILS_LIMIT
+          ? details
+          : details.substring(0, DETAILS_LIMIT - 3) + "...";
     }
 
-    return itemRepository.save(existingItem);
+    private static void addText(List<String> changes, String field, String before, String after) {
+      if (!Objects.equals(before, after)) {
+        changes.add(field + ": " + quote(before) + " -> " + quote(after));
+      }
+    }
+
+    private static String quote(String value) {
+      if (value == null) {
+        return "null";
+      }
+      String shown =
+          value.length() <= VALUE_LIMIT ? value : value.substring(0, VALUE_LIMIT - 3) + "...";
+      return "\"" + shown + "\"";
+    }
+
+    private static String money(long cents) {
+      return BigDecimal.valueOf(cents, 2).toPlainString();
+    }
   }
 
   private void changeRoom(Item item, Inventory inventory, ItemDto updatedItem) {

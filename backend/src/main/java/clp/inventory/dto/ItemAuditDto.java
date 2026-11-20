@@ -3,7 +3,7 @@ package clp.inventory.dto;
 import clp.inventory.model.ItemAudit;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-@Schema(description = "Registro de auditoria de uma validação de item.")
+@Schema(description = "Registro de auditoria de uma validação ou da desvalidação de um item.")
 public record ItemAuditDto(
     @Schema(description = "Id do registro.", example = "55") long id,
     @Schema(description = "Item auditado.", example = "300") long itemId,
@@ -24,15 +24,15 @@ public record ItemAuditDto(
         boolean divergent,
     @Schema(
             description =
-                "VALIDATION (validação pelo próprio setor) ou PARTIAL_VALIDATION (validação por usuário de outro setor).",
+                "VALIDATION (validação pelo próprio setor), PARTIAL_VALIDATION (validação por usuário de outro setor) ou VALIDATION_REVOKED (desvalidação do item).",
             example = "VALIDATION",
-            allowableValues = {"VALIDATION", "PARTIAL_VALIDATION"})
+            allowableValues = {"VALIDATION", "PARTIAL_VALIDATION", "VALIDATION_REVOKED"})
         String eventType,
     @Schema(
             description =
-                "VALIDATED, ou PENDING_TARGET_SECTOR quando a validação parcial ainda aguarda o setor de destino.",
+                "VALIDATED, PENDING_TARGET_SECTOR quando a validação parcial ainda aguarda o setor de destino, ou REVOKED na desvalidação.",
             example = "VALIDATED",
-            allowableValues = {"VALIDATED", "PENDING_TARGET_SECTOR"})
+            allowableValues = {"VALIDATED", "PENDING_TARGET_SECTOR", "REVOKED"})
         String status,
     @Schema(description = "Detalhes adicionais, quando houver.") String details,
     @Schema(description = "Data e hora do evento (ISO-8601).", example = "2026-11-10T09:15:00")

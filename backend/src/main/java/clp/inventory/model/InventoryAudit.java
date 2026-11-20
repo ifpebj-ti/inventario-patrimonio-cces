@@ -32,6 +32,10 @@ public class InventoryAudit {
   @Column(name = "id_inventory")
   private Long inventoryId;
 
+  // Item afetado, quando o ato é sobre um item. Id simples, sem chave estrangeira.
+  @Column(name = "id_item")
+  private Long itemId;
+
   @Column(name = "action_type", nullable = false, length = 50)
   private String actionType;
 
@@ -58,9 +62,22 @@ public class InventoryAudit {
       String recipient,
       String status,
       String details) {
+    this(actorUser, actorSectorId, inventoryId, null, actionType, recipient, status, details);
+  }
+
+  public InventoryAudit(
+      User actorUser,
+      Long actorSectorId,
+      Long inventoryId,
+      Long itemId,
+      String actionType,
+      String recipient,
+      String status,
+      String details) {
     this.actorUser = actorUser;
     this.actorSectorId = actorSectorId;
     this.inventoryId = inventoryId;
+    this.itemId = itemId;
     this.actionType = actionType;
     this.recipient = recipient;
     this.status = status;
@@ -81,6 +98,10 @@ public class InventoryAudit {
 
   public Long inventoryId() {
     return inventoryId;
+  }
+
+  public Long itemId() {
+    return itemId;
   }
 
   public String actionType() {

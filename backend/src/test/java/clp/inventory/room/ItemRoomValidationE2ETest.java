@@ -274,7 +274,9 @@ class ItemRoomValidationE2ETest {
   void putThatMarksAsValid_followsTheSameRuleAndAudit() {
     Sector sector = sector();
     User operator = user(TestAccess.OPERATOR);
+    User manager = user(TestAccess.MANAGER);
     access.allocate(operator, sector);
+    access.allocate(manager, sector);
     Room r105 = room(sector, "Sala 105");
     Room r203 = room(sector, "Sala 203");
     Item item = item(inventory(user(TestAccess.ADMIN), sector), "I-1", r105);
@@ -291,9 +293,15 @@ class ItemRoomValidationE2ETest {
     assertThat(response.getBody().get("divergent")).isEqualTo(true);
     assertThat(audits(operator, item.id())).hasSize(1);
 
-    // Desmarcar limpa a sala encontrada.
+    // Desmarcar é ato de gestão: o operador não desvalida pelo PUT.
     body = putBody(item, false, null);
-    var cleared = call(operator, HttpMethod.PUT, "/item/" + item.id(), body, Map.class);
+    assertThat(
+            call(operator, HttpMethod.PUT, "/item/" + item.id(), body, String.class)
+                .getStatusCode())
+        .isEqualTo(HttpStatus.FORBIDDEN);
+
+    // O gestor desmarca, e isso limpa a sala encontrada.
+    var cleared = call(manager, HttpMethod.PUT, "/item/" + item.id(), body, Map.class);
     assertThat(cleared.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(cleared.getBody().get("isValid")).isEqualTo(false);
     assertThat(cleared.getBody().get("foundRoomId")).isNull();
