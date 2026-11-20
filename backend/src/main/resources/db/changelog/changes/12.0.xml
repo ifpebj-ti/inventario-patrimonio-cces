@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+    <!--
+        O nome do inventario e unico por responsavel (id_user), mas so o codigo conferia (exists + save): duas
+        requisicoes simultaneas passavam na conferencia e gravavam o mesmo nome. O indice faz o banco ser a
+        palavra final; o servico traduz a violacao em erro 400. A sala (uk_8906276223012) e o setor
+        (uk_2309759590555) ja tem a constraint.
+        O indice nao faz limpeza de dados: se ja houver nome repetido, a migration para com a lista a corrigir.
+    -->
+    <changeSet id="20261120-02" author="inventarium">
+        <preConditions onFail="HALT"
+                       onFailMessage="Ha inventarios com o mesmo nome para o mesmo responsavel em im_inventory. Renomeie as duplicatas (SELECT name, id_user, count(*) FROM im_inventory GROUP BY name, id_user HAVING count(*) > 1) e rode a migration de novo.">
+            <sqlCheck expectedResult="0">
+                SELECT count(*) FROM (
+                    SELECT 1 FROM im_inventory GROUP BY name, id_user HAVING count(*) > 1
+                ) duplicados
+            </sqlCheck>
+        </preConditions>
+
+        <createIndex tableName="im_inventory" indexName="uk_inventory_name_user" unique="true">
+            <column name="name"/>
+            <column name="id_user"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

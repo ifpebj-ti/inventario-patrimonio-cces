@@ -9,6 +9,7 @@ import clp.inventory.repository.RoomRepository;
 import clp.inventory.repository.SectorRepository;
 import clp.inventory.utils.RoomNames;
 import java.util.List;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,7 +57,13 @@ public class RoomService {
     if (roomRepository.findBySector_IdAndNormalizedName(sectorId, normalized).isPresent()) {
       throw duplicate(display);
     }
-    return toDto(roomRepository.save(new Room(sector, display, normalized)));
+    try {
+      // saveAndFlush: se outra requisição criou a mesma sala entre a conferência e a gravação, a
+      // constraint recusa aqui e vira 400, em vez de 500 no commit.
+      return toDto(roomRepository.saveAndFlush(new Room(sector, display, normalized)));
+    } catch (DataIntegrityViolationException e) {
+      throw duplicate(display);
+    }
   }
 
   @Transactional
@@ -74,7 +81,11 @@ public class RoomService {
               throw duplicate(display);
             });
     room.rename(display, normalized);
-    return toDto(roomRepository.save(room));
+    try {
+      return toDto(roomRepository.saveAndFlush(room));
+    } catch (DataIntegrityViolationException e) {
+      throw duplicate(display);
+    }
   }
 
   @Transactional
@@ -123,9 +134,15 @@ public class RoomService {
           "O nome da sala deve ter no máximo " + RoomNames.MAX_LENGTH + " caracteres.");
     }
     String normalized = RoomNames.normalize(display);
+    // Insere só se faltar e relê: duas importações simultâneas com a mesma sala acabam com a mesma
+    // linha, sem violação de constraint (que abortaria a transação e daria 500).
+    roomRepository.insertIfAbsent(sector.id(), display, normalized);
     return roomRepository
         .findBySector_IdAndNormalizedName(sector.id(), normalized)
-        .orElseGet(() -> roomRepository.save(new Room(sector, display, normalized)));
+        .orElseThrow(
+            () ->
+                new ResponseStatusException(
+                    HttpStatus.CONFLICT, "Não foi possível registrar a sala; tente novamente."));
   }
 
   /** Nomes de sala (já normalizados) que existem no setor: para a pré-validação da planilha. */

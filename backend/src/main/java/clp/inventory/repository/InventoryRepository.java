@@ -1,12 +1,9 @@
 package clp.inventory.repository;
 
 import clp.inventory.model.Inventory;
-import jakarta.persistence.LockModeType;
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -14,11 +11,9 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface InventoryRepository extends JpaRepository<Inventory, Long> {
 
-  @Lock(LockModeType.PESSIMISTIC_WRITE)
-  @Query("select i from Inventory i where i.id = :id")
-  Optional<Inventory> findByIdForUpdate(@Param("id") long id);
-
   boolean existsByNameAndUser_Id(String name, Long userId);
+
+  boolean existsByNameAndUser_IdAndIdNot(String name, Long userId, Long id);
 
   List<Inventory> findBySector_Id(long sectorId);
 
