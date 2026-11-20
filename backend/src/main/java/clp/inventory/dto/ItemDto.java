@@ -23,7 +23,7 @@ public record ItemDto(
         String responsible,
     @Schema(
             description =
-                "Preço já formatado em reais (R$), calculado a partir dos centavos armazenados.",
+                "Preço já formatado em reais (R$), calculado a partir dos centavos armazenados. Na edição (PUT) é obrigatório e aceita o mesmo texto que a listagem devolve e os formatos 4500, 4500,50, 4500.50, 4.500 e 4.500,00 (até duas casas decimais, sem sinal); ausente ou malformado devolve 400 e o preço não muda.",
             example = "R$ 4.500,00")
         String price,
     @Schema(

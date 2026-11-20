@@ -255,6 +255,42 @@ class ItemEditRulesE2ETest {
   }
 
   @Test
+  void putRecusaValorAusenteOuMalformadoSemAlterarOPrecoNemResponderOk() {
+    Scenario s = new Scenario();
+
+    for (String bad : new String[] {"abc", "-10", "1,500.00", "10,999", "", "   "}) {
+      Map<String, Object> body = s.body(false, "Mesa");
+      body.put("price", bad);
+      assertThat(status(s.manager, HttpMethod.PUT, s.itemUrl(), body))
+          .as("valor '%s'", bad)
+          .isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+    Map<String, Object> absent = s.body(false, "Mesa");
+    absent.remove("price");
+    assertThat(status(s.manager, HttpMethod.PUT, s.itemUrl(), absent))
+        .isEqualTo(HttpStatus.BAD_REQUEST);
+
+    assertThat(s.stored().price()).isEqualTo(1000);
+    assertThat(s.itemUpdates()).isEmpty();
+  }
+
+  @Test
+  void putAceitaOMesmoTextoQueAListagemMostraEOsFormatosDeValor() {
+    Scenario s = new Scenario();
+
+    // "R$ 1.234,56" com espaço não separável é o que a listagem devolve e o front manda de volta.
+    Map<String, Object> listed = s.body(false, "Mesa");
+    listed.put("price", "R$\u00A01.234,56");
+    assertThat(status(s.manager, HttpMethod.PUT, s.itemUrl(), listed)).isEqualTo(HttpStatus.OK);
+    assertThat(s.stored().price()).isEqualTo(123456);
+
+    Map<String, Object> number = s.body(false, "Mesa");
+    number.put("price", 1500.5);
+    assertThat(status(s.manager, HttpMethod.PUT, s.itemUrl(), number)).isEqualTo(HttpStatus.OK);
+    assertThat(s.stored().price()).isEqualTo(150050);
+  }
+
+  @Test
   void finalizedInventoryRejectsDataChangesOnAnUnvalidatedItem() {
     Scenario s = new Scenario();
     s.finalizeInventory();

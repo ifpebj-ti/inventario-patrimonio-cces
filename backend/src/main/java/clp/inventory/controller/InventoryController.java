@@ -11,6 +11,7 @@ import clp.inventory.model.Observation;
 import clp.inventory.service.InventoryService;
 import clp.inventory.service.ItemService;
 import clp.inventory.utils.AuthenticationUtils;
+import clp.inventory.utils.Money;
 import clp.inventory.utils.RoomNames;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -25,7 +26,6 @@ import jakarta.validation.Valid;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
 import java.util.ArrayList;
@@ -317,7 +317,8 @@ public class InventoryController {
     }
 
     try {
-      List<Item> items = parseCsvFile(file);
+      ParsedSheet sheet = parseCsvFile(file);
+      List<Item> items = sheet.items();
 
       if (items.isEmpty()) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -325,7 +326,7 @@ public class InventoryController {
       }
 
       // O lote inteiro é validado antes de gravar: com qualquer linha inválida nada é importado.
-      ValidationResponse validation = validateItems(items);
+      ValidationResponse validation = validateItems(items, sheet.priceErrors());
       if (validation.hasErrors()) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(rejectedImport(validation));
       }
@@ -458,14 +459,15 @@ public class InventoryController {
     }
 
     try {
-      List<Item> items = parseCsvFile(file);
+      ParsedSheet sheet = parseCsvFile(file);
+      List<Item> items = sheet.items();
 
       if (items.isEmpty()) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
             .body(Map.of("message", "A planilha CSV não contém itens ou dados para validação."));
       }
 
-      ValidationResponse validationResult = validateItems(items);
+      ValidationResponse validationResult = validateItems(items, sheet.priceErrors());
 
       if (validationResult.hasErrors()) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(validationResult);
@@ -604,7 +606,7 @@ public class InventoryController {
     return response;
   }
 
-  private ValidationResponse validateItems(List<Item> items) {
+  private ValidationResponse validateItems(List<Item> items, Map<Integer, String> priceErrors) {
     List<ValidationError> errors = new ArrayList<>();
     Map<String, Integer> firstLineOfCode = new HashMap<>();
 
@@ -618,8 +620,9 @@ public class InventoryController {
         errosItem.add("Código não pode ter mais de 30 caracteres");
       }
 
-      if (item.price() < 0) {
-        errosItem.add("Preço não pode ser negativo");
+      String priceError = priceErrors.get(i);
+      if (priceError != null) {
+        errosItem.add(priceError);
       }
 
       String room = RoomNames.display(item.locale());
@@ -644,8 +647,12 @@ public class InventoryController {
     return new ValidationResponse(!errors.isEmpty(), errors);
   }
 
-  private List<Item> parseCsvFile(MultipartFile file) throws IOException {
+  /** Planilha lida: os itens e, por posição, o motivo de um valor ausente ou malformado. */
+  private record ParsedSheet(List<Item> items, Map<Integer, String> priceErrors) {}
+
+  private ParsedSheet parseCsvFile(MultipartFile file) throws IOException {
     List<Item> items = new ArrayList<>();
+    Map<Integer, String> priceErrors = new HashMap<>();
 
     try (BufferedReader reader =
         new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
@@ -729,7 +736,16 @@ public class InventoryController {
         }
         List<String> tokens = parseCsvLine(line, delimiter);
         Item item =
-            createItemFromTokens(tokens, colCode, colDesc, colResp, colPrice, colLocale, colObs);
+            createItemFromTokens(
+                tokens,
+                colCode,
+                colDesc,
+                colResp,
+                colPrice,
+                colLocale,
+                colObs,
+                priceErrors,
+                items.size());
         if (item != null) {
           items.add(item);
         }
@@ -741,7 +757,7 @@ public class InventoryController {
       }
     }
 
-    return items;
+    return new ParsedSheet(items, priceErrors);
   }
 
   private Item createItemFromTokens(
@@ -751,7 +767,9 @@ public class InventoryController {
       int colResp,
       int colPrice,
       int colLocale,
-      int colObs) {
+      int colObs,
+      Map<Integer, String> priceErrors,
+      int index) {
     String code = getSafeToken(tokens, colCode);
     String description = getSafeToken(tokens, colDesc);
     String responsible = getSafeToken(tokens, colResp);
@@ -759,7 +777,14 @@ public class InventoryController {
     String locale = getSafeToken(tokens, colLocale);
     String observation = getSafeToken(tokens, colObs);
 
-    long priceCentavos = parsePriceToCentavos(priceStr);
+    // Mesma função do cadastro avulso e da edição. Valor inválido não vira 0: fica registrado para
+    // a validação da planilha recusar a linha.
+    long priceCentavos = 0;
+    try {
+      priceCentavos = Money.parseToCentavos(priceStr);
+    } catch (IllegalArgumentException e) {
+      priceErrors.put(index, e.getMessage());
+    }
 
     Item item = new Item(code, "", description, priceCentavos, locale, responsible);
     if (!observation.isEmpty()) {
@@ -773,26 +798,6 @@ public class InventoryController {
       return tokens.get(index).trim();
     }
     return "";
-  }
-
-  private long parsePriceToCentavos(String priceStr) {
-    if (priceStr == null || priceStr.trim().isEmpty()) {
-      return 0L;
-    }
-    try {
-      String clean = priceStr.replaceAll("[^0-9,.]", "").trim();
-      if (clean.isEmpty()) {
-        return 0L;
-      }
-      if (clean.contains(",") && clean.contains(".")) {
-        clean = clean.replace(".", "").replace(",", ".");
-      } else if (clean.contains(",")) {
-        clean = clean.replace(",", ".");
-      }
-      return new BigDecimal(clean).multiply(BigDecimal.valueOf(100)).longValue();
-    } catch (Exception e) {
-      return 0L;
-    }
   }
 
   private String normalizeHeader(String header) {
