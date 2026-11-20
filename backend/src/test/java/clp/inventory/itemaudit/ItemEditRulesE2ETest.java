@@ -258,7 +258,7 @@ class ItemEditRulesE2ETest {
   void putRecusaValorAusenteOuMalformadoSemAlterarOPrecoNemResponderOk() {
     Scenario s = new Scenario();
 
-    for (String bad : new String[] {"abc", "-10", "1.500", "10,999", "", "   "}) {
+    for (String bad : new String[] {"abc", "-10", "1,500.00", "10,999", "", "   "}) {
       Map<String, Object> body = s.body(false, "Mesa");
       body.put("price", bad);
       assertThat(status(s.manager, HttpMethod.PUT, s.itemUrl(), body))

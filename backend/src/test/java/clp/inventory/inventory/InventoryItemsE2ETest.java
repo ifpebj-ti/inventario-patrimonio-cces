@@ -268,7 +268,7 @@ class InventoryItemsE2ETest {
             + "OK-1;Item;Eu;1,00;Sala A;\n"
             + "BAD-1;Item;Eu;abc;Sala A;\n"
             + "BAD-2;Item;Eu;;Sala A;\n"
-            + "BAD-3;Item;Eu;1.500;Sala A;\n"
+            + "BAD-3;Item;Eu;1,500.00;Sala A;\n"
             + "BAD-4;Item;Eu;-10;Sala A;\n";
 
     var response = importCsv(s[0], s[2], csv);
@@ -457,7 +457,7 @@ class InventoryItemsE2ETest {
     long[] s = setup();
     String url = "/inventory/add-single-item?inventoryId=" + s[2];
 
-    for (String bad : new String[] {null, "", "abc", "-5", "1.500", "10,999"}) {
+    for (String bad : new String[] {null, "", "abc", "-5", "1,500.00", "10,999"}) {
       var item = new HashMap<String, Object>();
       item.put("code", "VAL-" + System.nanoTime());
       item.put("name", "Mesa");

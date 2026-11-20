@@ -21,7 +21,7 @@ public record NewItemRequest(
         String description,
     @Schema(
             description =
-                "Valor em reais, como texto, no mesmo formato da edição e da planilha: 4500, 4500,50, 4500.50 ou 4.500,00 (aceita R$ na frente; até duas casas decimais, sem sinal). Obrigatório; ausente ou malformado devolve 400.",
+                "Valor em reais, como texto, no mesmo formato da edição e da planilha: 4500, 4500,50, 4500.50, 4.500 ou 4.500,00 (aceita R$ na frente; até duas casas decimais, sem sinal). Obrigatório; ausente ou malformado devolve 400.",
             example = "4500,00")
         String price,
     @Schema(
