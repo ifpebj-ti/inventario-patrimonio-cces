@@ -154,7 +154,7 @@ class InventoryItemsE2ETest {
             + "TOMB-1;Notebook \"Dell\";Maria;R$ 1.234,56;Sala A;Em bom estado\n"
             + "TOMB-2;\"Mesa; grande\";João;10,50;Sala A;\n"
             + "\n"
-            + "TOMB-3;Cadeira;Ana;abc;Sala B;\n";
+            + "TOMB-3;Cadeira;Ana;1500;Sala B;\n";
 
     var response = importCsv(s[0], s[2], csv);
 
@@ -162,6 +162,11 @@ class InventoryItemsE2ETest {
     assertThat(response.getBody().get("successes\n")).isEqualTo(3);
     assertThat(((Number) response.getBody().get("createdRooms")).longValue()).isEqualTo(2);
     assertThat(listItems(s[0], s[2]).getBody()).hasSize(3);
+    // R$ 1.234,56 (com milhar), 10,50 e 1500 chegam como os mesmos centavos em qualquer caminho.
+    assertThat(listItems(s[0], s[2]).getBody().toString())
+        .contains("1.234,56")
+        .contains("10,50")
+        .contains("1.500,00");
   }
 
   @Test
@@ -178,7 +183,7 @@ class InventoryItemsE2ETest {
   @Test
   void importaCsvComTabulacao() {
     long[] s = setup();
-    String csv = "etiqueta\tdetentor\ttombamento\nT-1\tCarlos\tx\n";
+    String csv = "etiqueta\tdetentor\tvalor\nT-1\tCarlos\t10,00\n";
 
     var response = importCsv(s[0], s[2], csv);
 
@@ -253,6 +258,47 @@ class InventoryItemsE2ETest {
     assertThat(response.getBody().get("errors").toString())
         .contains("Código repetido na planilha")
         .contains("linha 2");
+  }
+
+  @Test
+  void importaCsvComValorAusenteOuMalformadoRecusaAPlanilhaENadaEImportado() {
+    long[] s = setup();
+    String csv =
+        HEADER
+            + "OK-1;Item;Eu;1,00;Sala A;\n"
+            + "BAD-1;Item;Eu;abc;Sala A;\n"
+            + "BAD-2;Item;Eu;;Sala A;\n"
+            + "BAD-3;Item;Eu;1.500;Sala A;\n"
+            + "BAD-4;Item;Eu;-10;Sala A;\n";
+
+    var response = importCsv(s[0], s[2], csv);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(response.getBody().get("successes\n")).isEqualTo(0);
+    assertThat(response.getBody().get("failures\n")).isEqualTo(4);
+    String failed = response.getBody().get("failedItems\n").toString();
+    assertThat(failed)
+        .contains("BAD-1")
+        .contains("BAD-2")
+        .contains("BAD-3")
+        .contains("BAD-4")
+        .contains("Informe o valor")
+        .contains("Valor inválido");
+    // Nenhum valor virou 0 e nem a linha válida entrou.
+    assertThat(listItems(s[0], s[2]).getBody()).isEmpty();
+  }
+
+  @Test
+  void validaPlanilhaComValorMalformadoDevolveErroNaLinha() {
+    long[] s = setup();
+    String csv = HEADER + "OK-1;Item;Eu;1,00;Sala;\nBAD-1;Item;Eu;12abc;Sala;\n";
+
+    var response = postCsv("/inventory/validate-sheet", s[0], "itens.csv", csv);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(response.getBody().get("errors").toString())
+        .contains("BAD-1")
+        .contains("Valor inválido");
   }
 
   @Test
@@ -362,7 +408,7 @@ class InventoryItemsE2ETest {
     item.put("code", "AV-" + System.nanoTime());
     item.put("name", "Impressora");
     item.put("description", "Impressora laser");
-    item.put("price", 50000);
+    item.put("price", "500,00");
     item.put("locale", "Sala Avulsa");
 
     var created =
@@ -385,7 +431,7 @@ class InventoryItemsE2ETest {
     var item = new HashMap<String, Object>();
     item.put("code", "AV-DUP-" + System.nanoTime());
     item.put("name", "Impressora");
-    item.put("price", 50000);
+    item.put("price", "500,00");
 
     var first =
         restTemplate.exchange(
@@ -404,6 +450,36 @@ class InventoryItemsE2ETest {
     assertThat(second.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     assertThat(second.getBody()).contains("Já existe um item com o código");
     assertThat(listItems(s[0], s[2]).getBody()).hasSize(1);
+  }
+
+  @Test
+  void itemAvulsoRecusaValorAusenteOuMalformadoESalvaOValorEmReais() {
+    long[] s = setup();
+    String url = "/inventory/add-single-item?inventoryId=" + s[2];
+
+    for (String bad : new String[] {null, "", "abc", "-5", "1.500", "10,999"}) {
+      var item = new HashMap<String, Object>();
+      item.put("code", "VAL-" + System.nanoTime());
+      item.put("name", "Mesa");
+      if (bad != null) {
+        item.put("price", bad);
+      }
+      var response =
+          restTemplate.exchange(
+              url, HttpMethod.POST, new HttpEntity<>(item, authHeaders(s[0])), String.class);
+      assertThat(response.getStatusCode()).as("valor %s", bad).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+    assertThat(listItems(s[0], s[2]).getBody()).isEmpty();
+
+    var ok = new HashMap<String, Object>();
+    ok.put("code", "VAL-OK");
+    ok.put("name", "Mesa");
+    ok.put("price", "R$ 1.500,00");
+    var created =
+        restTemplate.exchange(
+            url, HttpMethod.POST, new HttpEntity<>(ok, authHeaders(s[0])), Map.class);
+    assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    assertThat(created.getBody().get("price").toString()).contains("1.500,00");
   }
 
   @Test

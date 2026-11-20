@@ -457,6 +457,7 @@ class ItemRoomValidationE2ETest {
 
     Map<String, Object> body = new HashMap<>();
     body.put("code", "S-1");
+    body.put("price", "10,00");
     body.put("description", "Mesa");
     body.put("responsible", "Fulano");
     body.put("locale", "SALA 105");
@@ -535,6 +536,7 @@ class ItemRoomValidationE2ETest {
     Map<String, Object> body = new HashMap<>();
     body.put("id", inFinished.id());
     body.put("code", "FIN-1");
+    body.put("price", "10,00");
     var response =
         call(
             manager,
@@ -557,6 +559,7 @@ class ItemRoomValidationE2ETest {
 
     Map<String, Object> body = new HashMap<>();
     body.put("code", "MA-1");
+    body.put("price", "10,00");
     body.put("description", "Mesa");
     body.put("qrCode", "QR-INJETADO");
     body.put("isValid", true);

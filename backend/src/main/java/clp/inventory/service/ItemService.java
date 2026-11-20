@@ -9,6 +9,7 @@ import clp.inventory.model.Room;
 import clp.inventory.model.Sector;
 import clp.inventory.repository.InventoryRepository;
 import clp.inventory.repository.ItemRepository;
+import clp.inventory.utils.Money;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -292,18 +293,13 @@ public class ItemService {
     authorizationService.requireOperateInventory(userId, inventory);
     boolean validationChanged = updatedItem.isValid() != existingItem.isValid();
 
-    // O DTO traz o valor em reais; a entidade persiste em centavos.
-    // Trata moedas formatadas ("R$ 1.500,00"), decimais ou valores numéricos simples
-    long priceParseLong = existingItem.price();
-    if (updatedItem.price() != null && !updatedItem.price().trim().isEmpty()) {
-      try {
-        String cleanPrice = updatedItem.price().replaceAll("[^0-9,.]", "").replace(",", ".");
-        if (!cleanPrice.isEmpty()) {
-          priceParseLong = new BigDecimal(cleanPrice).multiply(BigDecimal.valueOf(100)).longValue();
-        }
-      } catch (Exception e) {
-        priceParseLong = existingItem.price();
-      }
+    // O DTO traz o valor em reais; a entidade persiste em centavos. A leitura é a mesma do cadastro
+    // avulso e da planilha: valor ausente ou malformado é 400, não "mantém o anterior".
+    long priceParseLong;
+    try {
+      priceParseLong = Money.parseToCentavos(updatedItem.price());
+    } catch (IllegalArgumentException e) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
     }
 
     // A sala cadastrada muda por roomId (clientes novos) ou pelo texto de locale (clientes
