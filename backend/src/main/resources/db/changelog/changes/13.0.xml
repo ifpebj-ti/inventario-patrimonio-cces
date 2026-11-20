@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+    <!--
+        O codigo do item e unico dentro do inventario, mas so o codigo conferia: a importacao de planilha olhava a
+        lista de itens carregada no inicio (que nao enxerga outra importacao em andamento) e o cadastro avulso nem
+        conferia. O indice faz o banco ser a palavra final. O mesmo codigo continua valendo em inventarios
+        diferentes. Itens sem inventario (id_inventory nulo) nao entram na regra.
+        O indice nao faz limpeza de dados: se ja houver codigo repetido no mesmo inventario, a migration para com a
+        lista a corrigir.
+    -->
+    <changeSet id="20261120-03" author="inventarium">
+        <preConditions onFail="HALT"
+                       onFailMessage="Ha itens com o mesmo codigo no mesmo inventario em im_item. Corrija as duplicatas (SELECT id_inventory, code, count(*) FROM im_item WHERE id_inventory IS NOT NULL GROUP BY id_inventory, code HAVING count(*) > 1) e rode a migration de novo.">
+            <sqlCheck expectedResult="0">
+                SELECT count(*) FROM (
+                    SELECT 1 FROM im_item WHERE id_inventory IS NOT NULL
+                    GROUP BY id_inventory, code HAVING count(*) > 1
+                ) duplicados
+            </sqlCheck>
+        </preConditions>
+
+        <createIndex tableName="im_item" indexName="uk_item_inventory_code" unique="true">
+            <column name="id_inventory"/>
+            <column name="code"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

@@ -91,6 +91,16 @@ class ItemRoomValidationE2ETest {
     return saved.items().stream().filter(i -> i.code().equals(code)).findFirst().orElseThrow();
   }
 
+  /**
+   * Finaliza o inventário relendo-o do banco. O objeto devolvido por {@code inventory(...)} ainda
+   * guarda o item "novo" de {@code item(...)}; salvá-lo de novo gravaria o mesmo item duas vezes.
+   */
+  private void finish(Inventory inventory) {
+    Inventory stored = inventoryRepository.findById(inventory.id()).orElseThrow();
+    stored.finish(LocalDateTime.now());
+    inventoryRepository.save(stored);
+  }
+
   private HttpHeaders authHeaders(User user, MediaType contentType) {
     var headers = new HttpHeaders();
     headers.setContentType(contentType);
@@ -376,8 +386,7 @@ class ItemRoomValidationE2ETest {
     Room r105 = room(sector, "Sala 105");
     Inventory inventory = inventory(user(TestAccess.ADMIN), sector);
     Item item = item(inventory, "I-1", r105);
-    inventory.finish(LocalDateTime.now());
-    inventoryRepository.save(inventory);
+    finish(inventory);
 
     assertThat(validateStatus(operator, item.id(), r105.id())).isEqualTo(HttpStatus.CONFLICT);
   }
@@ -521,8 +530,7 @@ class ItemRoomValidationE2ETest {
     Inventory mine = inventory(user(TestAccess.ADMIN), sector);
     Inventory finished = inventory(user(TestAccess.ADMIN), sector);
     Item inFinished = item(finished, "FIN-1", null);
-    finished.finish(LocalDateTime.now());
-    inventoryRepository.save(finished);
+    finish(finished);
 
     Map<String, Object> body = new HashMap<>();
     body.put("id", inFinished.id());

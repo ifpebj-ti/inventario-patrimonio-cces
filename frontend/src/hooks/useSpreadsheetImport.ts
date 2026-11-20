@@ -129,7 +129,7 @@ export const useSpreadsheetImport = (
         createdRooms > 0
           ? ` ${createdRooms} ${createdRooms === 1 ? 'sala criada' : 'salas criadas'} no setor.`
           : ''
-      const message = `Importação concluída: ${report.successes} itens adicionados, ${report.failures} falharam.${rooms}`
+      const message = `Importação concluída: ${report.successes} itens adicionados.${rooms}`
       update({
         ...approved,
         status: 'completed',
