@@ -199,6 +199,11 @@ public class InventoryService {
                     new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Inventário não encontrado."));
     authorizationService.requireManageInventory(userId, inventory);
+    if (itemRepository.anyHasHistory(inventoryId)) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "O inventário possui itens com histórico de validação e não pode ser excluído.");
+    }
     inventoryRepository.deleteById(inventoryId);
   }
 
@@ -272,8 +277,9 @@ public class InventoryService {
 
   /**
    * Conferência antecipada da importação, sem lock: devolve 403, 404 ou 409 antes de ler o arquivo.
-   * Só existe uma importação por inventário: para importar outra, limpe os itens antes. A
-   * conferência que vale é a de {@link #importItems}, feita com o inventário travado.
+   * Para importar outra planilha, os itens sem conferência precisam ser excluídos antes; os já
+   * conferidos ficam. A conferência que vale é a de {@link #importItems}, feita com o inventário
+   * travado.
    */
   @Transactional(readOnly = true)
   public void requireImportAllowed(long inventoryId, long userId) {
@@ -286,12 +292,28 @@ public class InventoryService {
       throw new ResponseStatusException(
           HttpStatus.CONFLICT, "Inventário finalizado: não é possível alterar os itens.");
     }
-    if (itemRepository.countByInventory_Id(inventory.id()) > 0) {
+    // Itens sem histórico precisam ser excluídos antes (clear-items); os que já foram conferidos
+    // permanecem no inventário e não impedem uma nova importação.
+    long withoutHistory = itemRepository.countWithoutHistory(inventory.id());
+    if (withoutHistory > 0) {
       throw new ResponseStatusException(
           HttpStatus.CONFLICT,
-          "Este inventário já tem itens importados. Para importar outra planilha, exclua primeiro"
-              + " todos os itens do inventário.");
+          (withoutHistory == 1
+                  ? "Este inventário tem 1 item sem conferência."
+                  : "Este inventário tem " + withoutHistory + " itens sem conferência.")
+              + " Para importar outra planilha, exclua-os primeiro; os itens já conferidos"
+              + " permanecem no inventário.");
     }
+  }
+
+  /**
+   * Códigos que já constam no inventário, para a planilha recusar a linha que repete um item que
+   * continua nele. Confere o acesso antes: o resultado revela o conteúdo do inventário.
+   */
+  @Transactional(readOnly = true)
+  public Set<String> codesInInventory(long inventoryId, long userId) {
+    Inventory inventory = requireItemStructureChange(inventoryId, userId);
+    return new HashSet<>(itemRepository.findCodesByInventoryId(inventory.id()));
   }
 
   private Inventory findInventoryOrNotFound(long inventoryId) {
@@ -341,6 +363,12 @@ public class InventoryService {
     return inventory.sector() == null ? 0 : roomService.countRooms(inventory.sector().id());
   }
 
+  /**
+   * Exclui um item que nunca sofreu ação. Item com histórico (validou, desvalidou ou marcou como
+   * não localizado) não é mais excluído, mas segue podendo receber observações e, se não estiver
+   * validado, ser editado.
+   */
+  @Transactional
   public boolean removeItemFromInventory(long inventoryId, long itemId, long userId) {
     Inventory inventory = requireItemStructureChange(inventoryId, userId);
 
@@ -350,21 +378,47 @@ public class InventoryService {
     if (itemToRemove.isEmpty()) {
       return false;
     }
+    if (itemRepository.hasHistory(itemId)) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "O item possui histórico de validação e não pode ser excluído.");
+    }
 
     inventory.removeItem(itemToRemove.get());
-    inventoryRepository.save(inventory);
+    flushItemRemoval(inventory);
 
     return true;
   }
 
+  /** Itens removidos e os que ficaram por terem histórico. */
+  public record ClearResult(int removed, int kept) {}
+
+  /**
+   * Exclui todos os itens sem histórico. Os que já sofreram alguma ação permanecem no inventário (a
+   * auditoria deles continua), e a resposta diz quantos ficaram.
+   */
   @Transactional
-  public boolean clearInventoryItems(long inventoryId, long userId) {
+  public ClearResult clearInventoryItems(long inventoryId, long userId) {
     Inventory inventory = requireItemStructureChange(inventoryId, userId);
 
-    inventory.items().clear();
-    inventoryRepository.save(inventory);
+    Set<Long> withHistory = new HashSet<>(itemRepository.findIdsWithHistory(inventoryId));
+    List<Item> toRemove =
+        inventory.items().stream().filter(item -> !withHistory.contains(item.id())).toList();
+    toRemove.forEach(inventory::removeItem);
+    flushItemRemoval(inventory);
 
-    return true;
+    return new ClearResult(toRemove.size(), inventory.items().size());
+  }
+
+  // Se um item ganhou histórico entre a conferência e a gravação (alguém o validou agora), a FK da
+  // auditoria recusa a exclusão: nada é removido e o usuário recebe um 409 legível.
+  private void flushItemRemoval(Inventory inventory) {
+    try {
+      inventoryRepository.saveAndFlush(inventory);
+    } catch (DataIntegrityViolationException e) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "Algum item recebeu uma validação durante a exclusão; nada foi removido. Tente de novo.");
+    }
   }
 
   @Transactional(readOnly = true)

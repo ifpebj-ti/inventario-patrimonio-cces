@@ -436,7 +436,7 @@ class AccessControlE2ETest {
         .isEqualTo(HttpStatus.FORBIDDEN);
     assertThat(
             status(s.managerA, HttpMethod.DELETE, "/inventory/clear-items?inventoryId=" + id, null))
-        .isEqualTo(HttpStatus.NO_CONTENT);
+        .isEqualTo(HttpStatus.OK);
     assertThat(importCsv(s.managerA, id).getStatusCode()).isEqualTo(HttpStatus.CREATED);
   }
 

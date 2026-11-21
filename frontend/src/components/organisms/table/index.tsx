@@ -601,7 +601,7 @@ export const Table = ({
                     }
                     aria-label={
                       content.length > 0
-                        ? 'Limpar todos os itens do inventário'
+                        ? 'Limpar itens sem conferência'
                         : 'Inventário já está vazio'
                     }
                   >
@@ -610,7 +610,7 @@ export const Table = ({
                 </TooltipTrigger>
                 <TooltipContent>
                   {content.length > 0
-                    ? 'Limpar todos os itens do inventário'
+                    ? 'Limpar itens sem conferência'
                     : 'Inventário já está vazio'}
                 </TooltipContent>
               </Tooltip>

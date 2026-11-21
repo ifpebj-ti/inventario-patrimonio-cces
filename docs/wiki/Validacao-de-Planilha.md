@@ -37,7 +37,7 @@ O frontend mantém os estados `idle`, `validating`, `valid`, `invalid`, `importi
 | --- | --- |
 | Dois códigos iguais no mesmo CSV | O frontend bloqueia antes da chamada remota, informa a linha repetida e a primeira ocorrência. O servidor ainda não detecta na pré-validação; sua importação sequencial rejeita depois que o primeiro for persistido. |
 | Código já existente no inventário | `InventoryService.addItemToInventory` percorre os itens do inventário e rejeita o código com `Item already exists in inventory`. |
-| Validação antes de importar | `/validate-sheet` aceita `inventoryId` opcional (o frontend sempre o envia) só para listar as salas; não consulta os itens existentes. |
+| Validação antes de importar | `/validate-sheet` aceita `inventoryId` opcional (o frontend sempre o envia). Com ele, devolve as salas (novas e existentes), recusa com `409` o que a importação recusaria (inventário finalizado ou com itens sem conferência) e marca como inválida a linha que repete o código de um item que **já consta no inventário** ("Código já consta no inventário: o item não pode ser adicionado de novo"). |
 | Coluna Sala | A sala vira uma sala **do setor do inventário**, achada pelo nome sem diferenciar maiúsculas, acentos e espaços ("Sala 105", "sala  105"), ou criada se não existir. Com `inventoryId`, `/validate-sheet` responde também `newRooms` (serão criadas) e `existingRooms`, sem criar nada, e a tela mostra "N salas novas serão criadas" antes de Processar para o gestor conferir erros de digitação. `/add-items` informa `createdRooms`. |
 | Variações de caixa | A comparação usa `String.equals`; não há normalização explícita de caixa para a regra de duplicidade. Tokens CSV têm espaços externos removidos. |
 | Requisições concorrentes | A consulta seguida de gravação não garante exclusividade. Falta uma política de concorrência e uma garantia de unicidade por inventário no banco. |
@@ -49,11 +49,11 @@ A importação percorre um `for` no controller. Para cada item, o serviço busca
 | Endpoint | Resposta |
 | --- | --- |
 | `/validate-sheet` | 200: mensagem de validade (e `newRooms`/`existingRooms` quando recebe `inventoryId`); 400: erro geral ou `ValidationResponse` com erros por item; 500: falha não tratada no processamento. |
-| `/add-items` | 201: a planilha inteira entrou (a resposta traz `createdRooms`); 400: arquivo inválido ou linhas inválidas, e nesse caso nada é gravado (`failedItems` traz só as linhas com erro, `successes` é 0 e `totalProcessed` conta essas linhas); 403: sem permissão; 404: inventário inexistente; 409: inventário finalizado, já com itens importados ou alterado durante a importação; 500: falha não tratada. Não existe mais 206. |
+| `/add-items` | 201: a planilha inteira entrou (a resposta traz `createdRooms`); 400: arquivo inválido ou linhas inválidas, e nesse caso nada é gravado (`failedItems` traz só as linhas com erro, `successes` é 0 e `totalProcessed` conta essas linhas); 403: sem permissão; 404: inventário inexistente; 409: inventário finalizado, com itens sem conferência (exclua-os antes, pela limpeza) ou alterado durante a importação; 500: falha não tratada. Não existe mais 206. O `409` traz o motivo em `detail` (RFC 7807). |
 
 A resposta de importação inclui `totalProcessed`, `successes`, `failures`, `successfulItems` e `failedItems`, além das chaves legadas com `\n`. O frontend aceita as duas variantes dos contadores.
 
-`validateSpreadsheetData` mantém a rejeição padrão do Axios para erros HTTP e exige status 200 com corpo compatível, sem hasErrors verdadeiro nem lista de erros. Não interpreta palavras da mensagem para aprovar. Erros 400/401/403/500, rede e respostas inesperadas bloqueiam Processar. Os resultados são tipados; Zod verifica o contrato em execução. Na importação, só o status 201 com contadores consistentes é sucesso (o 206 deixou de existir e é tratado como resposta não confirmada). Erro 400 com failedItems preserva o relatório mesmo quando nada foi importado. Chaves atuais e legadas com `\n` são aceitas. Falhas exibem mensagem persistente no card e toast; relatórios mostram código, linha e mensagens. A limpeza exige confirmação e só atualiza itens/seleção após resposta bem-sucedida.
+`validateSpreadsheetData` mantém a rejeição padrão do Axios para erros HTTP e exige status 200 com corpo compatível, sem hasErrors verdadeiro nem lista de erros. Não interpreta palavras da mensagem para aprovar. Erros 400/401/403/500, rede e respostas inesperadas bloqueiam Processar. Os resultados são tipados; Zod verifica o contrato em execução. Na importação, só o status 201 com contadores consistentes é sucesso (o 206 deixou de existir e é tratado como resposta não confirmada). Erro 400 com failedItems preserva o relatório mesmo quando nada foi importado. Chaves atuais e legadas com `\n` são aceitas. Falhas exibem mensagem persistente no card e toast; relatórios mostram código, linha e mensagens. A limpeza exige confirmação, remove só os itens sem histórico (os que já foram validados, desvalidados ou marcados como não localizados permanecem, e a resposta diz quantos) e recarrega a lista do servidor após a resposta bem-sucedida.
 
 ## Entrega frontend e pendências de servidor
 
@@ -87,3 +87,13 @@ Os caminhos abaixo são relativos à raiz do repositório:
 ## Evidências para revisão
 
 Há testes específicos de interface em `frontend/tests/e2e/spreadsheet.spec.ts`, além de verificação TypeScript e lint. O backend cobre o fluxo em `backend/src/test` com `InventoryItemsE2ETest` (importação e validação de CSV com PostgreSQL real); na revisão anterior os 156 testes gerais passaram. O PR registra a execução frontend e distingue o que foi testado de garantias ainda pendentes no servidor.
+
+## Itens com histórico, limpeza e reimportação
+
+Um item que já sofreu alguma ação (validou, desvalidou ou marcou como não localizado, ou seja, qualquer linha em `im_item_audit`) **não é mais excluído**, embora ainda receba observações e, se não estiver validado, possa ser editado. O critério é o histórico, não o status atual: um item desvalidado volta a pendente e continua com histórico.
+
+- `DELETE /inventory/delete-item`: `204` para item sem histórico; `409` ("O item possui histórico de validação e não pode ser excluído.") para os demais.
+- `DELETE /inventory/clear-items`: remove todos os itens sem histórico e mantém os outros. Responde `200` com `{ "removed", "kept", "message" }` (antes era `204`).
+- `DELETE /inventory/{id}`: `409` se algum item do inventário tem histórico.
+- `POST /inventory/add-items`: recusa com `409` enquanto houver item **sem** histórico (a mensagem diz quantos e que é preciso excluí-los antes). Os itens que ficaram não impedem a importação; a linha da planilha que repete o código de um deles é recusada com `400` ("Código já consta no inventário"), e como a importação é tudo ou nada, nada é gravado até a linha sair da planilha.
+- Se um item recebe validação no meio de uma exclusão, a FK da auditoria recusa e a resposta é `409`, nunca `500`.
