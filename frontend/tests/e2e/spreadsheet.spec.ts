@@ -464,15 +464,22 @@ test('limpeza requer confirmação; cancelamento e erro preservam itens; sucesso
   await page.route('**/inventory/clear-items?*', async (route) => {
     clears++
     if (clears === 1) await respond(route, 403, { message: 'Recusado' })
-    else await respond(route, 200, null)
+    else {
+      hasItems = false
+      await respond(route, 200, {
+        removed: 1,
+        kept: 0,
+        message: 'Todos os itens foram removidos do inventário.',
+      })
+    }
   })
   await page
-    .getByRole('button', { name: 'Limpar todos os itens do inventário' })
+    .getByRole('button', { name: 'Limpar itens sem conferência' })
     .click()
   await page.getByRole('button', { name: 'Cancelar', exact: true }).click()
   expect(clears).toBe(0)
   await page
-    .getByRole('button', { name: 'Limpar todos os itens do inventário' })
+    .getByRole('button', { name: 'Limpar itens sem conferência' })
     .click()
   await page.getByRole('button', { name: 'Sim, limpar inventário' }).click()
   await expect(
@@ -620,10 +627,15 @@ test('limpeza em andamento bloqueia cliques repetidos e só remove itens após s
   await page.route('**/inventory/clear-items?*', async (route) => {
     clears++
     await pending
-    await respond(route, 200, null)
+    hasItems = false
+    await respond(route, 200, {
+      removed: 1,
+      kept: 0,
+      message: 'Todos os itens foram removidos do inventário.',
+    })
   })
   await page
-    .getByRole('button', { name: 'Limpar todos os itens do inventário' })
+    .getByRole('button', { name: 'Limpar itens sem conferência' })
     .click()
   await page.getByRole('button', { name: 'Sim, limpar inventário' }).dblclick()
   await expect(
@@ -663,17 +675,111 @@ test('contadores inconsistentes não viram sucesso', async ({ page }) => {
   await expect(page.getByTestId('import-counters')).toHaveCount(0)
 })
 
-test('inventário com itens importados bloqueia nova importação até limpar os itens', async ({
+test('inventário com itens não bloqueia a importação de saída: quem recusa é o servidor, com o motivo', async ({
   page,
 }) => {
   hasItems = true
   await page.reload()
-  await expect(page.getByLabel('Arquivo CSV', { exact: true })).toBeDisabled()
+  await expect(page.getByLabel('Arquivo CSV', { exact: true })).toBeEnabled()
+  await page.route('**/inventory/validate-sheet', (route) =>
+    respond(route, 409, {
+      title: 'Conflict',
+      status: 409,
+      detail:
+        'Este inventário tem 3 itens sem conferência. Para importar outra planilha, exclua-os primeiro; os itens já conferidos permanecem no inventário.',
+    }),
+  )
+  await select(page)
   await expect(
-    page.getByRole('button', { name: 'Importar Planilha CSV' }),
+    page.getByText(/tem 3 itens sem conferência.*exclua-os primeiro/).first(),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Processar', exact: true }),
   ).toBeDisabled()
+})
+
+test('limpeza mantém os itens que já têm histórico e avisa quantos ficaram', async ({
+  page,
+}) => {
+  hasItems = true
+  await page.reload()
+  await page.route('**/inventory/clear-items?*', (route) =>
+    respond(route, 200, {
+      removed: 2,
+      kept: 1,
+      message:
+        '1 item permaneceu no inventário por já ter histórico de validação.',
+    }),
+  )
+  await page
+    .getByRole('button', { name: 'Limpar itens sem conferência' })
+    .click()
   await expect(
-    page.getByText(/já tem itens importados.*exclua primeiro todos os itens/),
+    page.getByText(/Os itens que já foram validados.*permanecem no inventário/),
+  ).toBeVisible()
+  await page.getByRole('button', { name: 'Sim, limpar inventário' }).click()
+  await expect(
+    page.getByText(
+      '1 item permaneceu no inventário por já ter histórico de validação.',
+    ),
+  ).toBeVisible()
+  // O item que ficou continua na lista: ela vem do servidor, não é zerada.
+  await expect(
+    page.getByRole('button', { name: 'Limpar itens sem conferência' }),
+  ).toBeVisible()
+  await expect(
+    page.getByText('Monitor').locator('visible=true').first(),
+  ).toBeVisible()
+})
+
+test('limpeza recusada pelo servidor mostra o motivo e preserva os itens', async ({
+  page,
+}) => {
+  hasItems = true
+  await page.reload()
+  await page.route('**/inventory/clear-items?*', (route) =>
+    respond(route, 409, {
+      status: 409,
+      detail:
+        'Algum item recebeu uma validação durante a exclusão; nada foi removido. Tente de novo.',
+    }),
+  )
+  await page
+    .getByRole('button', { name: 'Limpar itens sem conferência' })
+    .click()
+  await page.getByRole('button', { name: 'Sim, limpar inventário' }).click()
+  await expect(
+    page
+      .getByText(/Algum item recebeu uma validação durante a exclusão/)
+      .first(),
+  ).toBeVisible()
+  await expect(
+    page.getByText('Monitor').locator('visible=true').first(),
+  ).toBeVisible()
+})
+
+test('item com histórico não é excluído e a tela mostra o motivo do servidor', async ({
+  page,
+}) => {
+  hasItems = true
+  await page.reload()
+  await page.route('**/inventory/delete-item?*', (route) =>
+    respond(route, 409, {
+      status: 409,
+      detail: 'O item possui histórico de validação e não pode ser excluído.',
+    }),
+  )
+  await page.getByRole('button', { name: 'Deletar 001' }).first().click()
+  await page.getByRole('button', { name: 'Sim, deletar' }).click()
+  await expect(
+    page
+      .getByText(
+        'O item possui histórico de validação e não pode ser excluído.',
+      )
+      .first(),
+  ).toBeVisible()
+  await expect(
+    page.getByText('Monitor').locator('visible=true').first(),
   ).toBeVisible()
 })
 

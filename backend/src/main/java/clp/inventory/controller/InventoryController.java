@@ -34,8 +34,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.poi.ss.usermodel.*;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -190,12 +192,17 @@ public class InventoryController {
 
   @Operation(
       summary = "Excluir inventário",
-      description = "Exige administrador ou gestor (MANAGE_SECTOR) do setor.")
+      description =
+          "Exige administrador ou gestor (MANAGE_SECTOR) do setor. Inventário com algum item que já tem histórico de validação não é excluído (409).")
   @ApiResponses({
     @ApiResponse(responseCode = "204", description = "Inventário excluído.", content = @Content),
     @ApiResponse(
         responseCode = "404",
         description = "Inventário não encontrado.",
+        content = @Content),
+    @ApiResponse(
+        responseCode = "409",
+        description = "O inventário tem itens com histórico de validação.",
         content = @Content)
   })
   @DeleteMapping("/{inventoryId}")
@@ -206,7 +213,8 @@ public class InventoryController {
     try {
       inventoryService.deleteInventory(inventoryId, Long.parseLong(userId));
       return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
-    } catch (ResponseStatusException e) {
+    } catch (ResponseStatusException | DataIntegrityViolationException e) {
+      // A FK da auditoria vira 409 no ApiExceptionHandler, não 400.
       throw e;
     } catch (RuntimeException e) {
       return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
@@ -280,7 +288,7 @@ public class InventoryController {
   @Operation(
       summary = "Importar planilha CSV de itens",
       description =
-          "Importa os itens de uma planilha CSV para o inventário. Planilha CSV (UTF-8) com cabeçalho. Delimitador ponto e vírgula (também aceita vírgula ou tab). Colunas reconhecidas pelo nome do cabeçalho: código (obrigatória; também 'patrimônio', 'etiqueta', 'tombamento'), descrição, responsável, valor/preço (em reais, convertido para centavos), sala/local e observação. Exige administrador ou gestor do setor; o inventário não pode estar finalizado nem já ter itens (para reimportar, limpe com DELETE /inventory/clear-items). Salas citadas que não existem no setor são criadas. Use antes POST /inventory/validate-sheet para conferir. A importação é tudo ou nada: a planilha inteira é validada (código obrigatório, até 30 caracteres e sem repetição na planilha; valor não negativo; sala com até 100 caracteres) e gravada numa transação só, com o inventário travado, então duas importações do mesmo inventário nunca se sobrepõem. Respostas: 201 se todos entraram, 400 se alguma linha é inválida (nada é gravado; failedItems traz as linhas com erro), 409 se o inventário já tem itens ou está finalizado. Atenção: os campos totalProcessed, successes, failures, successfulItems e failedItems têm uma quebra de linha no fim do nome (ex.: \"totalProcessed\\n\"), e é assim mesmo que a API os devolve.")
+          "Importa os itens de uma planilha CSV para o inventário. Planilha CSV (UTF-8) com cabeçalho. Delimitador ponto e vírgula (também aceita vírgula ou tab). Colunas reconhecidas pelo nome do cabeçalho: código (obrigatória; também 'patrimônio', 'etiqueta', 'tombamento'), descrição, responsável, valor/preço (em reais, convertido para centavos), sala/local e observação. Exige administrador ou gestor do setor; o inventário não pode estar finalizado nem ter itens sem conferência (para reimportar, limpe com DELETE /inventory/clear-items, que mantém os itens que já têm histórico de validação). Linha que repete o código de um item que continua no inventário é recusada (\"Código já consta no inventário\"). Salas citadas que não existem no setor são criadas. Use antes POST /inventory/validate-sheet para conferir. A importação é tudo ou nada: a planilha inteira é validada (código obrigatório, até 30 caracteres e sem repetição na planilha; valor não negativo; sala com até 100 caracteres) e gravada numa transação só, com o inventário travado, então duas importações do mesmo inventário nunca se sobrepõem. Respostas: 201 se todos entraram, 400 se alguma linha é inválida (nada é gravado; failedItems traz as linhas com erro), 409 se o inventário tem itens sem conferência ou está finalizado. Atenção: os campos totalProcessed, successes, failures, successfulItems e failedItems têm uma quebra de linha no fim do nome (ex.: \"totalProcessed\\n\"), e é assim mesmo que a API os devolve.")
   @ApiResponses({
     @ApiResponse(
         responseCode = "201",
@@ -297,7 +305,7 @@ public class InventoryController {
         content = @Content),
     @ApiResponse(
         responseCode = "409",
-        description = "Inventário finalizado ou já com itens importados.",
+        description = "Inventário finalizado ou com itens sem conferência.",
         content = @Content),
     @ApiResponse(
         responseCode = "500",
@@ -337,7 +345,11 @@ public class InventoryController {
       }
 
       // O lote inteiro é validado antes de gravar: com qualquer linha inválida nada é importado.
-      ValidationResponse validation = validateItems(items, sheet.priceErrors());
+      ValidationResponse validation =
+          validateItems(
+              items,
+              sheet.priceErrors(),
+              inventoryService.codesInInventory(inventoryId, actingUserId(request)));
       if (validation.hasErrors()) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(rejectedImport(validation));
       }
@@ -373,14 +385,18 @@ public class InventoryController {
 
   @Operation(
       summary = "Remover item do inventário",
-      description = "Exige administrador ou gestor do setor, com o inventário em andamento.")
+      description =
+          "Exige administrador ou gestor do setor, com o inventário em andamento. Só remove item que nunca sofreu ação: o que já foi validado, desvalidado ou marcado como não localizado tem histórico e não é mais excluído (409).")
   @ApiResponses({
     @ApiResponse(responseCode = "204", description = "Item removido.", content = @Content),
     @ApiResponse(
         responseCode = "404",
         description = "Item não encontrado no inventário.",
         content = @Content),
-    @ApiResponse(responseCode = "409", description = "Inventário finalizado.", content = @Content)
+    @ApiResponse(
+        responseCode = "409",
+        description = "Inventário finalizado ou item com histórico de validação.",
+        content = @Content)
   })
   @DeleteMapping("/delete-item")
   public ResponseEntity<?> deleteItemToInventory(
@@ -398,34 +414,46 @@ public class InventoryController {
   }
 
   @Operation(
-      summary = "Remover todos os itens do inventário",
+      summary = "Remover os itens sem histórico do inventário",
       description =
-          "Exige administrador ou gestor do setor, com o inventário em andamento. Permite importar outra planilha depois.")
+          "Exige administrador ou gestor do setor, com o inventário em andamento. Remove todos os itens que nunca sofreram ação; os que já foram validados, desvalidados ou marcados como não localizados permanecem no inventário (a auditoria deles continua). A resposta diz quantos foram removidos e quantos ficaram. Depois da limpeza é possível importar outra planilha: as linhas que repetem um item que ficou são recusadas.")
   @ApiResponses({
-    @ApiResponse(responseCode = "204", description = "Itens removidos.", content = @Content),
+    @ApiResponse(
+        responseCode = "200",
+        description = "Itens sem histórico removidos. Corpo: removed, kept e message.",
+        content = @Content),
     @ApiResponse(
         responseCode = "404",
         description = "Inventário não encontrado.",
         content = @Content),
-    @ApiResponse(responseCode = "409", description = "Inventário finalizado.", content = @Content)
+    @ApiResponse(
+        responseCode = "409",
+        description = "Inventário finalizado, ou um item recebeu validação durante a exclusão.",
+        content = @Content)
   })
   @DeleteMapping("/clear-items")
   public ResponseEntity<?> clearInventoryItems(
       @Parameter(description = "Id do inventário.") @RequestParam long inventoryId,
       HttpServletRequest request) {
-    boolean cleared = inventoryService.clearInventoryItems(inventoryId, actingUserId(request));
+    InventoryService.ClearResult result =
+        inventoryService.clearInventoryItems(inventoryId, actingUserId(request));
 
-    if (cleared) {
-      return ResponseEntity.noContent().build();
-    } else {
-      return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-    }
+    String message =
+        result.kept() == 0
+            ? "Todos os itens foram removidos do inventário."
+            : (result.kept() == 1
+                ? "1 item permaneceu no inventário por já ter histórico de validação."
+                : result.kept()
+                    + " itens permaneceram no inventário por já terem histórico de"
+                    + " validação.");
+    return ResponseEntity.ok(
+        Map.of("removed", result.removed(), "kept", result.kept(), "message", message));
   }
 
   @Operation(
       summary = "Validar planilha CSV antes de importar",
       description =
-          "Confere a planilha sem gravar nada: código obrigatório (até 30 caracteres) e preço não negativo, linha a linha. Planilha CSV (UTF-8) com cabeçalho. Delimitador ponto e vírgula (também aceita vírgula ou tab). Colunas reconhecidas pelo nome do cabeçalho: código (obrigatória; também 'patrimônio', 'etiqueta', 'tombamento'), descrição, responsável, valor/preço (em reais, convertido para centavos), sala/local e observação. Exige administrador ou gestor de algum setor. Informando inventoryId, devolve também quais salas seriam criadas.")
+          "Confere a planilha sem gravar nada: código obrigatório (até 30 caracteres) e preço não negativo, linha a linha. Planilha CSV (UTF-8) com cabeçalho. Delimitador ponto e vírgula (também aceita vírgula ou tab). Colunas reconhecidas pelo nome do cabeçalho: código (obrigatória; também 'patrimônio', 'etiqueta', 'tombamento'), descrição, responsável, valor/preço (em reais, convertido para centavos), sala/local e observação. Exige administrador ou gestor de algum setor. Informando inventoryId, devolve também quais salas seriam criadas, recusa com 409 o que a importação recusaria (inventário finalizado ou com itens sem conferência) e aponta a linha que repete o código de um item que já consta no inventário.")
   @ApiResponses({
     @ApiResponse(
         responseCode = "200",
@@ -478,7 +506,15 @@ public class InventoryController {
             .body(Map.of("message", "A planilha CSV não contém itens ou dados para validação."));
       }
 
-      ValidationResponse validationResult = validateItems(items, sheet.priceErrors());
+      // Com o inventário informado, a validação recusa o que a importação recusaria (finalizado ou
+      // com itens sem conferência) e a linha que repete um item que já consta nele é inválida.
+      Set<String> existingCodes = Set.of();
+      if (inventoryId != null) {
+        inventoryService.requireImportAllowed(inventoryId, actingUserId(request));
+        existingCodes = inventoryService.codesInInventory(inventoryId, actingUserId(request));
+      }
+      ValidationResponse validationResult =
+          validateItems(items, sheet.priceErrors(), existingCodes);
 
       if (validationResult.hasErrors()) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(validationResult);
@@ -617,7 +653,8 @@ public class InventoryController {
     return response;
   }
 
-  private ValidationResponse validateItems(List<Item> items, Map<Integer, String> priceErrors) {
+  private ValidationResponse validateItems(
+      List<Item> items, Map<Integer, String> priceErrors, Set<String> existingCodes) {
     List<ValidationError> errors = new ArrayList<>();
     Map<String, Integer> firstLineOfCode = new HashMap<>();
 
@@ -647,6 +684,11 @@ public class InventoryController {
         if (firstLine != null) {
           errosItem.add("Código repetido na planilha (já usado na linha " + firstLine + ")");
         }
+      }
+
+      // Item que continua no inventário (já conferido): a planilha não pode adicioná-lo de novo.
+      if (item.code() != null && existingCodes.contains(item.code())) {
+        errosItem.add("Código já consta no inventário: o item não pode ser adicionado de novo");
       }
 
       if (!errosItem.isEmpty()) {

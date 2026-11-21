@@ -387,7 +387,7 @@ class InventoryItemsE2ETest {
     assertThat(listItems(s[0], s[2]).getBody()).hasSize(1);
 
     assertThat(delete(s[0], "/inventory/clear-items?inventoryId=" + s[2]).getStatusCode())
-        .isEqualTo(HttpStatus.NO_CONTENT);
+        .isEqualTo(HttpStatus.OK);
     assertThat(listItems(s[0], s[2]).getBody()).isEmpty();
   }
 

@@ -184,12 +184,29 @@ export const validateSpreadsheetData = async (
   return readValidationResponse(response.status, response.data)
 }
 
-// Limpa todos os itens do inventário de uma vez só
-export const clearInventoryItemsRequest = async (inventoryId: number) => {
+export type ClearItemsResult = {
+  removed: number
+  kept: number
+  message: string
+}
+
+// Remove os itens sem histórico. Os que já foram validados, desvalidados ou marcados como não
+// localizados permanecem (o servidor diz quantos) e a lista precisa ser recarregada.
+export const clearInventoryItemsRequest = async (
+  inventoryId: number,
+): Promise<ClearItemsResult> => {
   const response = await api.delete('/inventory/clear-items', {
     params: {
       inventoryId,
     },
   })
-  return response.data
+  const data = response.data
+  return {
+    removed: typeof data?.removed === 'number' ? data.removed : 0,
+    kept: typeof data?.kept === 'number' ? data.kept : 0,
+    message:
+      typeof data?.message === 'string'
+        ? data.message
+        : 'Itens sem conferência removidos do inventário.',
+  }
 }

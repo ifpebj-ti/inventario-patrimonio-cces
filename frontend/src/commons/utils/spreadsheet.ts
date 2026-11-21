@@ -142,6 +142,13 @@ export const getSpreadsheetFailure = (
         'O serviço de planilhas está indisponível. Tente novamente mais tarde.',
       )
     const data: unknown = error.response.data
+    // O servidor explica o conflito em "detail" (RFC 7807): inventário finalizado, itens sem
+    // conferência a excluir antes de importar, item que recebeu validação durante a limpeza.
+    if (status === 409) {
+      const detail = (data as { detail?: unknown } | null)?.detail
+      if (typeof detail === 'string' && detail.trim())
+        return new SpreadsheetRequestError(detail)
+    }
     try {
       readValidationResponse(status || 400, data)
     } catch (failure) {

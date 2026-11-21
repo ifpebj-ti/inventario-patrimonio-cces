@@ -105,22 +105,19 @@ export default function Inventory() {
 
   const spreadsheet = useSpreadsheetImport(Number(id), fetchItemsByInventory)
 
-  // Regras de bloqueio: finalizado não escaneia nem importa; e só existe uma
-  // importação por vez (para importar outra planilha, limpe os itens antes).
-  const hasItems = itemData.length > 0
+  // Regras de bloqueio: finalizado não escaneia nem importa. Se o inventário ainda tem itens sem
+  // conferência, é o servidor que recusa a importação (409, dizendo quantos): só ele sabe quais
+  // itens já têm histórico e continuam no inventário, então o botão não presume pela lista.
   const divergentCount = itemData.filter((item) => item.divergent).length
   const visibleItems = onlyDivergent
     ? itemData.filter((item) => item.divergent)
     : itemData
-  const importBlocked =
-    !canManageInventories || finalized || hasItems || !itemsLoaded
+  const importBlocked = !canManageInventories || finalized || !itemsLoaded
   const importBlockedMessage = !canManageInventories
     ? 'Seu cargo neste setor não permite importar planilhas.'
     : finalized
       ? 'Inventário finalizado: não é possível importar novas planilhas.'
-      : hasItems
-        ? 'Este inventário já tem itens importados. Para importar outra planilha, exclua primeiro todos os itens do inventário.'
-        : undefined
+      : undefined
   const scanBlocked = finalized || !canOperateItems
   const scanBlockedMessage = !canOperateItems
     ? 'Seu cargo neste setor é somente leitura: não é possível escanear itens.'
@@ -205,7 +202,14 @@ export default function Inventory() {
       )
       toast.success(`Item "${itemToDelete.code}" deletado com sucesso!`)
     } catch (error) {
-      toast.error('Falha ao deletar o item.')
+      // 409: o item já tem histórico de validação e o servidor explica em "detail".
+      const conflict =
+        (error as { response?: { status?: number } }).response?.status === 409
+      toast.error(
+        conflict
+          ? getSpreadsheetFailure(error).message
+          : 'Falha ao deletar o item.',
+      )
       console.error(error)
     } finally {
       handleCloseDeleteItemModal()
@@ -215,17 +219,16 @@ export default function Inventory() {
   const handleConfirmClearInventory = async () => {
     if (clearing.current || spreadsheet.state.status === 'importing') return
     clearing.current = true
-    const toastId = toast.loading('Removendo todos os itens do inventário...')
+    const toastId = toast.loading('Removendo os itens sem conferência...')
     try {
       setIsUploading(true)
-      await clearInventoryItemsRequest(Number(id))
-      setItemData([])
+      const result = await clearInventoryItemsRequest(Number(id))
+      // Os itens que já têm histórico permanecem: a lista vem do servidor, não é zerada aqui.
+      await fetchItemsByInventory()
       setSelectedRows([])
       setIsClearAllModalOpen(false)
       spreadsheet.remove()
-      toast.success('Todos os itens foram removidos do inventário!', {
-        id: toastId,
-      })
+      toast.success(result.message, { id: toastId })
     } catch (error) {
       console.error('Erro ao limpar itens do inventário:', error)
       toast.error(getSpreadsheetFailure(error).message, {
@@ -506,7 +509,7 @@ export default function Inventory() {
           onClose={() => setIsClearAllModalOpen(false)}
           onConfirm={handleConfirmClearInventory}
           title="Limpar Inventário"
-          message="Tem certeza que deseja remover todos os itens e limpar este inventário? Esta ação é irreversível e excluirá todos os bens cadastrados."
+          message="Tem certeza que deseja remover os itens sem conferência? Esta ação é irreversível. Os itens que já foram validados, desvalidados ou marcados como não localizados permanecem no inventário."
           confirmButtonText="Sim, limpar inventário"
           cancelButtonText="Cancelar"
           busy={isUploading}
