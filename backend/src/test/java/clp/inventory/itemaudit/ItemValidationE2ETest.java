@@ -11,6 +11,7 @@ import clp.inventory.repository.SectorAllocationRepository;
 import clp.inventory.repository.SectorRepository;
 import clp.inventory.repository.UserRepository;
 import clp.inventory.testsupport.TestAccess;
+import clp.inventory.testsupport.TestItems;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import java.time.Duration;
@@ -55,6 +56,8 @@ class ItemValidationE2ETest {
   @Autowired UserRepository userRepository;
 
   @Autowired TestAccess access;
+
+  @Autowired TestItems testItems;
 
   @Autowired SectorRepository sectorRepository;
 
@@ -205,6 +208,8 @@ class ItemValidationE2ETest {
     User admin = user(TestAccess.ADMIN);
     Item item = inventoryWithItem(admin, sector(), "ITEM-FINALIZADO");
     long inventoryId = item.inventory().id();
+    // Finalizar exige que nenhum item esteja pendente: o item já está conferido (não localizado).
+    testItems.markAllNotFound(inventoryId);
     assertThat(
             call(admin, HttpMethod.POST, "/inventory/" + inventoryId + "/finalize", Map.class)
                 .getStatusCode())

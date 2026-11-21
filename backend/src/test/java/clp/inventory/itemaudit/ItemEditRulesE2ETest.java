@@ -12,11 +12,13 @@ import clp.inventory.repository.InventoryRepository;
 import clp.inventory.repository.ItemRepository;
 import clp.inventory.repository.SectorRepository;
 import clp.inventory.testsupport.TestAccess;
+import clp.inventory.testsupport.TestItems;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,6 +59,7 @@ class ItemEditRulesE2ETest {
   @Autowired TestRestTemplate http;
 
   @Autowired TestAccess access;
+  @Autowired TestItems testItems;
 
   @Autowired SectorRepository sectors;
 
@@ -112,9 +115,25 @@ class ItemEditRulesE2ETest {
           .isEqualTo(HttpStatus.OK);
     }
 
+    /**
+     * Finaliza pela API; um item ainda pendente é validado antes (a regra exige zero pendentes).
+     */
     void finalizeInventory() {
+      if (stored().validationStatus() == Item.ValidationStatus.PENDENTE) {
+        testItems.validateAll(inventory.id());
+      }
       assertThat(status(manager, HttpMethod.POST, inventoryUrl() + "/finalize", null))
           .isEqualTo(HttpStatus.OK);
+    }
+
+    /**
+     * Fecha o inventário direto no banco, sem a regra de finalização: reproduz um inventário
+     * finalizado antes dela, que pode ter item pendente.
+     */
+    void finishDirectly() {
+      Inventory stored = inventories.findById(inventory.id()).orElseThrow();
+      stored.finish(LocalDateTime.now());
+      inventories.save(stored);
     }
 
     List<InventoryAudit> itemUpdates() {
@@ -293,7 +312,8 @@ class ItemEditRulesE2ETest {
   @Test
   void finalizedInventoryRejectsDataChangesOnAnUnvalidatedItem() {
     Scenario s = new Scenario();
-    s.finalizeInventory();
+    // Inventário finalizado antes da regra de completude, com item ainda pendente: o guard vale.
+    s.finishDirectly();
     Map<String, Object> body = s.body(false, "Mesa");
     body.put("price", "999999");
 
@@ -455,8 +475,18 @@ class ItemEditRulesE2ETest {
 
     assertThat(status(s.admin, HttpMethod.POST, s.inventoryUrl() + "/reopen", null))
         .isEqualTo(HttpStatus.OK);
+    // O item continua validado: só aceita observações até o gestor desvalidá-lo.
+    assertThat(status(s.manager, HttpMethod.PUT, s.itemUrl(), s.body(false, "Corrigida")))
+        .isEqualTo(HttpStatus.CONFLICT);
+    assertThat(
+            status(
+                s.manager, HttpMethod.PATCH, s.itemUrl() + "/validate", Map.of("isValid", false)))
+        .isEqualTo(HttpStatus.OK);
     assertThat(status(s.manager, HttpMethod.PUT, s.itemUrl(), s.body(false, "Corrigida")))
         .isEqualTo(HttpStatus.OK);
+    // Pendente de novo, o inventário só finaliza depois de conferir o item.
+    assertThat(status(s.manager, HttpMethod.POST, s.inventoryUrl() + "/finalize", null))
+        .isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
     s.finalizeInventory();
 
     assertThat(s.stored().description()).isEqualTo("Corrigida");

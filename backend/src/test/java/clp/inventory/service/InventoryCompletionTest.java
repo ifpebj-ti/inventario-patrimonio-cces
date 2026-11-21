@@ -42,8 +42,11 @@ class InventoryCompletionTest {
     when(sector.id()).thenReturn(3L);
     inventory = new Inventory("Teste", "", LocalDate.now().plusDays(1), actor, sector);
     when(inventories.findById(10L)).thenReturn(Optional.of(inventory));
-    when(inventories.findById(10L)).thenReturn(Optional.of(inventory));
     when(inventories.save(inventory)).thenReturn(inventory);
+    // Por padrão o inventário tem itens e nenhum está pendente (pode finalizar).
+    when(items.countByInventory_Id(any())).thenReturn(2L);
+    when(items.countByInventory_IdAndValidationStatus(any(), eq(Item.ValidationStatus.PENDENTE)))
+        .thenReturn(0L);
   }
 
   private Role grantedRole;
@@ -79,7 +82,9 @@ class InventoryCompletionTest {
     assertThat(inventory.status()).isEqualTo(Inventory.Status.CONCLUIDO);
     assertThat(inventory.completedAt()).isBetween(before, LocalDateTime.now());
     verify(inventories).save(inventory);
-    verifyNoInteractions(items);
+    // Finalizar só confere os itens (a regra de completude); não altera nenhum.
+    verify(items, never()).save(any());
+    verify(items, never()).saveAll(any());
   }
 
   @Test
@@ -140,9 +145,62 @@ class InventoryCompletionTest {
   }
 
   @Test
+  void cannotFinishWithPendingItems() {
+    grant("ADMIN");
+    when(items.countByInventory_IdAndValidationStatus(any(), eq(Item.ValidationStatus.PENDENTE)))
+        .thenReturn(3L);
+
+    assertThatThrownBy(() -> service.finishInventory(10L, 7L))
+        .isInstanceOfSatisfying(
+            InventoryNotReadyException.class,
+            e -> {
+              assertThat(e.pendingItems()).isEqualTo(3);
+              assertThat(e.getMessage()).contains("3 itens ainda estão pendentes");
+            });
+    assertThat(inventory.status()).isEqualTo(Inventory.Status.EM_ANDAMENTO);
+  }
+
+  @Test
+  void singularMessageForOnePendingItem() {
+    grant("ADMIN");
+    when(items.countByInventory_IdAndValidationStatus(any(), eq(Item.ValidationStatus.PENDENTE)))
+        .thenReturn(1L);
+
+    assertThatThrownBy(() -> service.finishInventory(10L, 7L))
+        .isInstanceOf(InventoryNotReadyException.class)
+        .hasMessageStartingWith("1 item ainda está pendente");
+  }
+
+  @Test
+  void cannotFinishAnInventoryWithoutItems() {
+    grant("ADMIN");
+    when(items.countByInventory_Id(any())).thenReturn(0L);
+
+    assertThatThrownBy(() -> service.finishInventory(10L, 7L))
+        .isInstanceOfSatisfying(
+            InventoryNotReadyException.class,
+            e -> {
+              assertThat(e.pendingItems()).isZero();
+              assertThat(e.getMessage()).contains("não tem itens");
+            });
+    assertThat(inventory.status()).isEqualTo(Inventory.Status.EM_ANDAMENTO);
+  }
+
+  @Test
+  void permissionIsCheckedBeforeTheCompletenessRule() {
+    // Quem não pode finalizar recebe 403, e não o detalhe de quantos itens estão pendentes.
+    when(items.countByInventory_IdAndValidationStatus(any(), eq(Item.ValidationStatus.PENDENTE)))
+        .thenReturn(3L);
+
+    assertStatus(() -> service.finishInventory(10L, 7L), HttpStatus.FORBIDDEN);
+  }
+
+  @Test
   void validatedItemsDoNotAutomaticallyConcludeInventory() {
     when(items.countByInventory_Id(inventory.id())).thenReturn(5L);
-    when(items.countByInventory_IdAndIsValidTrue(inventory.id())).thenReturn(5L);
+    when(items.countByInventory_IdAndValidationStatus(
+            inventory.id(), Item.ValidationStatus.VALIDADO))
+        .thenReturn(5L);
     assertThat(service.getInventoryStatus(inventory)).isEqualTo("EM_ANDAMENTO");
     verifyNoInteractions(items);
   }

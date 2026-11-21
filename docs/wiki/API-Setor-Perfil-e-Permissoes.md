@@ -53,8 +53,8 @@ O catálogo de permissões é fixo (definido em código e migration) e tem 3 per
 | Permissão | O que libera no setor em que o cargo vale |
 | --- | --- |
 | `VIEW_SECTOR` (Consultar) | **Base da leitura**: lê, só do setor em que o cargo vale, a lista e o detalhe dos inventários, os itens e as observações e vê o histórico de validação. **Não altera nada** (nem valida, escaneia, edita, importa nem exclui) e **não exporta a planilha** (ela traz o responsável e o valor de todos os bens: exportar e enviar por e-mail são da gestão). |
-| `MANAGE_SECTOR` | Cria, edita, finaliza, **reabre** e exclui inventários do setor, importa e limpa itens, edita os dados dos itens (**só com o inventário aberto e o item não validado**), **desvalida itens**, **exporta a planilha do inventário e a envia por e-mail** (só para domínios permitidos, com limite de envios e auditoria); aloca e desaloca usuários no próprio setor, **só com cargos sem `MANAGE_SECTOR`**; lê a lista de cargos e permissões. |
-| `MANAGE_ITEM` | Opera os itens do setor: valida (escaneia) e registra observações. Não cria, edita nem finaliza inventários e não altera os dados do item. **Inclui a Consulta.** |
+| `MANAGE_SECTOR` | Cria, edita, finaliza (**só com itens e sem nenhum pendente**), **reabre** e exclui inventários do setor, importa e limpa itens, edita os dados dos itens (**só com o inventário aberto e o item não validado**), **desvalida itens**, **exporta a planilha do inventário e a envia por e-mail** (só para domínios permitidos, com limite de envios e auditoria); aloca e desaloca usuários no próprio setor, **só com cargos sem `MANAGE_SECTOR`**; lê a lista de cargos e permissões. |
+| `MANAGE_ITEM` | Opera os itens do setor: valida (escaneia), **marca item como não localizado** (com motivo) e registra observações. Não cria, edita nem finaliza inventários e não altera os dados do item. **Inclui a Consulta.** |
 | (nenhuma) | Cargo sem permissões: o usuário está alocado, mas **não lê os dados do setor** (inventários, itens). |
 
 As permissões de gerenciar (`MANAGE_SECTOR` e `MANAGE_ITEM`) **incluem** `VIEW_SECTOR`: quem altera precisa enxergar.
@@ -248,6 +248,19 @@ encontrada é só registro: **não altera** a sala cadastrada.
   só com o inventário aberto (`409` se finalizado) e só se o item está validado (`409` se não está). Limpa a sala
   encontrada e grava `VALIDATION_REVOKED` (status `REVOKED`) em `im_item_audit`. Desvalidar e alterar dados no mesmo `PUT`
   é `409`: primeiro desvalida, depois edita.
+- **Situação do item e finalização.** O item tem três situações (`ItemDto.validationStatus`): `PENDENTE` (ainda não
+  conferido), `VALIDADO` (encontrado e conferido) e `NAO_LOCALIZADO` (conferido e não encontrado). `isValid` continua no
+  contrato e é `true` só para `VALIDADO`. `PATCH /item/{id}/not-found` com `{ "reason": "..." }` marca um item
+  `PENDENTE` como não localizado: quem opera o inventário (`403` para os demais), inventário aberto (`409` se
+  finalizado), item pendente (`409` se já validado ou marcado) e motivo obrigatório de até 255 caracteres (`400`). O
+  motivo grava `MARKED_NOT_FOUND` (status `NOT_FOUND`) em `im_item_audit` e vira uma observação do item. Item não
+  localizado fica travado como o validado: só aceita observações, não é validado direto (`409`) e só o gestor o devolve a
+  `PENDENTE` (`PATCH /item/{id}/validate` com `{ "isValid": false }`, `VALIDATION_REVOKED`). **Finalizar exige itens e
+  nenhum `PENDENTE`**, para o administrador também: caso contrário `POST /inventory/{id}/finalize` responde `422` com
+  `{ "message": "...", "pendingItems": N }` (`pendingItems` é `0` quando o inventário não tem itens); o `409` fica só
+  para "já finalizado", e a permissão (`403`) é conferida antes. Um bem perdido não trava o fechamento: marcá-lo como não
+  localizado já o conta como conferido. A migration `14.0.xml` troca `im_item.is_valid` por `validation_status`
+  (`VALIDADO` para quem estava validado, `PENDENTE` para os demais).
 - **Reabrir o inventário.** `POST /inventory/{id}/reopen` (administrador ou gestor do setor; `403` para os demais, `409` se
   o inventário não está finalizado, `404` se não existe) volta o inventário para `EM_ANDAMENTO` e limpa `completedAt`. É o
   único caminho de correção depois do fechamento e grava `REOPEN_INVENTORY` em `im_inventory_audit`. Os itens continuam
@@ -474,3 +487,4 @@ Para quem já tinha algo montado em cima da versão 1.x. **Mudança incompatíve
 | 2.2 | 2026-11-01 | Entra a permissão `VIEW_SECTOR` (Consultar), a base da leitura: ler os inventários, itens e a exportação de um setor exige o cargo ter `VIEW_SECTOR` (ou `MANAGE_ITEM`/`MANAGE_SECTOR`, que a incluem); **cargo sem nenhuma permissão não lê os dados do setor** (antes bastava estar alocado). `GET /inventory/user-inventories` e `GET /sectors` só trazem setores em que o cargo dá leitura. A migration 8.0 dá `VIEW_SECTOR` a todos os cargos existentes, então ninguém perde acesso; salvar cargo com `MANAGE_*` inclui `VIEW_SECTOR` (sub-issue de #154). |
 | 2.3 | 2026-11-15 | **Contrato:** `GET /item/export-sheet` e `POST /item/send-email-sheet` passam a exigir administrador ou gestor do setor (`MANAGE_SECTOR`); Consulta e Operador recebem `403`. O envio por e-mail só aceita destinatário de domínio permitido (`EMAIL_SHEET_ALLOWED_DOMAINS`, padrão `ifpe.edu.br`, com subdomínios), corpo validado (`400`), limite de envios por usuário (`429` com `Retry-After`) e responde conforme o envio real (`200` só depois de o servidor de e-mail aceitar; `502` se falhar). Cada exportação e envio, inclusive os recusados, é registrado em `im_inventory_audit`. |
 | 2.4 | 2026-11-20 | **Contrato:** `PUT /item/{id}` só muda código, descrição, responsável, valor e sala com o inventário aberto e o item não validado (`409` caso contrário, inclusive para administrador); cada edição é registrada em `im_inventory_audit` (`UPDATE_ITEM`, com o antes e depois). `PATCH /item/{id}/validate` passa a aplicar `{ "isValid": false }`, restrito a administrador e gestor do setor, com inventário aberto, e grava `VALIDATION_REVOKED`; o `PUT` com `isValid` falso usa a mesma regra (antes qualquer operador desvalidava, sem trilha). Entra `POST /inventory/{id}/reopen` (administrador ou gestor), registrado como `REOPEN_INVENTORY`. Migration `11.0.xml` adiciona `id_item` a `im_inventory_audit`. |
+| 2.5 | 2026-11-20 | **Contrato:** o item ganha a situação `validationStatus` (`PENDENTE`, `VALIDADO`, `NAO_LOCALIZADO`; `isValid` continua e vale só para `VALIDADO`); entra `PATCH /item/{id}/not-found` (operador ou gestor, com motivo obrigatório, auditado como `MARKED_NOT_FOUND`); `POST /inventory/{id}/finalize` passa a exigir itens e nenhum `PENDENTE` e responde `422` (`message` e `pendingItems`) quando não pode; o gestor desfaz a marcação por `PATCH /item/{id}/validate` com `isValid` falso. Migration `14.0.xml` troca `is_valid` por `validation_status`. |

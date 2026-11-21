@@ -36,6 +36,9 @@ public class ItemService {
   private final RoomService roomService;
   private final InventoryAuditService inventoryAuditService;
 
+  // Cabe com folga nos 1000 caracteres da coluna de detalhes da auditoria.
+  static final int MAX_NOT_FOUND_REASON = 255;
+
   public ItemService(
       ItemRepository itemRepository,
       InventoryRepository inventoryRepository,
@@ -138,6 +141,12 @@ public class ItemService {
     Inventory inventory = inventoryOf(item);
     authorizationService.requireOperateInventory(userId, inventory);
     requireOpen(inventory);
+    if (item.validationStatus() == Item.ValidationStatus.NAO_LOCALIZADO) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "Item marcado como não localizado: peça ao gestor para desfazer a marcação antes de"
+              + " validar.");
+    }
     if (item.isValid() && sameFoundRoom(item, roomId)) {
       return item;
     }
@@ -146,9 +155,62 @@ public class ItemService {
   }
 
   /**
-   * Desvalida um item validado. Só administrador ou gestor do setor, e só com o inventário aberto:
-   * é o jeito de destravar um item validado para corrigir os dados dele. Grava a auditoria
-   * (VALIDATION_REVOKED). 409 se o item não está validado.
+   * Marca o item como não localizado, com a justificativa obrigatória. Exige poder operar o
+   * inventário, que ele esteja aberto e o item PENDENTE: um item validado ou já marcado só volta a
+   * pendente pelo gestor (PATCH /item/{id}/validate com isValid false). Conta como conferido para
+   * finalizar o inventário. A justificativa fica na auditoria (MARKED_NOT_FOUND) e vira uma
+   * observação do item.
+   */
+  @Transactional
+  public Item markNotFound(long itemId, long userId, String reason) {
+    Item item = requireItem(itemId);
+    Inventory inventory = inventoryOf(item);
+    authorizationService.requireOperateInventory(userId, inventory);
+    if (inventory.status() == Inventory.Status.CONCLUIDO) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "Inventário finalizado: não é possível marcar itens como não localizados.");
+    }
+    String justification = reason == null ? "" : reason.trim();
+    if (justification.isEmpty()) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST, "Informe o motivo de o item não ter sido localizado.");
+    }
+    if (justification.length() > MAX_NOT_FOUND_REASON) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST,
+          "O motivo deve ter no máximo " + MAX_NOT_FOUND_REASON + " caracteres.");
+    }
+    if (item.validationStatus() != Item.ValidationStatus.PENDENTE) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "Só um item pendente pode ser marcado como não localizado; este já está "
+              + (item.isValid() ? "validado" : "marcado como não localizado")
+              + ".");
+    }
+    item.setValidationStatus(Item.ValidationStatus.NAO_LOCALIZADO);
+    item.setValidatedAt(LocalDateTime.now());
+    item.setFoundRoom(null);
+    item.addObservation(new Observation("Não localizado: " + justification));
+    itemRepository.save(item);
+    itemAuditService.record(
+        item,
+        inventory,
+        userService.findUserById(userId),
+        actorSectorOf(userId, inventory),
+        inventory.sector(),
+        ItemAuditService.EVENT_MARKED_NOT_FOUND,
+        ItemAuditService.STATUS_NOT_FOUND,
+        justification,
+        null);
+    return item;
+  }
+
+  /**
+   * Desvalida um item validado ou desfaz a marcação de não localizado, voltando-o a PENDENTE. Só
+   * administrador ou gestor do setor, e só com o inventário aberto: é o jeito de destravar o item
+   * para corrigir os dados dele ou conferi-lo de novo. Grava a auditoria (VALIDATION_REVOKED). 409
+   * se o item já está pendente.
    */
   @Transactional
   public Item invalidateItem(long itemId, long userId) {
@@ -163,8 +225,9 @@ public class ItemService {
           HttpStatus.CONFLICT,
           "Inventário finalizado: não é possível desvalidar itens. Reabra o inventário.");
     }
-    if (!item.isValid()) {
-      throw new ResponseStatusException(HttpStatus.CONFLICT, "O item não está validado.");
+    if (item.validationStatus() == Item.ValidationStatus.PENDENTE) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "O item não está validado nem marcado como não localizado.");
     }
     revokeValidation(item, inventory, userId);
     return itemRepository.save(item);
@@ -173,7 +236,7 @@ public class ItemService {
   /** Desfaz a validação e grava a auditoria com o que foi desfeito. */
   private void revokeValidation(Item item, Inventory inventory, long userId) {
     String details = revokedValidationDetails(item);
-    item.setValid(false);
+    item.setValidationStatus(Item.ValidationStatus.PENDENTE);
     item.setValidatedAt(null);
     item.setFoundRoom(null);
     itemRepository.save(item);
@@ -192,7 +255,12 @@ public class ItemService {
   private static String revokedValidationDetails(Item item) {
     StringBuilder details = new StringBuilder();
     if (item.validatedAt() != null) {
-      details.append("Validado em ").append(item.validatedAt());
+      details
+          .append(
+              item.validationStatus() == Item.ValidationStatus.NAO_LOCALIZADO
+                  ? "Marcado como não localizado em "
+                  : "Validado em ")
+          .append(item.validatedAt());
     }
     if (item.foundRoom() != null) {
       if (details.length() > 0) {
@@ -243,7 +311,7 @@ public class ItemService {
             ? ItemAuditService.STATUS_PENDING_TARGET_SECTOR
             : ItemAuditService.STATUS_VALIDATED;
 
-    item.setValid(true);
+    item.setValidationStatus(Item.ValidationStatus.VALIDADO);
     item.setValidatedAt(LocalDateTime.now());
     item.setFoundRoom(foundRoom);
     itemRepository.save(item);
@@ -352,10 +420,12 @@ public class ItemService {
           HttpStatus.CONFLICT,
           "Inventário finalizado: não é possível alterar os dados do item. Reabra o inventário.");
     }
-    if (item.isValid()) {
+    if (item.validationStatus() != Item.ValidationStatus.PENDENTE) {
       throw new ResponseStatusException(
           HttpStatus.CONFLICT,
-          "Item validado: só é possível registrar observações. Desvalide o item para alterar os dados.");
+          item.isValid()
+              ? "Item validado: só é possível registrar observações. Desvalide o item para alterar os dados."
+              : "Item marcado como não localizado: só é possível registrar observações. Desfaça a marcação para alterar os dados.");
     }
   }
 

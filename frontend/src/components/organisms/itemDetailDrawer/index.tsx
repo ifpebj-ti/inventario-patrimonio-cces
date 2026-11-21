@@ -28,6 +28,7 @@ import {
   Barcode,
   Save,
   TriangleAlert,
+  SearchX,
 } from 'lucide-react'
 import {
   updateItemRequest,
@@ -70,7 +71,12 @@ export const ItemDetailDrawer: React.FC<ItemDetailDrawerProps> = ({
     if (item) {
       setFormData({
         ...item,
-        isValid: item.isValid || (validateOnOpen && rooms.length > 0),
+        // Item não localizado não é validado direto: o gestor desfaz a marcação antes.
+        isValid:
+          item.isValid ||
+          (validateOnOpen &&
+            rooms.length > 0 &&
+            item.validationStatus !== 'NAO_LOCALIZADO'),
       })
       setFoundRoomId(item.foundRoomId ?? item.roomId ?? null)
       setObservations(item.observations ? [...item.observations] : [])
@@ -84,6 +90,7 @@ export const ItemDetailDrawer: React.FC<ItemDetailDrawerProps> = ({
 
   const hasRooms = rooms.length > 0
   const alreadyValidated = !!item?.isValid
+  const notFound = item?.validationStatus === 'NAO_LOCALIZADO'
   const validating = !!formData.isValid && !alreadyValidated
   const needsRoom = hasRooms && validating && foundRoomId === null
   const registeredRoomId = formData.roomId ?? null
@@ -216,16 +223,18 @@ export const ItemDetailDrawer: React.FC<ItemDetailDrawerProps> = ({
                   Status de Verificação
                 </span>
                 <span className="block text-[11px] leading-tight text-muted-foreground">
-                  {formData.isValid
-                    ? 'Item conferido fisicamente no local.'
-                    : 'Pendente de conferência ou ausente.'}
+                  {notFound
+                    ? 'Marcado como não localizado. O gestor precisa desfazer a marcação antes de validar.'
+                    : formData.isValid
+                      ? 'Item conferido fisicamente no local.'
+                      : 'Pendente de conferência ou ausente.'}
                 </span>
               </div>
 
               <UiButton
                 variant={formData.isValid ? 'success' : 'default'}
                 type="button"
-                disabled={isSaving}
+                disabled={isSaving || notFound}
                 onClick={toggleValidationStatus}
                 className={
                   formData.isValid
@@ -233,7 +242,12 @@ export const ItemDetailDrawer: React.FC<ItemDetailDrawerProps> = ({
                     : 'shrink-0 bg-warning text-white hover:bg-warning/90'
                 }
               >
-                {formData.isValid ? (
+                {notFound ? (
+                  <>
+                    <SearchX />
+                    <span>Não localizado</span>
+                  </>
+                ) : formData.isValid ? (
                   <>
                     <CheckCircle2 />
                     <span>Verificado</span>

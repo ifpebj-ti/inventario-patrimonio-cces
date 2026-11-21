@@ -4,6 +4,10 @@ export interface Observation {
   content: string
 }
 
+// Situação do item no inventário: pendente (ainda não conferido), validado (encontrado) ou não
+// localizado (conferido e não encontrado). O inventário só finaliza sem itens pendentes.
+export type ValidationStatus = 'PENDENTE' | 'VALIDADO' | 'NAO_LOCALIZADO'
+
 // Tipo do item
 export interface Item {
   id: number
@@ -22,6 +26,8 @@ export interface Item {
   // Validado numa sala diferente da cadastrada.
   divergent?: boolean
   isValid?: boolean
+  // Ausente em servidores antigos: nesse caso vale isValid (validado ou pendente).
+  validationStatus?: ValidationStatus
   observations?: Observation[]
   validatedAt?: string
 }

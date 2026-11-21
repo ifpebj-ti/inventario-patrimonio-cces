@@ -242,7 +242,14 @@ export default function Inventory() {
     setItemData((currentItems) =>
       currentItems.map((item) =>
         item.id === updatedItem.id
-          ? { ...item, ...updatedItem, isValid: updatedItem.isValid ?? true }
+          ? {
+              ...item,
+              ...updatedItem,
+              isValid: updatedItem.isValid ?? true,
+              validationStatus:
+                updatedItem.validationStatus ??
+                (updatedItem.isValid === false ? 'PENDENTE' : 'VALIDADO'),
+            }
           : item,
       ),
     )
@@ -310,6 +317,19 @@ export default function Inventory() {
         return false
       })
 
+      if (foundItem && foundItem.validationStatus === 'NAO_LOCALIZADO') {
+        // Item marcado como não localizado e achado depois: só o gestor desfaz a marcação, então
+        // a leitura não valida; a gaveta mostra a situação.
+        setDrawerValidates(false)
+        setScannedItem(foundItem)
+        setIsDrawerOpen(true)
+        toast.warning(
+          `Patrimônio "${foundItem.code}" está marcado como não localizado. Peça ao gestor para desfazer a marcação antes de validar.`,
+          { id: 'scan-error-toast', duration: 5000 },
+        )
+        return
+      }
+
       if (foundItem && sectorHasRooms) {
         // Setor com salas: o item só é validado depois de confirmar a sala no drawer, que já vem
         // com a sala cadastrada selecionada.
@@ -328,12 +348,15 @@ export default function Inventory() {
         const verifiedItem: Item = {
           ...foundItem,
           isValid: true,
+          validationStatus: 'VALIDADO',
         }
 
         // 3. Atualiza os contadores em tempo real e a lista imediatamente na UI
         setItemData((currentItems) =>
           currentItems.map((item) =>
-            item.id === foundItem.id ? { ...item, isValid: true } : item,
+            item.id === foundItem.id
+              ? { ...item, isValid: true, validationStatus: 'VALIDADO' }
+              : item,
           ),
         )
 

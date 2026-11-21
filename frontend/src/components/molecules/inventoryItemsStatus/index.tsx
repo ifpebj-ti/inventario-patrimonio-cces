@@ -1,15 +1,29 @@
 import { Badge as UiBadge } from '@/components/ui/badge'
 import { Card as UiCard } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
 
 import React from 'react'
 import { ItemsValid } from '@/components/molecules/inventoryItemsStatus/types'
 import { BarChart3 } from 'lucide-react'
+import { validationStatusOf } from '@/components/ui/status-badge'
+
+// Cores de cada contador (classes literais para o Tailwind enxergá-las).
+const counterText: Record<string, string> = {
+  success: 'text-success',
+  warning: 'text-warning',
+  destructive: 'text-destructive',
+}
+const counterDot: Record<string, string> = {
+  success: 'bg-success',
+  warning: 'bg-warning',
+  destructive: 'bg-destructive',
+}
 
 // Componente Card 1: Estatísticas de Verificação do Inventário
 export const InventoryItemsStatus = ({ content = [] }: ItemsValid) => {
-  const verifiedCount = content.filter((item) => Boolean(item.isValid)).length
-  const unverifiedCount = content.length - verifiedCount
+  const statuses = content.map(validationStatusOf)
+  const verifiedCount = statuses.filter((s) => s === 'VALIDADO').length
+  const notFoundCount = statuses.filter((s) => s === 'NAO_LOCALIZADO').length
+  const pendingCount = content.length - verifiedCount - notFoundCount
 
   return (
     <UiCard className="w-full h-full min-h-60 justify-between gap-0 p-5">
@@ -33,29 +47,33 @@ export const InventoryItemsStatus = ({ content = [] }: ItemsValid) => {
         </UiBadge>
       </div>
 
-      {/* Contadores dinâmicos de Itens verificados (Verde) e não verificados (Vermelho) */}
-      <div className="flex justify-evenly items-center gap-4 my-auto py-4">
-        <div className="text-center flex-1">
-          <div className="text-4xl sm:text-5xl font-light text-success mb-1">
-            {verifiedCount}
+      {/* Contadores: verificados (verde), não localizados (amarelo) e pendentes (vermelho) */}
+      {/* Grade de três colunas que encolhe: com três contadores uma linha única estoura a largura
+          de um celular de 320 px, então o rótulo quebra em vez de empurrar o card. */}
+      <div className="grid grid-cols-3 divide-x my-auto py-4">
+        {[
+          { count: verifiedCount, label: 'Itens verificados', tone: 'success' },
+          { count: notFoundCount, label: 'Não localizados', tone: 'warning' },
+          {
+            count: pendingCount,
+            label: 'Itens pendentes',
+            tone: 'destructive',
+          },
+        ].map(({ count, label, tone }) => (
+          <div key={label} className="min-w-0 px-1 text-center sm:px-3">
+            <div
+              className={`mb-1 text-3xl font-light sm:text-5xl ${counterText[tone]}`}
+            >
+              {count}
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-x-1.5 text-[11px] leading-tight font-semibold text-muted-foreground sm:text-sm">
+              <span
+                className={`inline-block size-2 shrink-0 rounded-full ${counterDot[tone]}`}
+              />
+              {label}
+            </div>
           </div>
-          <div className="text-muted-foreground text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5">
-            <span className="size-2 rounded-full bg-success inline-block shrink-0" />
-            Itens verificados
-          </div>
-        </div>
-
-        <Separator orientation="vertical" className="h-12!" />
-
-        <div className="text-center flex-1">
-          <div className="text-4xl sm:text-5xl font-light text-destructive mb-1">
-            {unverifiedCount}
-          </div>
-          <div className="text-muted-foreground text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5">
-            <span className="size-2 rounded-full bg-destructive inline-block shrink-0" />
-            Itens não verificados
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* Texto instrutivo atualizado conforme especificação */}

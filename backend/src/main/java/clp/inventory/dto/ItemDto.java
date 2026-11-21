@@ -40,9 +40,17 @@ public record ItemDto(
         String foundRoomName,
     @Schema(description = "Verdadeiro quando foi validado numa sala diferente da cadastrada.")
         boolean divergent,
-    @Schema(description = "Se o item já foi validado no inventário.") boolean isValid,
+    @Schema(description = "Se o item foi validado (encontrado e conferido) no inventário.")
+        boolean isValid,
     @Schema(
-            description = "Data e hora da validação (ISO-8601); nulo se não validado.",
+            description =
+                "Situação do item: PENDENTE (ainda não conferido), VALIDADO ou NAO_LOCALIZADO (conferido e não encontrado). O inventário só é finalizado sem itens PENDENTE. Na edição (PUT) é ignorada: a situação muda por PATCH /item/{id}/validate e PATCH /item/{id}/not-found.",
+            example = "PENDENTE",
+            allowableValues = {"PENDENTE", "VALIDADO", "NAO_LOCALIZADO"})
+        String validationStatus,
+    @Schema(
+            description =
+                "Data e hora da conferência (ISO-8601): validação ou marcação como não localizado; nulo se pendente.",
             example = "2026-11-10T09:15:00")
         String validatedAt,
     @Schema(
@@ -81,6 +89,7 @@ public record ItemDto(
         item.foundRoom() != null ? item.foundRoom().name() : null,
         item.divergent(),
         item.isValid(),
+        item.validationStatus().name(),
         item.validatedAt() != null ? item.validatedAt().toString() : null,
         item.qrCode(),
         observationsDto);

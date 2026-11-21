@@ -1,6 +1,11 @@
 'use client'
 
-import { StatusBadge, inventoryStatusView } from '@/components/ui/status-badge'
+import {
+  StatusBadge,
+  inventoryStatusView,
+  itemValidationView,
+  validationStatusOf,
+} from '@/components/ui/status-badge'
 import {
   Tooltip,
   TooltipContent,
@@ -53,9 +58,23 @@ import {
   FileSpreadsheet,
   Mail,
   Pencil,
+  SearchX,
   Trash2,
 } from 'lucide-react'
 import { InventoryResponse } from '@/services/inventory'
+import type { ValidationStatus } from '@/commons/models/item'
+
+// Cor do código e ícone do badge de cada situação do item.
+const itemCodeTone: Record<ValidationStatus, string> = {
+  VALIDADO: 'text-success',
+  NAO_LOCALIZADO: 'text-warning',
+  PENDENTE: 'text-destructive',
+}
+const itemValidationIcon: Record<ValidationStatus, React.ReactNode> = {
+  VALIDADO: <CheckCircle2 />,
+  NAO_LOCALIZADO: <SearchX />,
+  PENDENTE: <Clock3 />,
+}
 
 // O ícone inicia fechado e abre enquanto a ação de visualização está em foco.
 const ViewActionEyeButton = ({
@@ -194,7 +213,7 @@ export const Table = ({
             <div className="w-24 shrink-0">
               <span
                 className={`font-semibold whitespace-nowrap ${
-                  row.original.isValid ? 'text-success' : 'text-destructive'
+                  itemCodeTone[validationStatusOf(row.original)]
                 }`}
               >
                 {row.original.code}
@@ -285,14 +304,15 @@ export const Table = ({
                 </div>
               )
             }
-            const isValid = Boolean(row.original.isValid)
+            const validation = validationStatusOf(row.original)
+            const view = itemValidationView[validation]
             return (
               <div className="flex justify-center">
                 <StatusBadge
-                  tone={isValid ? 'success' : 'danger'}
-                  icon={isValid ? <CheckCircle2 /> : <Clock3 />}
+                  tone={view.tone}
+                  icon={itemValidationIcon[validation]}
                 >
-                  {isValid ? 'Verificado' : 'Pendente'}
+                  {view.label}
                 </StatusBadge>
               </div>
             )
@@ -660,9 +680,7 @@ export const Table = ({
                             <span
                               className={`font-bold text-base truncate ${
                                 'isValid' in item && item.isValid !== undefined
-                                  ? item.isValid
-                                    ? 'text-success'
-                                    : 'text-destructive'
+                                  ? itemCodeTone[validationStatusOf(item)]
                                   : 'text-foreground'
                               }`}
                             >
@@ -671,13 +689,19 @@ export const Table = ({
                             {'isValid' in item &&
                               item.isValid !== undefined && (
                                 <StatusBadge
-                                  tone={item.isValid ? 'success' : 'danger'}
+                                  tone={
+                                    itemValidationView[validationStatusOf(item)]
+                                      .tone
+                                  }
                                   icon={
-                                    item.isValid ? <CheckCircle2 /> : <Clock3 />
+                                    itemValidationIcon[validationStatusOf(item)]
                                   }
                                   className="shrink-0"
                                 >
-                                  {item.isValid ? 'Verificado' : 'Pendente'}
+                                  {
+                                    itemValidationView[validationStatusOf(item)]
+                                      .label
+                                  }
                                 </StatusBadge>
                               )}
                           </>
