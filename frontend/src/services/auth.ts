@@ -78,3 +78,11 @@ export const passwordSignInRequest = async (
 export const recoverUserInformation = async () => {
   return api.get<User>('/auth/me')
 }
+
+// Encerra no servidor a sessão do token. É chamado antes de o cookie ser apagado e leva o token
+// explicitamente: o interceptor lê o cookie só na hora de enviar, e a essa altura ele já foi
+// removido. Quem chama não espera nem trata a falha: o navegador sai de qualquer jeito.
+export const signOutRequest = (token: string) =>
+  api.post('/auth/logout', null, {
+    headers: { Authorization: `Bearer ${token}` },
+  })

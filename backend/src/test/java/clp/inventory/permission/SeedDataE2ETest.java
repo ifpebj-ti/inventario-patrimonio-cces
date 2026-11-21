@@ -59,6 +59,8 @@ class SeedDataE2ETest {
     String token =
         JWT.create()
             .withIssuer("inventory")
+            .withJWTId(java.util.UUID.randomUUID().toString())
+            .withClaim("ver", 0)
             .withSubject(String.valueOf(adminUserId()))
             .withExpiresAt(Instant.now().plus(Duration.ofHours(1)))
             .sign(algorithm);

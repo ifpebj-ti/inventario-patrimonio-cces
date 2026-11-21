@@ -56,6 +56,8 @@ class InventoryCompletionE2ETest {
     headers.setBearerAuth(
         JWT.create()
             .withIssuer("inventory")
+            .withJWTId(java.util.UUID.randomUUID().toString())
+            .withClaim("ver", 0)
             .withSubject(user.getId().toString())
             .withExpiresAt(Instant.now().plusSeconds(3600))
             .sign(Algorithm.HMAC256(SECRET)));

@@ -65,7 +65,24 @@ public class User {
   @JsonIgnore
   private boolean administrator = false;
 
+  // Versão das sessões da conta. Todo token carrega a versão com que foi emitido e só vale enquanto
+  // ela for igual à atual: trocar a credencial ou desativar a conta sobe o número e derruba, de
+  // uma vez, todas as sessões abertas.
+  @Column(name = "token_version", nullable = false)
+  @JsonIgnore
+  private int tokenVersion = 0;
+
   public User() {}
+
+  @JsonIgnore
+  public int getTokenVersion() {
+    return tokenVersion;
+  }
+
+  /** Encerra todas as sessões já emitidas para a conta. */
+  public void revokeAllSessions() {
+    tokenVersion++;
+  }
 
   public Long getId() {
     return id;

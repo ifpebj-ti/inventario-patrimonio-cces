@@ -129,12 +129,17 @@ class AccessControlE2ETest {
     return access.role(name).id();
   }
 
+  // Como num login novo: o token sai com a versão de sessão que a conta tem agora (desativar a
+  // conta sobe essa versão e encerra os tokens anteriores).
   private HttpHeaders headers(User user) {
+    int sessionVersion = users.findById(user.getId()).orElseThrow().getTokenVersion();
     HttpHeaders headers = new HttpHeaders();
     headers.setContentType(MediaType.APPLICATION_JSON);
     headers.setBearerAuth(
         JWT.create()
             .withIssuer("inventory")
+            .withJWTId(java.util.UUID.randomUUID().toString())
+            .withClaim("ver", sessionVersion)
             .withSubject(user.getId().toString())
             .withExpiresAt(Instant.now().plusSeconds(3600))
             .sign(Algorithm.HMAC256(SECRET)));

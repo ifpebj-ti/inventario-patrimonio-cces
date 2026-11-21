@@ -75,6 +75,8 @@ class SectorE2ETest {
     Algorithm algorithm = Algorithm.HMAC256(TEST_SECRET);
     return JWT.create()
         .withIssuer("inventory")
+        .withJWTId(java.util.UUID.randomUUID().toString())
+        .withClaim("ver", 0)
         .withSubject(String.valueOf(userId))
         .withExpiresAt(Instant.now().plus(Duration.ofHours(1)))
         .sign(algorithm);

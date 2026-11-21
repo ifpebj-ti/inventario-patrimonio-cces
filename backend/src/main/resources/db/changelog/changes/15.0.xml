@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+    <!--
+        Sessao revogavel. Todo token passa a ter um id (jti) e a versao de sessao da conta (ver):
+        - im_user.token_version: sobe quando a conta troca de credencial (senha da conta de sistema) ou e
+          desativada. Token com versao diferente da atual deixa de valer, em todos os dispositivos.
+        - im_revoked_token: ids dos tokens encerrados pelo logout, ate o momento em que o token expiraria
+          (depois disso o proprio exp ja o recusa e a linha pode ser apagada).
+    -->
+    <changeSet id="20261121-01" author="inventarium">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="im_user" columnName="token_version"/>
+            </not>
+        </preConditions>
+
+        <addColumn tableName="im_user">
+            <column name="token_version" type="INTEGER" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="20261121-02" author="inventarium">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="im_revoked_token"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="im_revoked_token">
+            <column name="jti" type="VARCHAR(64)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="expires_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <createIndex tableName="im_revoked_token" indexName="idx_revoked_token_expires_at">
+            <column name="expires_at"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>
