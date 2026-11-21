@@ -26,6 +26,37 @@ Inventarium e um monorepo do projeto academico de gerenciamento de inventário. 
 └── package.json   # Ferramentas compartilhadas do monorepo
 ```
 
+## Arquitetura
+
+A solução é uma aplicação web Next.js que consome uma API REST em Spring Boot, que persiste os dados no PostgreSQL. O login usa o Google Identity Services e a API emite o próprio JWT. O diagrama abaixo é o nível de containers do modelo C4 e é mantido junto da documentação em [C4 — Containers](docs/wiki/C4-Containers.md).
+
+```mermaid
+flowchart LR
+    usuario["Usuário institucional\nNavegador"]
+
+    subgraph runtime["Ambiente do Inventarium"]
+        web["Aplicação web\nNext.js 16 / React 19\nporta 3000"]
+        api["API REST\nSpring Boot / Java 21\nporta 8080"]
+        banco[("PostgreSQL 15\nDados persistentes")]
+    end
+
+    google["Google Identity Services"]
+    smtp["Gmail SMTP"]
+    xlsx["Arquivos CSV de entrada / XLSX de saída"]
+
+    usuario -->|"HTTPS / interface web"| web
+    web -->|"login Google"| google
+    web -->|"REST + Bearer JWT"| api
+    api -->|"valida ID token"| google
+    api -->|"JPA / JDBC"| banco
+    usuario -->|"envia ou baixa"| xlsx
+    web -->|"multipart e download"| api
+    api -->|"lê e gera"| xlsx
+    api -->|"SMTP com XLSX anexo"| smtp
+```
+
+Os outros níveis do C4 estão em [Contexto](docs/wiki/C4-Contexto.md) e [Componentes](docs/wiki/C4-Componentes.md).
+
 ## Aplicações
 
 ### Backend
@@ -243,11 +274,14 @@ Consulte os detalhes, os checks exigidos e os pontos ainda manuais em [Esteira d
 
 ## Documentação
 
-Mais detalhes de contribuição estao em:
+Para contribuir, leia o [CONTRIBUTING.md](CONTRIBUTING.md). Os detalhes estão em:
 
 ```text
 docs/contributing.md
+docs/branching-strategy.md
 ```
+
+Vulnerabilidades devem ser relatadas de forma privada, conforme a [Política de Segurança](SECURITY.md).
 
 As decisões arquiteturais relevantes são registradas como ADRs em:
 
