@@ -16,7 +16,7 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
   // Contagens usadas para o status do inventário e os indicadores do dashboard.
   long countByInventory_Id(Long inventoryId);
 
-  long countByInventory_IdAndIsValidTrue(Long inventoryId);
+  long countByInventory_IdAndValidationStatus(Long inventoryId, Item.ValidationStatus status);
 
   // Itens ligados a uma sala (cadastrada ou encontrada): impedem excluir a sala.
   long countByRoom_Id(long roomId);

@@ -9,7 +9,11 @@ import { useAdministrationAccess } from '@/contexts/AdministrationAccess'
 import { useInventorySector } from '@/hooks/useInventorySector'
 import { Spinner } from '@/components/ui/spinner'
 import { SelectField } from '@/components/ui/select-field'
-import { StatusBadge } from '@/components/ui/status-badge'
+import {
+  StatusBadge,
+  itemValidationView,
+  validationStatusOf,
+} from '@/components/ui/status-badge'
 import { useSectorRooms } from '@/hooks/useSectorRooms'
 
 import { Card as UiCard } from '@/components/ui/card'
@@ -26,6 +30,8 @@ import {
   updateItemRequest,
   updateItemNotesRequest,
   updateItemErrorMessage,
+  markItemNotFoundRequest,
+  markNotFoundErrorMessage,
 } from '@/services/item'
 import { ObservationModal } from '@/components/organisms/modalObservation'
 import { toast } from 'sonner'
@@ -57,6 +63,9 @@ export default function ItemDetailPage() {
   const [editError, setEditError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [notesOpen, setNotesOpen] = useState(false)
+  // Motivo digitado ao marcar como não localizado; null = diálogo fechado.
+  const [notFoundReason, setNotFoundReason] = useState<string | null>(null)
+  const [notFoundError, setNotFoundError] = useState<string | null>(null)
   // Editar dados do item: gestor do setor do inventário (ou admin). Observações: também quem tem
   // MANAGE_ITEM nele. Os demais só leem. O cargo vale por setor.
   const { canManageInventoryIn, canOperateItemsIn } = useAdministrationAccess()
@@ -74,6 +83,7 @@ export default function ItemDetailPage() {
     setItem(null)
     setDraft(null)
     setNotesOpen(false)
+    setNotFoundReason(null)
     getItemByIdRequest(Number(itemId))
       .then((result) => {
         if (active) setItem(result)
@@ -119,6 +129,28 @@ export default function ItemDetailPage() {
     }
   }
 
+  const markNotFound = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!item || notFoundReason === null || busy) return
+    const reason = notFoundReason.trim()
+    if (!reason) {
+      setNotFoundError('Informe o motivo de o item não ter sido localizado.')
+      return
+    }
+    setBusy(true)
+    setNotFoundError(null)
+    try {
+      const saved = await markItemNotFoundRequest(item.id, reason)
+      setItem(saved)
+      setNotFoundReason(null)
+      toast.success('Item marcado como não localizado.')
+    } catch (error) {
+      setNotFoundError(markNotFoundErrorMessage(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const saveNotes = async (notes: Observation[]) => {
     if (!item) throw new Error('Item não encontrado.')
     const saved = await updateItemNotesRequest(item.id, notes)
@@ -128,6 +160,9 @@ export default function ItemDetailPage() {
 
   const change = (key: keyof Draft, value: string) =>
     setDraft((previous) => (previous ? { ...previous, [key]: value } : null))
+
+  const validation = item ? validationStatusOf(item) : 'PENDENTE'
+  const validationView = itemValidationView[validation]
 
   return (
     <div className="page-shell flex flex-col gap-6">
@@ -155,13 +190,38 @@ export default function ItemDetailPage() {
               <p className="text-sm text-muted-foreground">Detalhes do item</p>
               <h1 className="page-heading break-all">{item.code}</h1>
             </div>
-            <UiBadge
-              variant={badgeVariant[item.isValid ? 'success' : 'danger']}
-              className="rounded-md font-semibold"
-            >
-              {item.isValid ? 'Verificado' : 'Pendente'}
-            </UiBadge>
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Quem opera o inventário marca o item pendente que não foi encontrado. */}
+              {canOperateItems && validation === 'PENDENTE' && (
+                <UiButton
+                  variant="outline"
+                  className="w-auto"
+                  type="button"
+                  onClick={() => {
+                    setNotFoundError(null)
+                    setNotFoundReason('')
+                  }}
+                >
+                  Marcar como não localizado
+                </UiButton>
+              )}
+              <UiBadge
+                variant={badgeVariant[validationView.tone]}
+                className="rounded-md font-semibold"
+              >
+                {validationView.label}
+              </UiBadge>
+            </div>
           </header>
+          {validation === 'NAO_LOCALIZADO' && (
+            <Alert className="border-warning/25 bg-warning/10">
+              <AlertDescription>
+                Item marcado como não localizado: o motivo está nas observações.
+                Para conferi-lo de novo, o gestor do setor precisa desfazer a
+                marcação.
+              </AlertDescription>
+            </Alert>
+          )}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <UiCard
               role="region"
@@ -172,8 +232,8 @@ export default function ItemDetailPage() {
                 <h2 className="text-lg font-semibold text-foreground">
                   Dados do item
                 </h2>
-                {/* Item validado só aceita observações: o gestor desvalida antes de corrigir. */}
-                {canManageInventories && !item.isValid && (
+                {/* Item validado ou não localizado só aceita observações: o gestor desfaz antes de corrigir. */}
+                {canManageInventories && validation === 'PENDENTE' && (
                   <UiButton
                     variant="default"
                     className="w-auto"
@@ -374,6 +434,71 @@ export default function ItemDetailPage() {
                   disabled={busy}
                 >
                   {busy ? 'Salvando...' : 'Salvar item'}
+                </UiButton>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+      {notFoundReason !== null && (
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open && !busy) setNotFoundReason(null)
+          }}
+        >
+          <DialogContent
+            showCloseButton={false}
+            className="flex max-h-[90vh] flex-col overflow-y-auto rounded-xl gap-0 p-6 sm:max-w-lg sm:p-8"
+          >
+            <DialogTitle className="sr-only">
+              Marcar como não localizado
+            </DialogTitle>
+            <h2 className="text-xl font-bold text-foreground mb-2">
+              Marcar como não localizado
+            </h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              O item conta como conferido para finalizar o inventário. Explique
+              onde ele foi procurado: o motivo fica registrado na auditoria e
+              nas observações.
+            </p>
+            <form onSubmit={markNotFound} className="space-y-4">
+              <UiLabel className="flex-col items-stretch gap-1.5 text-sm font-medium text-foreground">
+                Motivo
+                <UiTextarea
+                  required
+                  maxLength={255}
+                  rows={4}
+                  disabled={busy}
+                  value={notFoundReason}
+                  onChange={(event) => setNotFoundReason(event.target.value)}
+                />
+              </UiLabel>
+              {notFoundError && (
+                <Alert
+                  variant="destructive"
+                  className="border-destructive/25 bg-destructive/10"
+                >
+                  <AlertDescription>{notFoundError}</AlertDescription>
+                </Alert>
+              )}
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-4">
+                <UiButton
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setNotFoundReason(null)}
+                >
+                  Cancelar
+                </UiButton>
+                <UiButton
+                  variant="default"
+                  className="w-full sm:w-auto"
+                  type="submit"
+                  disabled={busy}
+                >
+                  {busy ? 'Salvando...' : 'Marcar como não localizado'}
                 </UiButton>
               </div>
             </form>

@@ -85,7 +85,7 @@ export const updateItemErrorMessage = (error: unknown): string => {
       case 403:
         return 'Seu cargo neste setor não permite esta alteração. Desvalidar um item e editar os dados é do gestor do setor.'
       case 409:
-        return 'Item validado ou inventário finalizado: só é possível registrar observações. O gestor pode desvalidar o item ou reabrir o inventário para corrigir.'
+        return 'Item validado ou não localizado, ou inventário finalizado: só é possível registrar observações. O gestor pode desfazer a conferência do item ou reabrir o inventário para corrigir.'
     }
   }
   return 'Não foi possível salvar o item. Tente novamente.'
@@ -101,6 +101,35 @@ export const validateItemRequest = async (
     roomId === null ? undefined : { roomId },
   )
   return response.data
+}
+
+// Marca o item como não localizado. O motivo é obrigatório: fica na auditoria e vira uma
+// observação do item. Quem opera o inventário marca; só o gestor desfaz.
+export const markItemNotFoundRequest = async (
+  itemId: number,
+  reason: string,
+): Promise<Item> => {
+  const response = await api.patch<Item>(`/item/${itemId}/not-found`, {
+    reason,
+  })
+  return response.data
+}
+
+// A mensagem vem do status (o backend não devolve texto de erro): 400 (motivo ausente ou longo
+// demais), 403 (cargo sem permissão para operar o inventário) e 409 (inventário finalizado ou
+// item que já foi conferido).
+export const markNotFoundErrorMessage = (error: unknown): string => {
+  if (axios.isAxiosError(error)) {
+    switch (error.response?.status) {
+      case 400:
+        return 'Informe o motivo, com até 255 caracteres.'
+      case 403:
+        return 'Seu cargo neste setor não permite marcar itens como não localizados.'
+      case 409:
+        return 'O inventário está finalizado ou o item já foi conferido. Atualize a página.'
+    }
+  }
+  return 'Não foi possível marcar o item. Tente novamente.'
 }
 
 // Atualiza apenas as observações de um item, usando o método PATCH para uma atualização parcial.

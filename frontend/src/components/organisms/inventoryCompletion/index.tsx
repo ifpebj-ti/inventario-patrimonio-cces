@@ -25,6 +25,15 @@ const failureMessage = (error: unknown) => {
       return 'Você não tem permissão para finalizar este inventário.'
     if (error.response?.status === 409)
       return 'Este inventário já foi finalizado. O estado foi atualizado.'
+    // 422: o inventário não tem itens ou ainda tem itens pendentes. O corpo traz o motivo, com a
+    // quantidade; só o 409 quer dizer "já finalizado".
+    if (error.response?.status === 422) {
+      const message = (error.response.data as { message?: unknown } | undefined)
+        ?.message
+      return typeof message === 'string' && message
+        ? message
+        : 'Ainda há itens pendentes: valide ou marque como não localizado antes de finalizar.'
+    }
     if (error.response?.status === 404) return 'Inventário não encontrado.'
   }
   return 'Não foi possível concluir a operação. Tente novamente.'

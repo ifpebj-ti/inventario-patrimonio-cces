@@ -15,6 +15,7 @@ import clp.inventory.repository.SectorAllocationRepository;
 import clp.inventory.repository.SectorRepository;
 import clp.inventory.repository.UserRepository;
 import clp.inventory.testsupport.TestAccess;
+import clp.inventory.testsupport.TestItems;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import java.nio.charset.StandardCharsets;
@@ -77,6 +78,7 @@ class AccessControlE2ETest {
   @Autowired TestRestTemplate http;
   @Autowired UserRepository users;
   @Autowired TestAccess access;
+  @Autowired TestItems testItems;
   @Autowired SectorRepository sectors;
   @Autowired SectorAllocationRepository allocations;
   @Autowired InventoryRepository inventories;
@@ -304,6 +306,8 @@ class AccessControlE2ETest {
     }
     assertThat(inventories.findById(s.inventoryA.id())).isPresent();
     assertThat(status(s.managerA, HttpMethod.PUT, url, edit)).isEqualTo(HttpStatus.OK);
+    // Finalizar exige que nenhum item esteja pendente.
+    testItems.validateAll(s.inventoryA.id());
     assertThat(status(s.managerA, HttpMethod.POST, url + "/finalize", null))
         .isEqualTo(HttpStatus.OK);
   }
@@ -366,6 +370,8 @@ class AccessControlE2ETest {
   void finalizedInventoryBlocksValidationAndStructureChanges() {
     Scenario s = new Scenario();
     String url = "/item/" + s.itemA.id();
+    // Item não localizado conta como conferido: finaliza sem validar o item.
+    testItems.markAllNotFound(s.inventoryA.id());
     assertThat(
             status(
                 s.managerA, HttpMethod.POST, "/inventory/" + s.inventoryA.id() + "/finalize", null))

@@ -2,6 +2,7 @@ package clp.inventory.controller;
 
 import clp.inventory.dto.EmailRequestDto;
 import clp.inventory.dto.ItemDto;
+import clp.inventory.dto.MarkNotFoundRequest;
 import clp.inventory.dto.ObservationDto;
 import clp.inventory.dto.ValidateItemRequest;
 import clp.inventory.model.Item;
@@ -124,7 +125,7 @@ public class ItemController {
   @Operation(
       summary = "Validar ou desvalidar item",
       description =
-          "Com o corpo omitido ou isValid true, marca o item como validado na sala informada e registra a auditoria (sala encontrada x cadastrada e se divergem). Em setor que tem salas, roomId é obrigatório; em setor sem salas pode ser omitido. Se o usuário não é alocado ao setor do inventário (e não é administrador), a validação é parcial e fica pendente do setor de destino. Validar de novo um item já validado só gera novo registro se a sala for outra. Com isValid false, desvalida o item: só administrador ou gestor do setor, com o inventário aberto e o item validado, e registra a auditoria (VALIDATION_REVOKED). Nenhuma das duas é permitida com o inventário finalizado.")
+          "Com o corpo omitido ou isValid true, marca o item como validado na sala informada e registra a auditoria (sala encontrada x cadastrada e se divergem). Em setor que tem salas, roomId é obrigatório; em setor sem salas pode ser omitido. Se o usuário não é alocado ao setor do inventário (e não é administrador), a validação é parcial e fica pendente do setor de destino. Validar de novo um item já validado só gera novo registro se a sala for outra. Com isValid false, desvalida o item ou desfaz a marcação de não localizado, voltando-o a PENDENTE: só administrador ou gestor do setor, com o inventário aberto e o item conferido, e registra a auditoria (VALIDATION_REVOKED). Um item marcado como não localizado não pode ser validado direto (409): o gestor desfaz antes. Nenhuma das duas é permitida com o inventário finalizado.")
   @ApiResponses({
     @ApiResponse(
         responseCode = "200",
@@ -142,7 +143,8 @@ public class ItemController {
     @ApiResponse(responseCode = "404", description = "Item não encontrado.", content = @Content),
     @ApiResponse(
         responseCode = "409",
-        description = "Inventário finalizado, ou desvalidar um item que não está validado.",
+        description =
+            "Inventário finalizado, desvalidar um item pendente, ou validar um item marcado como não localizado.",
         content = @Content)
   })
   @PatchMapping("/{id}/validate")
@@ -158,6 +160,36 @@ public class ItemController {
     }
     Item validated = itemService.validateItem(id, userId, body != null ? body.roomId() : null);
     return ResponseEntity.ok(ItemDto.from(validated));
+  }
+
+  @Operation(
+      summary = "Marcar item como não localizado",
+      description =
+          "Para o item que não foi encontrado na conferência. Exige o motivo (reason), que fica na auditoria (MARKED_NOT_FOUND) e vira uma observação do item. Exige poder operar o inventário, com o inventário aberto e o item PENDENTE. O item conta como conferido para finalizar o inventário, mas não como validado. Para desfazer, administrador ou gestor do setor usa PATCH /item/{id}/validate com isValid false, que volta o item a PENDENTE.")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "Item marcado como não localizado.",
+        content = @Content(schema = @Schema(implementation = ItemDto.class))),
+    @ApiResponse(
+        responseCode = "400",
+        description = "Motivo ausente, em branco ou com mais de 255 caracteres.",
+        content = @Content),
+    @ApiResponse(
+        responseCode = "403",
+        description = "Sem permissão para operar o inventário.",
+        content = @Content),
+    @ApiResponse(responseCode = "404", description = "Item não encontrado.", content = @Content),
+    @ApiResponse(
+        responseCode = "409",
+        description = "Inventário finalizado, ou item que não está pendente.",
+        content = @Content)
+  })
+  @PatchMapping("/{id}/not-found")
+  public ResponseEntity<ItemDto> markItemNotFound(
+      @PathVariable Long id, @RequestBody MarkNotFoundRequest body, HttpServletRequest request) {
+    return ResponseEntity.ok(
+        ItemDto.from(itemService.markNotFound(id, actingUserId(request), body.reason())));
   }
 
   @Operation(

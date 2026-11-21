@@ -8,6 +8,7 @@ import clp.inventory.dto.doc.ValidateSheetResponse;
 import clp.inventory.model.Inventory;
 import clp.inventory.model.Item;
 import clp.inventory.model.Observation;
+import clp.inventory.service.InventoryNotReadyException;
 import clp.inventory.service.InventoryService;
 import clp.inventory.service.ItemService;
 import clp.inventory.utils.AuthenticationUtils;
@@ -123,7 +124,7 @@ public class InventoryController {
   @Operation(
       summary = "Finalizar inventário",
       description =
-          "Exige administrador ou gestor (MANAGE_SECTOR) do setor. Depois de finalizado, não é possível alterar itens nem validar.")
+          "Exige administrador ou gestor (MANAGE_SECTOR) do setor. O inventário precisa ter itens e nenhum PENDENTE: todo item deve estar validado ou marcado como não localizado (vale para o administrador também). Depois de finalizado, não é possível alterar itens nem validar.")
   @ApiResponses({
     @ApiResponse(
         responseCode = "200",
@@ -136,15 +137,25 @@ public class InventoryController {
     @ApiResponse(
         responseCode = "409",
         description = "O inventário já foi finalizado.",
-        content = @Content)
+        content = @Content),
+    @ApiResponse(
+        responseCode = "422",
+        description =
+            "O inventário não tem itens ou ainda tem itens PENDENTE. O corpo traz message e pendingItems.",
+        content = @Content(schema = @Schema(implementation = MessageResponse.class)))
   })
   @PostMapping("/{inventoryId}/finalize")
-  public ResponseEntity<InventoryDto> finishInventory(
+  public ResponseEntity<?> finishInventory(
       @PathVariable long inventoryId,
       @Parameter(hidden = true) @RequestHeader("Authorization") String authHeader) {
     long userId = Long.parseLong(authenticationUtils.getUserIdFromToken(authHeader));
-    return ResponseEntity.ok(
-        inventoryService.toDto(inventoryService.finishInventory(inventoryId, userId)));
+    try {
+      return ResponseEntity.ok(
+          inventoryService.toDto(inventoryService.finishInventory(inventoryId, userId)));
+    } catch (InventoryNotReadyException e) {
+      return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT)
+          .body(Map.of("message", e.getMessage(), "pendingItems", e.pendingItems()));
+    }
   }
 
   @Operation(

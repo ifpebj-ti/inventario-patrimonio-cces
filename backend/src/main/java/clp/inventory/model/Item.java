@@ -36,9 +36,22 @@ public class Item {
 
   private String responsible;
 
-  @Column(name = "is_valid", nullable = false)
-  private boolean isValid = false;
+  /**
+   * Situação do item no inventário: PENDENTE (ainda não conferido), VALIDADO (encontrado e
+   * conferido) ou NAO_LOCALIZADO (conferido e não encontrado). O inventário só é finalizado sem
+   * itens PENDENTE.
+   */
+  public enum ValidationStatus {
+    PENDENTE,
+    VALIDADO,
+    NAO_LOCALIZADO
+  }
 
+  @Enumerated(EnumType.STRING)
+  @Column(name = "validation_status", nullable = false, length = 20)
+  private ValidationStatus validationStatus = ValidationStatus.PENDENTE;
+
+  // Quando o item foi conferido: validado ou marcado como não localizado.
   private LocalDateTime validatedAt;
 
   @ManyToOne
@@ -92,8 +105,13 @@ public class Item {
     return description;
   }
 
+  public ValidationStatus validationStatus() {
+    return validationStatus;
+  }
+
+  /** Verdadeiro só para VALIDADO; NAO_LOCALIZADO também foi conferido, mas não é "validado". */
   public boolean isValid() {
-    return isValid;
+    return validationStatus == ValidationStatus.VALIDADO;
   }
 
   public long price() {
@@ -177,8 +195,8 @@ public class Item {
     this.responsible = responsible;
   }
 
-  public void setValid(boolean valid) {
-    isValid = valid;
+  public void setValidationStatus(ValidationStatus validationStatus) {
+    this.validationStatus = validationStatus;
   }
 
   public void setValidatedAt(LocalDateTime validatedAt) {

@@ -68,6 +68,17 @@ class InventoryCompletionE2ETest {
             "Completion " + System.nanoTime(), "", LocalDate.now().plusDays(1), owner, sector));
   }
 
+  /** Inventário com um item já validado: pode ser finalizado (nenhum item pendente). */
+  private Inventory inventoryWithValidatedItem(User owner, Sector sector) {
+    Inventory inventory =
+        new Inventory(
+            "Completion " + System.nanoTime(), "", LocalDate.now().plusDays(1), owner, sector);
+    Item item = new Item("C-" + System.nanoTime(), "", "Mesa", 1000, null, "Maria");
+    item.setValidationStatus(Item.ValidationStatus.VALIDADO);
+    inventory.addItem(item);
+    return inventories.save(inventory);
+  }
+
   private ResponseEntity<InventoryDto> editSector(Inventory inventory, User actor, Sector target) {
     var body =
         Map.of(
@@ -158,7 +169,7 @@ class InventoryCompletionE2ETest {
   @Test
   void adminFinalizesLegacyInventoryAndRepeatedRequestPreservesPersistedDate() {
     User admin = user(TestAccess.ADMIN);
-    Inventory inventory = inventory(user(TestAccess.OPERATOR), null);
+    Inventory inventory = inventoryWithValidatedItem(user(TestAccess.OPERATOR), null);
     String path = "/inventory/" + inventory.id() + "/finalize";
     var response = http.exchange(path, HttpMethod.POST, request(admin), InventoryDto.class);
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -176,7 +187,7 @@ class InventoryCompletionE2ETest {
     User manager = user(TestAccess.MANAGER);
     Sector sector = sectors.save(new Sector("Completion sector " + System.nanoTime(), null));
     access.allocate(manager, sector);
-    Inventory inventory = inventory(user(TestAccess.OPERATOR), sector);
+    Inventory inventory = inventoryWithValidatedItem(user(TestAccess.OPERATOR), sector);
     var list =
         http.exchange(
             "/inventory/user-inventories", HttpMethod.GET, request(manager), InventoryDto[].class);

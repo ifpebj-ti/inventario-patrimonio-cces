@@ -13,6 +13,7 @@ import clp.inventory.repository.RoomRepository;
 import clp.inventory.repository.SectorRepository;
 import clp.inventory.testsupport.TestAccess;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
@@ -153,7 +154,10 @@ class ImportConcurrencyTest {
   void importIntoFinishedInventoryIsRejected() {
     User admin = admin();
     Inventory inventory = inventory(admin, sector());
-    inventoryService.finishInventory(inventory.id(), admin.getId());
+    // Um inventário sem itens não passa pela regra de finalização; fecha direto no banco.
+    Inventory stored = inventories.findById(inventory.id()).orElseThrow();
+    stored.finish(LocalDateTime.now());
+    inventories.save(stored);
 
     assertThatThrownBy(
             () -> inventoryService.importItems(inventory.id(), sheet(null, "C-1"), admin.getId()))

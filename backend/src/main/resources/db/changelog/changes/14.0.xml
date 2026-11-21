@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+    <!--
+        A situacao do item deixa de ser um booleano (is_valid) e passa a ter tres estados: PENDENTE (ainda nao
+        conferido), VALIDADO (encontrado e conferido) e NAO_LOCALIZADO (conferido e nao encontrado). Com isso o
+        inventario so pode ser finalizado quando nao ha item PENDENTE, e um bem perdido tem como ser tratado sem
+        travar o fechamento. Os itens ja validados viram VALIDADO e os demais PENDENTE; is_valid e removida para
+        nao haver duas fontes da verdade.
+    -->
+    <changeSet id="20261120-04" author="inventarium">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="im_item" columnName="validation_status"/>
+            </not>
+        </preConditions>
+
+        <addColumn tableName="im_item">
+            <column name="validation_status" type="VARCHAR(20)" defaultValue="PENDENTE">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <sql>UPDATE im_item SET validation_status = 'VALIDADO' WHERE is_valid = true</sql>
+
+        <sql>
+            ALTER TABLE im_item ADD CONSTRAINT ck_item_validation_status
+                CHECK (validation_status IN ('PENDENTE', 'VALIDADO', 'NAO_LOCALIZADO'))
+        </sql>
+
+        <dropColumn tableName="im_item" columnName="is_valid"/>
+    </changeSet>
+</databaseChangeLog>

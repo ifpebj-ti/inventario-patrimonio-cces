@@ -71,6 +71,13 @@ const setup = async (
         inventory.status = 'CONCLUIDO'
         inventory.completedAt = '2026-10-13T14:30:00'
       }
+      // 422: o inventário não tem itens ou ainda tem pendentes; o corpo traz o motivo.
+      if (failure === 422)
+        return send(422, {
+          message:
+            '2 itens ainda estão pendentes: valide ou marque como não localizado antes de finalizar o inventário.',
+          pendingItems: 2,
+        })
       if (failure) return send(failure, { message: 'Falha' })
       inventory.status = 'CONCLUIDO'
       inventory.completedAt = '2026-10-13T14:30:00'
@@ -152,6 +159,28 @@ test('conflito atualiza a tela com a finalização feita por outro usuário', as
       .getByRole('alert'),
   ).toContainText('já foi finalizado')
   await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+test('itens pendentes mostram o motivo do servidor e mantêm o inventário aberto', async ({
+  page,
+}) => {
+  const state = await setup(page, true, 422)
+  await page
+    .getByRole('button', { name: 'Finalizar inventário', exact: true })
+    .click()
+  await page.getByRole('button', { name: 'Sim, finalizar' }).click()
+  const alert = page
+    .getByRole('region', { name: 'Situação do inventário' })
+    .getByRole('alert')
+  await expect(alert).toContainText('2 itens ainda estão pendentes')
+  await expect(alert).toContainText('não localizado')
+  // Não é o 409: o inventário não foi finalizado por ninguém.
+  await expect(alert).not.toContainText('já foi finalizado')
+  await expect(page.getByText('Em andamento', { exact: true })).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Finalizar inventário', exact: true }),
+  ).toBeEnabled()
+  expect(state.submissions).toBe(1)
 })
 
 test('inventário já finalizado mostra a data sem oferecer nova finalização', async ({

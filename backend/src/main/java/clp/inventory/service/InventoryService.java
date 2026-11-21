@@ -73,8 +73,31 @@ public class InventoryService {
     if (inventory.status() == Inventory.Status.CONCLUIDO) {
       throw new ResponseStatusException(HttpStatus.CONFLICT, "O inventário já foi finalizado.");
     }
+    requireAllItemsChecked(inventory);
     inventory.finish(LocalDateTime.now());
     return inventoryRepository.save(inventory);
+  }
+
+  /**
+   * Só se finaliza um inventário com itens e sem nenhum PENDENTE: todo item foi validado ou marcado
+   * como não localizado. Vale para o administrador também; um bem perdido não trava o fechamento,
+   * porque marcá-lo como não localizado (com justificativa) já o conta como conferido.
+   */
+  private void requireAllItemsChecked(Inventory inventory) {
+    long total = itemRepository.countByInventory_Id(inventory.id());
+    if (total == 0) {
+      throw new InventoryNotReadyException(
+          "O inventário não tem itens: importe ou cadastre os itens antes de finalizar.", 0);
+    }
+    long pending =
+        itemRepository.countByInventory_IdAndValidationStatus(
+            inventory.id(), Item.ValidationStatus.PENDENTE);
+    if (pending > 0) {
+      throw new InventoryNotReadyException(
+          (pending == 1 ? "1 item ainda está pendente" : pending + " itens ainda estão pendentes")
+              + ": valide ou marque como não localizado antes de finalizar o inventário.",
+          pending);
+    }
   }
 
   /**
