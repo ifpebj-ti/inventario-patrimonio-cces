@@ -95,7 +95,7 @@ Os checks aparecem separadamente na interface do GitHub porque cada job represen
 | `Quality / Commit messages` | Valida o padrão dos commits de PRs humanos. | Sim |
 | `Quality / Backend format and tests` | Executa Spotless como aviso temporário, os testes do backend e o gate de cobertura de linhas (mínimo de 80%). | Sim, se os testes falharem ou a cobertura ficar abaixo de 80% |
 | `Quality / Frontend spreadsheet tests` | Executa os testes unitários e os E2E do frontend com Playwright, que usam API simulada. | Sim, se os testes falharem |
-| `Quality / Frontend lint` | Executa ESLint; nesta fase é informativo para não bloquear mudanças por dívida de lint existente. | Não |
+| `Quality / Frontend lint` | Executa ESLint; hoje passa sem erros, mas ainda é informativo: uma falha gera aviso e não bloqueia o merge. | Não |
 | `Security scans / Semgrep SAST` | Executa SAST (`p/default`, imagem fixada por versão e digest) em `backend/src`, `frontend/src` e `.github`; qualquer achado reprova o job. | Sim, quando marcado como obrigatório no ruleset `Protect main` |
 | `Security scans / Trivy container and dependency scans` | Faz scan de segredos, dependências e imagens construídas no runner quando a mudança afeta fontes de imagem. | Sim para segredos, falha operacional e vulnerabilidades `HIGH`/`CRITICAL` |
 
