@@ -61,24 +61,35 @@ public class JWTProvider {
       DecodedJWT decoded = JWT.require(algorithm).withIssuer(ISSUER).build().verify(token);
       var version = decoded.getClaim(VERSION_CLAIM);
 
-      if (decoded.getSubject() == null
+      Long userId = parseUserId(decoded.getSubject());
+      if (userId == null
           || decoded.getId() == null
           || version.isMissing()
           || version.isNull()
           || decoded.getExpiresAtAsInstant() == null) {
-        log.debug("Token sem jti, versão ou validade.");
+        log.debug("Token sem usuário numérico, jti, versão ou validade.");
         return Optional.empty();
       }
 
       return Optional.of(
           new SessionToken(
-              decoded.getSubject(),
-              decoded.getId(),
-              version.asInt(),
-              decoded.getExpiresAtAsInstant()));
+              userId, decoded.getId(), version.asInt(), decoded.getExpiresAtAsInstant()));
     } catch (JWTVerificationException e) {
       log.debug("Token inválido: {}", e.getMessage());
       return Optional.empty();
+    }
+  }
+
+  // O subject é o id do usuário. Um token assinado por nós sempre o traz numérico; qualquer outra
+  // coisa é tratada como token inválido, em vez de estourar mais adiante.
+  private static Long parseUserId(String subject) {
+    if (subject == null) {
+      return null;
+    }
+    try {
+      return Long.valueOf(subject);
+    } catch (NumberFormatException e) {
+      return null;
     }
   }
 }

@@ -23,7 +23,7 @@ public class SessionService {
   @Transactional
   public void logout(SessionToken token) {
     revokedTokens.deleteExpired(Instant.now());
-    revokedTokens.revoke(token.jti(), Long.parseLong(token.subject()), token.expiresAt());
+    revokedTokens.revoke(token.jti(), token.userId(), token.expiresAt());
   }
 
   public boolean isRevoked(SessionToken token) {

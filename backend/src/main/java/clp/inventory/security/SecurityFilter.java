@@ -47,14 +47,6 @@ public class SecurityFilter extends OncePerRequestFilter {
         || request.getServletPath().startsWith("/swagger-ui");
   }
 
-  private User findUser(String subject) {
-    try {
-      return userRepository.findById(Long.parseLong(subject)).orElse(null);
-    } catch (NumberFormatException e) {
-      return null;
-    }
-  }
-
   private void reject(HttpServletResponse response, String message) throws IOException {
     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
     response.setContentType("application/json");
@@ -76,7 +68,7 @@ public class SecurityFilter extends OncePerRequestFilter {
       }
 
       SessionToken token = parsed.get();
-      User user = findUser(token.subject());
+      User user = userRepository.findById(token.userId()).orElse(null);
       if (user != null && !user.isActive()) {
         // Desativar a conta derruba as sessões já abertas, não só novos logins.
         reject(response, "Conta desativada");
@@ -90,9 +82,10 @@ public class SecurityFilter extends OncePerRequestFilter {
         return;
       }
 
-      request.setAttribute("id_user", token.subject());
+      String subject = Long.toString(token.userId());
+      request.setAttribute("id_user", subject);
       UsernamePasswordAuthenticationToken authenticationToken =
-          new UsernamePasswordAuthenticationToken(token.subject(), null, Collections.emptyList());
+          new UsernamePasswordAuthenticationToken(subject, null, Collections.emptyList());
       SecurityContextHolder.getContext().setAuthentication(authenticationToken);
     }
 

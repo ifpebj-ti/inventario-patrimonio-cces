@@ -151,7 +151,7 @@ class SessionRevocationE2ETest {
 
     var stored = revokedTokens.findById(decoded.getId()).orElseThrow();
     assertThat(stored.getExpiresAt()).isEqualTo(decoded.getExpiresAtAsInstant());
-    assertThat(stored.getUserId()).isEqualTo(Long.valueOf(decoded.getSubject()));
+    assertThat(String.valueOf(stored.getUserId())).isEqualTo(decoded.getSubject());
   }
 
   @Test
@@ -182,6 +182,20 @@ class SessionRevocationE2ETest {
         .isEqualTo(HttpStatus.UNAUTHORIZED);
     assertThat(me(mint(adminId, null, 0))).isEqualTo(HttpStatus.UNAUTHORIZED);
     assertThat(me(mint(adminId, UUID.randomUUID().toString(), 0))).isEqualTo(HttpStatus.OK);
+  }
+
+  @Test
+  void tokenWithANonNumericSubject_isRejected() {
+    var token =
+        JWT.create()
+            .withIssuer("inventory")
+            .withSubject("nao-e-um-id")
+            .withJWTId(UUID.randomUUID().toString())
+            .withClaim("ver", 0)
+            .withExpiresAt(Instant.now().plus(Duration.ofHours(1)))
+            .sign(Algorithm.HMAC256(SECRET));
+
+    assertThat(me(token)).isEqualTo(HttpStatus.UNAUTHORIZED);
   }
 
   @Test
