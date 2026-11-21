@@ -42,6 +42,18 @@ Fluxo resumido:
 
 Veja o guia completo em [Branching Strategy](./branching-strategy.md).
 
+## Merge e histórico da `main`
+
+O merge de PRs humanos é feito com **Squash and merge**: todos os commits da branch viram um único commit na `main`. Isso mantém o histórico linear e liga cada commit ao seu PR.
+
+- O título do PR segue Conventional Commits, como `docs(repo): adiciona SECURITY.md`. Ele vira o título do commit, e o GitHub acrescenta o número do PR: `docs(repo): adiciona SECURITY.md (#315)`.
+- O `(#N)` no título liga o commit ao PR, e o `Closes #número` no corpo do PR liga o PR à issue. Assim, todo commit da `main` é rastreável até uma tarefa.
+- Não use merge commit nem rebase merge em PRs humanos, porque o commit resultante deixa de carregar o `(#N)`.
+- Não envie commits direto para a `main`. Isso inclui documentação e CI.
+- PRs do Dependabot seguem o mesmo método e dispensam a issue.
+
+Hoje o repositório ainda aceita os três métodos de merge. Restringir a squash é uma configuração do GitHub, feita por quem administra o repositório, e por isso esta regra depende da disciplina de quem faz o merge até lá.
+
 ## Versionamento, Tags e Releases
 
 O projeto usa tags no formato `vMAJOR.MINOR.PATCH`, seguindo Semantic Versioning enquanto estiver em evolucao.

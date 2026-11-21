@@ -44,7 +44,7 @@ As imagens construídas durante a PR são descartáveis e servem somente para va
 
 ## Checks
 
-- `Quality`: valida secrets, lint do frontend, formatação Java com Spotless, testes existentes do backend e mensagens de commit em PRs humanos. Enquanto a dívida de lint é tratada, ESLint e Spotless são informativos; os testes, Secretlint e Commitlint permanecem bloqueantes.
+- `Quality`: valida secrets, lint do frontend, formatação Java com Spotless, testes existentes do backend e mensagens de commit em PRs humanos. Hoje o ESLint e o Spotless passam sem erros, mas ainda são informativos na esteira (uma falha só gera aviso e não bloqueia o merge); os testes, Secretlint e Commitlint são bloqueantes.
 - `Validate PR Template`: valida issue vinculada e tipo de release.
 - `Security scans`: executa Semgrep e Trivy em PRs para `main`. O Trivy verifica secrets, dependências e imagens Docker alteradas; o Semgrep realiza análise estática de segurança.
 - `Release`: publica tag, GitHub Release e imagens produtivas quando aplicável.
