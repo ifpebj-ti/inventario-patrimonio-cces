@@ -4,10 +4,12 @@ import clp.inventory.dto.AuthResponseDTO;
 import clp.inventory.dto.AuthenticatedUserDto;
 import clp.inventory.dto.GoogleAuthDto;
 import clp.inventory.dto.LoginDto;
+import clp.inventory.providers.JWTProvider;
 import clp.inventory.service.AuthenticatedUserService;
 import clp.inventory.service.UserService;
 import clp.inventory.service.auth.AuthenticationService;
 import clp.inventory.service.auth.LoginAttemptLimiter;
+import clp.inventory.service.auth.SessionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -31,22 +33,28 @@ public class AuthController {
   private final UserService userService;
   private final AuthenticatedUserService authenticatedUserService;
   private final LoginAttemptLimiter loginAttemptLimiter;
+  private final SessionService sessionService;
+  private final JWTProvider jwtProvider;
 
   public AuthController(
       AuthenticationService authenticationService,
       UserService userService,
       AuthenticatedUserService authenticatedUserService,
-      LoginAttemptLimiter loginAttemptLimiter) {
+      LoginAttemptLimiter loginAttemptLimiter,
+      SessionService sessionService,
+      JWTProvider jwtProvider) {
     this.authenticationService = authenticationService;
     this.userService = userService;
     this.authenticatedUserService = authenticatedUserService;
     this.loginAttemptLimiter = loginAttemptLimiter;
+    this.sessionService = sessionService;
+    this.jwtProvider = jwtProvider;
   }
 
   @Operation(
       summary = "Login com Google",
       description =
-          "Troca o ID token do Google Identity Services pelo JWT da aplicação (HS256, 24h). Valida assinatura (JWKS do Google), iss, aud, exp e email_verified. É a única forma de um usuário ser criado: quem entra pela primeira vez nasce sem alocação e sem ser administrador, ou seja, sem acesso até ser alocado a um setor. O domínio do e-mail precisa estar em GOOGLE_ALLOWED_DOMAINS (vazio libera todos). Não exige Authorization.",
+          "Troca o ID token do Google Identity Services pelo JWT da aplicação (HS256, 8h). Valida assinatura (JWKS do Google), iss, aud, exp e email_verified. É a única forma de um usuário ser criado: quem entra pela primeira vez nasce sem alocação e sem ser administrador, ou seja, sem acesso até ser alocado a um setor. O domínio do e-mail precisa estar em GOOGLE_ALLOWED_DOMAINS (vazio libera todos). Não exige Authorization.",
       security = {})
   @ApiResponses({
     @ApiResponse(
@@ -161,6 +169,30 @@ public class AuthController {
     } catch (RuntimeException e) {
       return ResponseEntity.badRequest().body("Invalid authorization header");
     }
+  }
+
+  @Operation(
+      summary = "Encerrar a sessão (logout)",
+      description =
+          "Encerra no servidor a sessão do token enviado: ele deixa de ser aceito, mesmo antes de expirar. Só esta sessão é encerrada; os tokens de outros dispositivos da mesma conta continuam valendo. Repetir a chamada com o mesmo token já encerrado devolve 401, como qualquer token recusado.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "204", description = "Sessão encerrada.", content = @Content),
+    @ApiResponse(
+        responseCode = "401",
+        description = "Token ausente, inválido, expirado ou já encerrado.",
+        content = @Content)
+  })
+  @PostMapping("/logout")
+  public ResponseEntity<Void> logout(
+      @Parameter(hidden = true) @RequestHeader("Authorization") String authHeader) {
+    var token = jwtProvider.parse(authHeader);
+    if (token.isEmpty()) {
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+    }
+
+    sessionService.logout(token.get());
+
+    return ResponseEntity.noContent().build();
   }
 
   private ResponseEntity<Object> tooManyAttempts(Duration remaining) {

@@ -312,6 +312,8 @@ class TestAccountsE2ETest {
             .JWT
             .create()
             .withIssuer("inventory")
+            .withJWTId(java.util.UUID.randomUUID().toString())
+            .withClaim("ver", 0)
             .withSubject(admin.getId().toString())
             .withExpiresAt(java.time.Instant.now().plusSeconds(3600))
             .sign(

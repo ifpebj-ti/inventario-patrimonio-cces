@@ -41,7 +41,7 @@ public class OpenApiConfig {
                     ## Autenticação
                     Entre com `POST /auth/google` (ID token do Google Identity Services) ou, só para as \
                     contas de sistema/teste, com `POST /auth/login` (usuário e senha). Ambos devolvem um \
-                    **JWT da aplicação (HS256, 24h)**. Nos demais endpoints envie-o no cabeçalho \
+                    **JWT da aplicação (HS256, 8h)**. Nos demais endpoints envie-o no cabeçalho \
                     `Authorization: Bearer <token>`; no Swagger UI use o botão **Authorize**.
 
                     ## Autorização

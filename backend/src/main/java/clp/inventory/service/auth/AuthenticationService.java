@@ -5,30 +5,24 @@ import clp.inventory.dto.GoogleAuthDto;
 import clp.inventory.dto.LoginDto;
 import clp.inventory.model.User;
 import clp.inventory.providers.GoogleTokenProvider;
+import clp.inventory.providers.JWTProvider;
 import clp.inventory.repository.UserRepository;
 import clp.inventory.service.AuthenticatedUserService;
 import clp.inventory.service.UserService;
-import com.auth0.jwt.JWT;
-import com.auth0.jwt.algorithms.Algorithm;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.Locale;
 import javax.security.sasl.AuthenticationException;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
 public class AuthenticationService {
 
-  @Value("${security.token.secret}")
-  private String secretKey;
-
   private final UserService userService;
   private final AuthenticatedUserService authenticatedUserService;
   private final GoogleTokenProvider googleTokenProvider;
   private final UserRepository userRepository;
   private final PasswordEncoder passwordEncoder;
+  private final JWTProvider jwtProvider;
   private final String decoyPasswordHash;
 
   public AuthenticationService(
@@ -36,12 +30,14 @@ public class AuthenticationService {
       AuthenticatedUserService authenticatedUserService,
       GoogleTokenProvider googleTokenProvider,
       UserRepository userRepository,
-      PasswordEncoder passwordEncoder) {
+      PasswordEncoder passwordEncoder,
+      JWTProvider jwtProvider) {
     this.userService = userService;
     this.authenticatedUserService = authenticatedUserService;
     this.googleTokenProvider = googleTokenProvider;
     this.userRepository = userRepository;
     this.passwordEncoder = passwordEncoder;
+    this.jwtProvider = jwtProvider;
     this.decoyPasswordHash = passwordEncoder.encode("decoy-password-for-timing");
   }
 
@@ -76,18 +72,7 @@ public class AuthenticationService {
     return new AuthResponseDTO(issueToken(user), authenticatedUserService.getById(user.getId()));
   }
 
-  /**
-   * Emite o token da aplicação. O issuer "inventory" é obrigatório: o SecurityFilter não o confere,
-   * mas AuthenticationUtils e getCurrentUser conferem, então um token sem ele passaria pelo filtro
-   * e só quebraria depois, dentro do controller.
-   */
   private String issueToken(User user) {
-    Algorithm algorithm = Algorithm.HMAC256(secretKey);
-
-    return JWT.create()
-        .withIssuer("inventory")
-        .withSubject(user.getId().toString())
-        .withExpiresAt(Instant.now().plus(Duration.ofHours(24)))
-        .sign(algorithm);
+    return jwtProvider.issue(user.getId(), user.getTokenVersion());
   }
 }

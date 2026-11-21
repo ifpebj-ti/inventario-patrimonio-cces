@@ -154,6 +154,10 @@ public class UserService {
           "Você não pode " + (active ? "ativar" : "desativar") + " a sua própria conta.");
     }
     user.setActive(active);
+    if (!active) {
+      // Reativar não pode ressuscitar os tokens emitidos antes da desativação.
+      user.revokeAllSessions();
+    }
     return userRepository.save(user);
   }
 

@@ -92,7 +92,7 @@ Google (`POST /auth/google`). Sem `Authorization`.
 { "username": "admin", "password": "<senha configurada no backend>" }
 ```
 
-- Resposta `200`: a mesma do login Google, `{ "token": "<JWT 24h>", "user": { "id", "name", "email" } }`.
+- Resposta `200`: a mesma do login Google, `{ "token": "<JWT 8h>", "user": { "id", "name", "email" } }`.
   O `email` dessa conta é o próprio identificador de login (ex: `admin`, sem `@`). O token é usado
   exatamente como o do Google (`Authorization: Bearer ...`).
 - `400`: `username` ou `password` ausentes/vazios.
@@ -112,6 +112,25 @@ Google (`POST /auth/google`). Sem `Authorization`.
 - Essa conta **não aparece** em `GET /users` nem em `GET /sectors/{id}/users`, e as rotas que mexem em
   usuário por id (`PATCH /users/{id}/administrator`, `PUT`/`DELETE /users/{id}/sectors/{sectorId}`)
   respondem `404` para ela, como se não existisse. Ela só entra pelo login e é lida por `/auth/me`.
+
+---
+
+## Sessão revogável: `POST /auth/logout`
+
+O JWT vale **8 horas** e carrega `iat`, um id próprio (`jti`) e a versão de sessão da conta (`ver`).
+Tokens sem `jti` ou sem `ver` são recusados (`401`), então quem estava logado antes desta versão precisa
+entrar de novo uma vez.
+
+- `POST /auth/logout` (com `Authorization`): encerra **só a sessão deste token**. `204`; o token deixa de
+  valer mesmo antes de expirar. Os tokens de outros dispositivos da mesma conta continuam valendo. Repetir
+  com o mesmo token já encerrado dá `401`, como qualquer token recusado. O front chama antes de apagar o
+  cookie e não depende da resposta.
+- Qualquer rota com token encerrado responde `401` com `{ "error": "Sessão encerrada" }`.
+- **Encerram todas as sessões da conta** (sobe a `ver`): desativar a conta (reativar não devolve os tokens
+  antigos) e trocar ou desligar a `SYSTEM_ADMIN_PASSWORD` da conta de sistema, no startup do backend. Subir
+  o backend com a mesma senha não derruba ninguém. Como a gestão não enxerga nem desativa a conta de
+  sistema, trocar a senha é a forma de cortar uma sessão roubada dela.
+- Não há refresh: ao fim das 8 horas é preciso entrar de novo.
 
 ---
 
@@ -488,3 +507,4 @@ Para quem já tinha algo montado em cima da versão 1.x. **Mudança incompatíve
 | 2.3 | 2026-11-15 | **Contrato:** `GET /item/export-sheet` e `POST /item/send-email-sheet` passam a exigir administrador ou gestor do setor (`MANAGE_SECTOR`); Consulta e Operador recebem `403`. O envio por e-mail só aceita destinatário de domínio permitido (`EMAIL_SHEET_ALLOWED_DOMAINS`, padrão `ifpe.edu.br`, com subdomínios), corpo validado (`400`), limite de envios por usuário (`429` com `Retry-After`) e responde conforme o envio real (`200` só depois de o servidor de e-mail aceitar; `502` se falhar). Cada exportação e envio, inclusive os recusados, é registrado em `im_inventory_audit`. |
 | 2.4 | 2026-11-20 | **Contrato:** `PUT /item/{id}` só muda código, descrição, responsável, valor e sala com o inventário aberto e o item não validado (`409` caso contrário, inclusive para administrador); cada edição é registrada em `im_inventory_audit` (`UPDATE_ITEM`, com o antes e depois). `PATCH /item/{id}/validate` passa a aplicar `{ "isValid": false }`, restrito a administrador e gestor do setor, com inventário aberto, e grava `VALIDATION_REVOKED`; o `PUT` com `isValid` falso usa a mesma regra (antes qualquer operador desvalidava, sem trilha). Entra `POST /inventory/{id}/reopen` (administrador ou gestor), registrado como `REOPEN_INVENTORY`. Migration `11.0.xml` adiciona `id_item` a `im_inventory_audit`. |
 | 2.5 | 2026-11-20 | **Contrato:** o item ganha a situação `validationStatus` (`PENDENTE`, `VALIDADO`, `NAO_LOCALIZADO`; `isValid` continua e vale só para `VALIDADO`); entra `PATCH /item/{id}/not-found` (operador ou gestor, com motivo obrigatório, auditado como `MARKED_NOT_FOUND`); `POST /inventory/{id}/finalize` passa a exigir itens e nenhum `PENDENTE` e responde `422` (`message` e `pendingItems`) quando não pode; o gestor desfaz a marcação por `PATCH /item/{id}/validate` com `isValid` falso. Migration `14.0.xml` troca `is_valid` por `validation_status`. |
+| 2.6 | 2026-11-21 | **Contrato:** sessão revogável (FIN-08). O JWT passa de 24 h para 8 h e leva `jti` e `ver` (token sem eles é `401`); entra `POST /auth/logout` (`204`, encerra só a sessão do token; token encerrado dá `401` "Sessão encerrada"); desativar a conta e trocar/desligar a senha da conta de sistema encerram todas as sessões. Migration `15.0.xml` (`im_user.token_version` e `im_revoked_token`). |

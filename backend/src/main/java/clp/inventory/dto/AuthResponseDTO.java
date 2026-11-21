@@ -6,7 +6,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public record AuthResponseDTO(
     @Schema(
             description =
-                "JWT da aplicação (HS256, válido por 24h) para o cabeçalho Authorization: Bearer.",
+                "JWT da aplicação (HS256, válido por 8h) para o cabeçalho Authorization: Bearer.",
             example = "eyJhbGciOiJIUzI1NiJ9...")
         String token,
     @Schema(description = "Dados do usuário autenticado.") AuthenticatedUserDto user) {}

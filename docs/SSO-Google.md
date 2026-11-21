@@ -53,7 +53,7 @@ Esta issue contempla:
    `iss`, `aud`, `exp`/`nbf` e `email_verified`.
 7. O usuário interno é localizado pelo e-mail ou criado, caso o domínio do e-mail esteja na
    lista de domínios permitidos.
-8. O backend emite seu próprio token de sessão (JWT HS256, válido por 24h).
+8. O backend emite seu próprio token de sessão (JWT HS256, válido por 8h, encerrado no servidor pelo `POST /auth/logout`).
 9. O usuário é redirecionado para a área autenticada do sistema.
 
 ## Requisitos de segurança

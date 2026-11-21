@@ -12,6 +12,7 @@ import {
   googleSignInRequest,
   passwordSignInRequest,
   recoverUserInformation,
+  signOutRequest,
 } from '@/services/auth'
 
 export const TOKEN_COOKIE = 'inventarium.token'
@@ -21,7 +22,7 @@ export const TOKEN_COOKIE = 'inventarium.token'
 // página onde o logout aconteceu ('/dashboard'), que não casa — e o cookie
 // sobrevive ao logout.
 const COOKIE_OPTIONS = {
-  maxAge: 24 * 60 * 60, // o JWT do backend também expira em 24h
+  maxAge: 8 * 60 * 60, // o JWT do backend também expira em 8h
   path: '/',
   sameSite: 'lax' as const,
 }
@@ -87,6 +88,13 @@ export const AuthProvider = ({ children }: ProviderProps) => {
   )
 
   const signOut = useCallback(() => {
+    // Encerra a sessão no servidor para que o token deixe de valer mesmo se tiver sido copiado.
+    // É melhor esforço: se falhar (rede, token já expirado), a saída local acontece igual.
+    const { [TOKEN_COOKIE]: token } = parseCookies()
+    if (token) {
+      signOutRequest(token).catch(() => undefined)
+    }
+
     // Limpa a sessão antes de navegar: o guard de rota reage a isAuthenticated
     // e tira o usuário das páginas protegidas por conta própria.
     destroyCookie(undefined, TOKEN_COOKIE, { path: '/' })

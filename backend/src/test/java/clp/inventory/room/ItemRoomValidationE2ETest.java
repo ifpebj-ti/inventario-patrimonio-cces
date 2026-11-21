@@ -107,6 +107,8 @@ class ItemRoomValidationE2ETest {
     headers.setBearerAuth(
         JWT.create()
             .withIssuer("inventory")
+            .withJWTId(java.util.UUID.randomUUID().toString())
+            .withClaim("ver", 0)
             .withSubject(String.valueOf(user.getId()))
             .withExpiresAt(Instant.now().plus(Duration.ofHours(1)))
             .sign(Algorithm.HMAC256(TEST_SECRET)));

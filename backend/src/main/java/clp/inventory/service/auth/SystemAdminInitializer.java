@@ -70,6 +70,11 @@ public class SystemAdminInitializer implements ApplicationRunner {
     User user = existing.orElseGet(this::newSystemUser);
     if (user.getPasswordHash() == null
         || !passwordEncoder.matches(password, user.getPasswordHash())) {
+      // Trocar a senha é a forma de cortar uma sessão roubada da conta de sistema, que a gestão
+      // não vê nem desativa: os tokens emitidos com a senha antiga deixam de valer.
+      if (user.getPasswordHash() != null) {
+        user.revokeAllSessions();
+      }
       user.setPasswordHash(passwordEncoder.encode(password));
     }
     user.setAdministrator(true);
@@ -80,6 +85,7 @@ public class SystemAdminInitializer implements ApplicationRunner {
   private void disablePasswordLogin(Optional<User> existing) {
     if (existing.isPresent() && existing.get().getPasswordHash() != null) {
       existing.get().setPasswordHash(null);
+      existing.get().revokeAllSessions();
       userRepository.save(existing.get());
     }
     log.info("SYSTEM_ADMIN_PASSWORD vazio: login por senha desligado.");
